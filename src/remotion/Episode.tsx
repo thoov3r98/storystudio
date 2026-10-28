@@ -100,7 +100,7 @@ export const Episode: React.FC<EpisodeProps> = (props) => {
         </Sequence>
       ))}
       {props.showCaptions ? <Captions captions={props.captions} /> : null}
-      <Audio src={props.voiceoverUrl} volume={props.voiceVolume} />
+      <Audio src={props.voiceoverUrl} volume={props.voiceVolume} playbackRate={props.voicePlaybackRate} />
       {props.music ? <Audio src={props.music.url} volume={props.music.volume} loop /> : null}
     </AbsoluteFill>
   );

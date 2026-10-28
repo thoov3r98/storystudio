@@ -17,6 +17,7 @@ const sample: EpisodeProps = {
   durationInFrames: 150,
   voiceoverUrl: "https://example.com/voiceover.mp3",
   voiceVolume: 1,
+  voicePlaybackRate: 1,
   music: null,
   scenes: [],
   captions: [],

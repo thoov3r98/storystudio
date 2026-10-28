@@ -10,14 +10,20 @@ export function buildEpisodeProps(input: {
   voiceVolume: number;
   music: { url: string; volume: number } | null;
   showCaptions?: boolean;
+  /** Narration playback rate; stored timing is for 1×, so it is compressed to match. */
+  narrationSpeed?: number;
 }): EpisodeProps {
   const fps = VIDEO.fps;
-  const durationInFrames = Math.max(1, msToFrames(input.timing.totalDurationMs, fps));
+  const speed = input.narrationSpeed ?? 1;
+  // Narration time is compressed; the silent tail after the narration keeps its length.
+  const speechEndMs = Math.max(0, input.timing.totalDurationMs - VIDEO.tailMs);
+  const at = (ms: number) => (ms <= speechEndMs ? ms / speed : speechEndMs / speed + (ms - speechEndMs));
+  const durationInFrames = Math.max(1, msToFrames(at(input.timing.totalDurationMs), fps));
   const scenes = input.scenes.map((scene) => {
     const t = input.timing.scenes.find((s) => s.sceneNumber === scene.sceneNumber);
     if (!t) throw new Error(`No timing for scene ${scene.sceneNumber}. Re-synchronise the narration.`);
-    const startFrame = msToFrames(t.startMs, fps);
-    const endFrame = Math.min(durationInFrames, msToFrames(t.endMs, fps));
+    const startFrame = msToFrames(at(t.startMs), fps);
+    const endFrame = Math.min(durationInFrames, msToFrames(at(t.endMs), fps));
     return { sceneNumber: scene.sceneNumber, imageUrl: scene.imageUrl, motionPreset: scene.motionPreset, startFrame, durationInFrames: Math.max(1, endFrame - startFrame) };
   });
   return {
@@ -27,9 +33,15 @@ export function buildEpisodeProps(input: {
     durationInFrames,
     voiceoverUrl: input.voiceoverUrl,
     voiceVolume: input.voiceVolume,
+    voicePlaybackRate: speed,
     music: input.music,
     scenes,
-    captions: input.timing.captions,
+    captions: input.timing.captions.map((c) => ({
+      ...c,
+      startMs: at(c.startMs),
+      endMs: at(c.endMs),
+      words: c.words.map((w) => ({ ...w, startMs: at(w.startMs), endMs: at(w.endMs) })),
+    })),
     showCaptions: input.showCaptions ?? true,
   };
 }

@@ -157,6 +157,34 @@ describe("buildEpisodeProps", () => {
     expect(props).toMatchObject({ width: 1080, height: 1920, fps: 30, durationInFrames: 147 });
     expect(props.scenes[1]).toMatchObject({ startFrame: 63, durationInFrames: 84 });
   });
+
+  it("compresses narration timing for a speed-up but keeps the silent tail", () => {
+    const props = buildEpisodeProps({
+      scenes: [
+        { sceneNumber: 1, imageUrl: "https://x.test/1.png", motionPreset: "still" },
+        { sceneNumber: 2, imageUrl: "https://x.test/2.png", motionPreset: "pan-left" },
+      ],
+      timing: {
+        audioDurationMs: 4000,
+        speechEndMs: 3900,
+        totalDurationMs: 4900, // 4000 narration + 900 tail
+        scenes: [
+          { sceneNumber: 1, startMs: 0, endMs: 2000 },
+          { sceneNumber: 2, startMs: 2000, endMs: 4900 },
+        ],
+        words: [],
+        captions: [{ text: "hi there", startMs: 1000, endMs: 2000, words: [{ text: "hi", startMs: 1000, endMs: 1400 }, { text: "there", startMs: 1500, endMs: 2000 }] }],
+      },
+      voiceoverUrl: "https://x.test/vo.mp3",
+      voiceVolume: 1,
+      music: null,
+      narrationSpeed: 1.25,
+    });
+    // 4000ms / 1.25 = 3200ms of narration + 900ms tail = 4100ms = 123 frames.
+    expect(props).toMatchObject({ durationInFrames: 123, voicePlaybackRate: 1.25 });
+    expect(props.scenes[1]).toMatchObject({ startFrame: 48, durationInFrames: 75 });
+    expect(props.captions[0].words[1]).toMatchObject({ startMs: 1200, endMs: 1600 });
+  });
 });
 
 describe("buildImagePrompt", () => {

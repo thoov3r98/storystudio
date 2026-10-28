@@ -42,6 +42,7 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
     voiceoverUrl: version.voiceover!.url!,
     voiceVolume: mix.voiceVolume,
     music: music ? { url: music.url, volume: mix.musicVolume } : null,
+    narrationSpeed: mix.narrationSpeed,
   });
 
   const pricing = await getPricing();

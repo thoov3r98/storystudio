@@ -21,7 +21,7 @@ import {
 } from "@/lib/schemas/episode";
 import { MOTION_PRESETS, QUALITY_PRESETS, sceneCountRange, targetWordRange } from "@/lib/constants";
 import { countWords, DEFAULT_WORDS_PER_SECOND, estimateSpokenDuration, joinNarration, tokenize } from "@/lib/text";
-import { getPricing, getModels, voiceWordsPerSecond } from "@/lib/settings";
+import { getAudioMix, getPricing, getModels, voiceWordsPerSecond } from "@/lib/settings";
 import { assertWithinBudget, type CostContext } from "@/lib/costs/record";
 import { approvedHistory, loadCanonicalBible, selectContinuationContext } from "./context";
 import type { PipelineDeps } from "./deps";
@@ -65,7 +65,9 @@ async function loadEpisodeSetup(episodeId: string) {
   const preset = QUALITY_PRESETS[story.quality];
   const models = await getModels();
   const pricing = await getPricing();
-  const wps = (story.voiceId ? await voiceWordsPerSecond(story.voiceId) : null) ?? DEFAULT_WORDS_PER_SECOND;
+  // The render-time speed-up shortens the video, so scripts are sized for the faster rate.
+  const { narrationSpeed } = await getAudioMix();
+  const wps = ((story.voiceId ? await voiceWordsPerSecond(story.voiceId) : null) ?? DEFAULT_WORDS_PER_SECOND) * narrationSpeed;
   return {
     episode,
     story,

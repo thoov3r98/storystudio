@@ -8,6 +8,7 @@ export const EpisodePropsSchema = z.object({
   durationInFrames: z.number().int().positive(),
   voiceoverUrl: z.string().url(),
   voiceVolume: z.number().min(0).max(2),
+  voicePlaybackRate: z.number().min(1).max(1.5).default(1),
   music: z.object({ url: z.string().url(), volume: z.number().min(0).max(1) }).nullable(),
   scenes: z.array(
     z.object({

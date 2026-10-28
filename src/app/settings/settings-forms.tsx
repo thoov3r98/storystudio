@@ -99,6 +99,7 @@ export function SettingsForms(props: {
           <SliderField label="Similarity boost" value={vs.similarityBoost} onChange={(v) => setVs({ ...vs, similarityBoost: v })} min={0} max={1} step={0.05} />
           <SliderField label="Style exaggeration" value={vs.style} onChange={(v) => setVs({ ...vs, style: v })} min={0} max={1} step={0.05} />
           <SliderField label="Speed" value={vs.speed} onChange={(v) => setVs({ ...vs, speed: v })} min={0.7} max={1.2} step={0.01} format={(v) => `${v.toFixed(2)}×`} />
+          <p className="-mt-2 text-xs text-muted-foreground">ElevenLabs tops out at 1.2×. To go faster, raise Narration speed-up under Audio mix.</p>
           <div className="flex items-center justify-between">
             <Label htmlFor="boost">Speaker boost</Label>
             <Switch id="boost" checked={vs.useSpeakerBoost} onCheckedChange={(c) => setVs({ ...vs, useSpeakerBoost: c })} />
@@ -111,6 +112,19 @@ export function SettingsForms(props: {
 
       <Section title="Audio mix" description="Applied at render time. Background music is optional.">
         <Card>
+          <SliderField
+            label="Narration speed-up"
+            value={mix.narrationSpeed}
+            onChange={(v) => setMix({ ...mix, narrationSpeed: v })}
+            min={1}
+            max={1.5}
+            step={0.05}
+            format={(v) => `${v.toFixed(2)}×`}
+          />
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Speeds the narration up in the video without raising its pitch; scenes and captions stay in sync. Overall pace ≈ {(vs.speed * mix.narrationSpeed).toFixed(2)}× a normal
+            voice. New scripts are written longer to keep the target length; existing episodes just need a re-render.
+          </p>
           <SliderField label="Voiceover volume" value={mix.voiceVolume} onChange={(v) => setMix({ ...mix, voiceVolume: v })} min={0} max={2} step={0.05} format={(v) => `${Math.round(v * 100)}%`} />
           <SliderField label="Background music volume" value={mix.musicVolume} onChange={(v) => setMix({ ...mix, musicVolume: v })} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} />
           <SliderField label="Sound effects volume" value={mix.sfxVolume} onChange={(v) => setMix({ ...mix, sfxVolume: v })} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} />

@@ -25,6 +25,8 @@ export const AudioMixSchema = z.object({
   musicVolume: z.number().min(0).max(1).default(0.12),
   sfxVolume: z.number().min(0).max(1).default(0.5),
   musicAssetId: z.string().nullable().default(null),
+  /** Render-time narration speed-up on top of ElevenLabs' own speed (which caps at 1.2×). Pitch is preserved. */
+  narrationSpeed: z.number().min(1).max(1.5).default(1),
 });
 export type AudioMix = z.infer<typeof AudioMixSchema>;
 
