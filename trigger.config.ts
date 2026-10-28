@@ -2,8 +2,8 @@ import { defineConfig } from "@trigger.dev/sdk";
 import { prismaExtension } from "@trigger.dev/build/extensions/prisma";
 
 export default defineConfig({
-  // Set TRIGGER_PROJECT_REF (e.g. "proj_abc123") from your Trigger.dev project settings.
-  project: process.env.TRIGGER_PROJECT_REF ?? "proj_REPLACE_ME",
+  // Project refs are not secret; TRIGGER_PROJECT_REF can still override it.
+  project: process.env.TRIGGER_PROJECT_REF || "proj_ayxxexbhwxdzqgkwwmog",
   runtime: "node",
   dirs: ["./src/trigger"],
   maxDuration: 3600,
