@@ -29,16 +29,16 @@ export type CriteriaScores = z.infer<typeof CriteriaScoresSchema>;
 export const FactModeSchema = z.enum(["FACTUAL", "HYPOTHETICAL", "FICTIONAL", "MIXED"]);
 
 export const ConceptCandidateSchema = z.object({
-  title: z.string().describe("Short, curiosity-driven title, e.g. 'Where Does Your Lost Luggage Actually Go?'"),
-  premise: z.string().describe("Two or three sentences describing the story and why it is surprising."),
-  logline: z.string().describe("One sentence hook-style summary."),
+  title: z.string().describe("Plain title describing a recognizable situation or natural question, e.g. 'Your Suitcase Never Arrives at Baggage Claim'."),
+  premise: z.string().describe("Two or three plain sentences explaining what happens. Do not advertise how surprising or clever it is."),
+  logline: z.string().describe("The idea in one plain sentence, as you would tell a friend."),
   category: z.string(),
   keywords: z.array(z.string()).describe("4–8 lowercase topical keywords."),
   factMode: FactModeSchema.describe(
     "FACTUAL: real-world explanation. HYPOTHETICAL: clearly framed what-if. FICTIONAL: invented narrative. MIXED: real systems with fictional connective storytelling.",
   ),
-  openingSituation: z.string().describe("The relatable second-person situation the first episode opens on."),
-  seriesPotential: z.string().describe("How the story could continue across Part 2, 3, 4 and beyond."),
+  openingSituation: z.string().describe("The concrete, everyday second-person situation the first episode opens on."),
+  seriesPotential: z.string().describe("How the story could naturally continue, if it does. Two strong episodes is fine; do not invent mysteries to stretch it."),
 });
 
 export type ConceptCandidate = z.infer<typeof ConceptCandidateSchema>;

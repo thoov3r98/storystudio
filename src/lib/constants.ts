@@ -29,8 +29,8 @@ export const CATEGORIES = [
   {
     value: "hypothetical-disasters",
     label: "Hypothetical disasters",
-    description: "Clearly framed what-ifs that follow a failure or catastrophe step by step.",
-    example: "What happens if every traffic light turns green?",
+    description: "Clearly framed what-ifs about everyday things failing: water, power, phones, payments, roads.",
+    example: "You wake up and your neighborhood has no water",
   },
   {
     value: "unusual-business-models",
@@ -47,8 +47,8 @@ export const CATEGORIES = [
   {
     value: "survival-scenarios",
     label: "Survival scenarios",
-    description: "You're dropped into a dangerous situation; what actually keeps you alive, and what doesn't.",
-    example: "Stranded at sea on a life raft",
+    description: "Ordinary people caught in a difficult situation: stranded, lost, stuck or stuck waiting for help.",
+    example: "Your car breaks down in the middle of nowhere",
   },
   {
     value: "mixed",

@@ -1,6 +1,7 @@
 import { CRITERIA } from "@/lib/schemas/concept";
 import type { StoryBible } from "@/lib/schemas/story-bible";
 import { CATEGORIES, categoryLabel, sceneCountRange, targetWordRange } from "@/lib/constants";
+import { CONCEPT_DEVELOPER } from "@/lib/ai/concept-prompt";
 
 const PRESET_CATEGORIES = CATEGORIES.filter((c) => c.value !== "custom" && c.value !== "mixed");
 
@@ -9,6 +10,11 @@ const PRESET_CATEGORIES = CATEGORIES.filter((c) => c.value !== "custom" && c.val
  * per-call material. Kept in one place so the house voice stays consistent.
  */
 
+const TRUTHFULNESS = `Truthfulness:
+- Never invent statistics, policies, procedures, named incidents, organisations or technical specifics and present them as fact.
+- Real-world explanations must stick to well-documented general knowledge. When unsure, describe it generally ("many airports use...") rather than inventing precise numbers.
+- Fictional or hypothetical material must be framed so viewers can tell (e.g. a hypothetical premise, or a story-world character), never disguised as reported fact.`;
+
 export const HOUSE_STYLE = `You write narrated, illustrated short vertical story videos (TikTok, YouTube Shorts, Reels) on whatever subject the producer chooses: hidden systems, history, science, fiction, true stories, what-ifs and more.
 
 Voice:
@@ -16,14 +22,11 @@ Voice:
 - Open inside a relatable situation. No greetings, no "Have you ever wondered", no "In this video", no channel plugs.
 - Progressive reveals, rising tension, clear cause and effect. Each beat earns the next.
 - Surprising but believable. Specific where it is true; honest about uncertainty where it is not.
-- Avoid AI clichés: "little did you know", "buckle up", "let's dive in", "here's the thing", "spoiler alert", "mind-blowing", "but here's where it gets interesting", "the answer may surprise you", rhetorical question chains, "game-changer", "delve".
+- Avoid AI clichés: "little did you know", "buckle up", "let's dive in", "here's the thing", "spoiler alert", "mind-blowing", "but here's where it gets interesting", "the answer may surprise you", rhetorical question chains, "game-changer", "delve", and forced-twist formulas such as "the real danger isn't X, it's Y", "what nobody realizes is", "the surprising part is", "but the real problem is".
 - No engagement bait. Never ask viewers to like, follow, comment or subscribe.
 - Endings deliver a real payoff AND open a genuine new question. Never a cheap cliffhanger that withholds the point of the episode.
 
-Truthfulness:
-- Never invent statistics, policies, procedures, named incidents, organisations or technical specifics and present them as fact.
-- Real-world explanations must stick to well-documented general knowledge. When unsure, describe it generally ("many airports use...") rather than inventing precise numbers.
-- Fictional or hypothetical material must be framed so viewers can tell (e.g. a hypothetical premise, or a story-world character), never disguised as reported fact.`;
+${TRUTHFULNESS}`;
 
 export function criteriaGuide(): string {
   return CRITERIA.map((c) => `- ${c.key}: ${c.label}`).join("\n");
@@ -31,20 +34,21 @@ export function criteriaGuide(): string {
 
 export function ideationPrompt(input: { category: string; customDirection?: string | null; count: number; avoidTitles: string[] }) {
   const ownTopic = input.category === "custom";
-  const category = input.category === "mixed" ? "any mix of the categories below" : categoryLabel(input.category);
+  const brief = ownTopic
+    ? `The producer's brief. Every concept must be about this, in its subject, genre and tone:\n${input.customDirection}\n\nSet each concept's category to a short label for its subject.`
+    : input.category === "mixed"
+      ? `Category: any mix of these.\n${PRESET_CATEGORIES.map((c) => `- ${c.label}: ${c.description}`).join("\n")}`
+      : `Category: ${categoryLabel(input.category)}. ${CATEGORIES.find((c) => c.value === input.category)?.description ?? ""}\nFind everyday situations within this category; it is a source of situations, not a reason to get technical or extreme.`;
   return {
-    system: `${HOUSE_STYLE}
+    system: `${CONCEPT_DEVELOPER}
 
-You are the head of development. You pitch original story concepts that open a potential series. Each concept must:
-- Grab a viewer within seconds with a situation, question or moment they can picture.
-${ownTopic ? "- Stay squarely within the producer's brief, in subject, genre and tone." : "- Hide a surprising system, process or consequence underneath."}
-- Support an opening episode that is satisfying on its own AND naturally leads to Part 2, 3, 4...
-- Be drawable with simple stick figures and objects (no crowds of detail, no reliance on text on screen).
-${ownTopic ? "" : `\nCategories:\n${PRESET_CATEGORIES.map((c) => `- ${c.label}: ${c.description}`).join("\n")}`}`,
-    user: `Pitch exactly ${input.count} distinct concepts.
-${ownTopic ? `The producer's brief (this is what every concept must be about): ${input.customDirection}\nSet each concept's category to a short label for its subject.\n` : `Category: ${category}.\n${input.customDirection ? `Creative direction from the producer: ${input.customDirection}\n` : ""}`}
-Make every concept clearly different from each other in subject, setting and core surprise. Vary the fact modes.
-Do NOT pitch anything similar to these existing stories:
+${TRUTHFULNESS}`,
+    user: `Pitch exactly ${input.count} concepts.
+
+${brief}
+${!ownTopic && input.customDirection ? `\nCreative direction from the producer: ${input.customDirection}\n` : ""}
+Each concept must have a different central situation.
+Do not repeat the central situation of any existing story (reusing a familiar setting is fine):
 ${input.avoidTitles.length ? input.avoidTitles.map((t) => `- ${t}`).join("\n") : "- (none yet)"}`,
   };
 }
@@ -57,8 +61,12 @@ These are editorial heuristics, not predictions of view counts.
 Criteria:
 ${criteriaGuide()}
 
+The audience is everyday adults scrolling short-form video, not experts. Favor clear, familiar, relatable situations over clever, unusual or technical ones.
+- relatability, curiosity, hookStrength and audienceAppeal: high only if an ordinary person would understand the idea within two seconds, could picture themselves in it, and would want to know what happens next.
+- A concept that cannot be explained to a friend in one plain sentence, needs world-building or specialist knowledge, has manufactured stakes, or rests on a forced twist ("the real danger isn't X, it's Y") scores at most 4 on curiosity, hookStrength and audienceAppeal.
+- seriesPotential: a credible natural continuation scores well; two strong episodes beat six stretched ones. Do not reward convoluted plots.
 For researchFeasibility, 10 means easy to tell accurately with well-documented general knowledge; 1 means it hinges on obscure, disputed or unverifiable specifics.
-For originality, compare against the producer's existing stories listed in the request.
+For originality, compare against the producer's existing stories: penalise only repeating the same central situation, not reusing a familiar setting (lost luggage and a missed connection are different stories).
 Give one honest sentence of rationale per score. Evaluate every concept, using its index.`,
     user: `Existing stories:
 ${input.existingTitles.length ? input.existingTitles.map((t) => `- ${t}`).join("\n") : "- (none)"}
