@@ -25,6 +25,7 @@ vi.mock("@/lib/storage", () => {
 });
 
 const { db } = await import("@/lib/db");
+const { mutedBandColor } = await import("@/lib/constants");
 const { runIdeation } = await import("@/lib/pipeline/ideation");
 const { runEpisodeJob, ContinuityConflictError } = await import("@/lib/pipeline/produce");
 const { approveEpisode, approvalBlockers } = await import("@/lib/pipeline/versions");
@@ -281,7 +282,47 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(f.text.prompts.episode_draft[0]).toContain("NARRATOR AND HERO: Big Dave");
     const sceneCalls = f.images.calls.slice(imagesBefore);
     expect(sceneCalls.length).toBeGreaterThan(0);
-    expect(sceneCalls.every((c) => c.size === "1536x1024" && c.references >= 1 && c.prompt.includes("character sheet for Big Dave"))).toBe(true);
-    expect(f.render.renders.at(-1)).toMatchObject({ layout: "bands", seriesTitle: story.title, partLabel: "Part 1", accentColor: "#C62828" });
+    expect(sceneCalls.every((c) => c.size === "1536x1024")).toBe(true);
+    // The sheet goes only into shots Big Dave is in; the cutaway (scene 5) tells the model to leave him out.
+    const [cutaway, withHero] = [sceneCalls.filter((c) => c.prompt.includes("Big Dave is not in this shot.")), sceneCalls.filter((c) => c.prompt.includes("character sheet for Big Dave"))];
+    expect(cutaway).toHaveLength(1);
+    expect(withHero).toHaveLength(sceneCalls.length - 1);
+    expect(withHero.every((c) => c.references >= 1)).toBe(true);
+    // Every image prompt carries the story around the shot.
+    expect(sceneCalls.every((c) => c.prompt.includes("EPISODE FACTS") && c.prompt.includes("THIS MOMENT"))).toBe(true);
+    // Bands use a muted version of the signature colour, not the colour itself.
+    expect(f.render.renders.at(-1)).toMatchObject({ layout: "bands", seriesTitle: story.title, partLabel: "Part 1", accentColor: mutedBandColor("#C62828") });
+    expect(mutedBandColor("#C62828")).not.toBe("#C62828");
+  });
+
+  it("outlines and picks before writing, and revises once on the story editor's notes", async () => {
+    const batch = await createBatch(1);
+    const f = fakeDeps({ storyReview: "revise" });
+    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId: episodeIds[0] })).id, episodeId: episodeIds[0], continueProduction: false, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    expect(f.text.calls.story_outlines).toBe(1);
+    expect(f.text.calls.outline_pick).toBe(1);
+    expect(f.text.prompts.episode_draft[0]).toContain("Second outline"); // the picked outline
+    expect(f.text.prompts.episode_draft[0]).toContain("Make the ending sharper");
+    expect(f.text.calls.story_review).toBe(1);
+    expect(f.text.calls.episode_draft).toBe(2); // draft + one revision
+    expect(f.text.prompts.episode_draft[1]).toContain("Story editor: The ending");
+    const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeIds[0] }, include: { currentVersion: { include: { scenes: true } } } });
+    const spec = episode.currentVersion!.spec as { outline?: { logline: string }; visualState?: object };
+    expect(spec.outline?.logline).toBe("Second outline");
+    expect(spec.visualState).toBeTruthy();
+    expect(episode.currentVersion!.scenes.every((s) => s.continuity.startsWith("Still in the terminal"))).toBe(true);
+  });
+
+  it("checks each image and redraws a wrong one once, with the problem spelled out", async () => {
+    const batch = await createBatch(1);
+    const f = fakeDeps({}, { rejectOnce: new Set(["3"]) });
+    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId: episodeIds[0] })).id, episodeId: episodeIds[0], continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    expect(f.images.count).toBe(13); // 12 scenes + 1 redraw
+    expect(f.images.reviews).toBe(13);
+    const redraw = f.images.calls.find((c) => c.prompt.includes("A previous attempt was rejected"));
+    expect(redraw?.prompt).toContain("Hero is standing on the ground");
+    expect(await db.costEntry.count({ where: { operation: "scene-image-3-redraw" } })).toBe(1);
   });
 });

@@ -3,10 +3,15 @@ import { generateStructured } from "@/lib/ai/structured";
 import {
   continuityPrompt,
   hooksPrompt,
+  outlinePickPrompt,
+  outlinePrompt,
   revisionPrompt,
   sceneRewritePrompt,
+  storyReviewPrompt,
+  type WriterInput,
   writerPrompt,
 } from "@/lib/ai/prompts";
+import { OutlinePickSchema, type StoryOutline, StoryOutlinesSchema, type StoryReview, StoryReviewSchema, storyNeedsRevision } from "@/lib/schemas/story-plan";
 import { HookCandidatesSchema, normalizeScores, totalScore, validateScores } from "@/lib/schemas/concept";
 import {
   type ContinuityReview,
@@ -158,6 +163,40 @@ function continuityIssuesFrom(review: ContinuityReview | null): string[] {
 
 export type WriteResult = { versionId: string; materialConflicts: string[] };
 
+const OUTLINE_COUNT = 3;
+
+/** Outlines several versions of the episode and has an editor pick the strongest, before any script is written. */
+async function planEpisode(ctx: WriteContext, input: WriterInput, opts: { model: string; pricing: Awaited<ReturnType<typeof getPricing>> }) {
+  await assertWithinBudget(ctx.cost, 0.1);
+  const { outlines } = await generateStructured({
+    client: ctx.deps.text,
+    pricing: opts.pricing,
+    model: opts.model,
+    ...outlinePrompt(input, OUTLINE_COUNT),
+    schema: StoryOutlinesSchema,
+    schemaName: "story_outlines",
+    validate: (v) => [
+      ...(v.outlines.length < 2 ? [`Write ${OUTLINE_COUNT} outlines.`] : []),
+      ...v.outlines.flatMap((o, i) => [
+        ...(o.escalations.length < 2 ? [`outlines[${i}] needs at least three escalating complications.`] : []),
+        ...(o.beats.length < 5 || o.beats.length > 10 ? [`outlines[${i}] needs six to nine beats.`] : []),
+      ]),
+    ],
+    cost: { ctx: ctx.cost, operation: "outline-episode" },
+  });
+  const pick = await generateStructured({
+    client: ctx.deps.text,
+    pricing: opts.pricing,
+    model: opts.model,
+    ...outlinePickPrompt({ outlines, hero: input.narrator?.name ?? "the main character", premise: input.premise, partNumber: input.partNumber }),
+    schema: OutlinePickSchema,
+    schemaName: "outline_pick",
+    validate: (v) => (v.chosenIndex >= 0 && v.chosenIndex < outlines.length ? [] : [`chosenIndex must be 0–${outlines.length - 1}.`]),
+    cost: { ctx: ctx.cost, operation: "pick-outline" },
+  });
+  return { outline: outlines[pick.chosenIndex] as StoryOutline, notes: pick.improvements.slice(0, 3) };
+}
+
 /**
  * Writes a complete new script version for an episode: draft →
  * continuity review (Part 2+) → up to two correction rounds → persist.
@@ -176,7 +215,7 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
   const history = episode.partNumber > 1 ? await approvedHistory(story.id, episode.partNumber) : [];
   const selected = selectContinuationContext(history);
 
-  const writer = writerPrompt({
+  const writerInput: WriterInput = {
     storyId: story.id,
     title: story.title,
     premise: story.premise,
@@ -191,7 +230,9 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
     previousEpisodes: selected.previousEpisodes,
     latestEpisode: selected.latestEpisode,
     direction: ctx.direction,
-  });
+  };
+  const plan = await planEpisode(ctx, writerInput, { model: writerModel, pricing });
+  const writer = writerPrompt({ ...writerInput, outline: plan.outline, outlineNotes: plan.notes });
 
   const validate = (d: EpisodeDraft) => validateDraft(d, { durationSec: story.targetDurationSec, wordsPerSecond: wps, requiredHook: ctx.hookText });
 
@@ -206,6 +247,30 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
     validate,
     cost: { ctx: ctx.cost, operation: "write-episode" },
   });
+
+  // A story editor reads the script; if it falls short, it gets one revision with specific notes.
+  const storyReview: StoryReview = await generateStructured({
+    client: ctx.deps.text,
+    pricing,
+    model: writerModel,
+    ...storyReviewPrompt({ storyNarration: draft.storyNarration, hero: story.character?.name ?? "the main character", partNumber: episode.partNumber, personality: story.character?.personality }),
+    schema: StoryReviewSchema,
+    schemaName: "story_review",
+    cost: { ctx: ctx.cost, operation: "story-review" },
+  });
+  if (storyNeedsRevision(storyReview)) {
+    await assertWithinBudget(ctx.cost, 0.2);
+    draft = await generateStructured({
+      client: ctx.deps.text,
+      pricing,
+      model: writerModel,
+      ...revisionPrompt({ draftJson: JSON.stringify(draft), continuityIssues: [], lengthIssues: [], editorNotes: storyReview.notes }),
+      schema: EpisodeDraftSchema,
+      schemaName: "episode_draft",
+      validate,
+      cost: { ctx: ctx.cost, operation: "revise-story" },
+    });
+  }
 
   // Part 2+ is checked against the story bible and revised (bounded) until it no longer contradicts earlier episodes.
   let continuityReview: ContinuityReview | null = null;
@@ -259,6 +324,8 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
     wps,
     continuityReview,
     baseBibleVersion: bible.version,
+    outline: plan.outline,
+    storyReview,
   });
 
   await db.episode.update({
@@ -283,6 +350,8 @@ async function persistVersion(input: {
   wps: number;
   continuityReview: ContinuityReview | null;
   baseBibleVersion: number;
+  outline?: StoryOutline;
+  storyReview?: StoryReview;
 }): Promise<string> {
   const narration = joinNarration(input.draft.scenes);
   const wordCount = countWords(narration);
@@ -298,6 +367,8 @@ async function persistVersion(input: {
     wordCount,
     estimatedDurationSec,
     factCheckStatus: "PASSED",
+    outline: input.outline,
+    storyReview: input.storyReview,
   };
 
   return db.$transaction(async (tx) => {
@@ -326,6 +397,7 @@ async function persistVersion(input: {
             narration: s.narration.trim(),
             imagePrompt: s.imagePrompt,
             composition: s.composition,
+            continuity: s.continuity,
             characters: s.characters,
             objects: s.objects,
             intendedDurationSec: s.intendedDurationSec,

@@ -160,13 +160,48 @@ export function videoFormat(value: string | null | undefined): VideoFormat {
   return value === "full" ? "full" : "bands";
 }
 
-/** Band colours for series without a character; picked stably from the story id. */
-export const BAND_PALETTE = ["#E0362C", "#1F6FEB", "#F59E0B", "#16A34A", "#7C3AED", "#DB2777", "#0891B2"] as const;
+/**
+ * Band colours for series without a character; picked stably from the story id.
+ * The bands fill two-thirds of the frame, so they are muted and dark enough for white text.
+ */
+export const BAND_PALETTE = ["#4A5D6B", "#3F5E5A", "#5B5E3C", "#5A4660", "#7A4E3E", "#3E4F6E", "#6B5A45"] as const;
 
 export function bandColorFor(storyId: string): string {
   let h = 0;
   for (const ch of storyId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return BAND_PALETTE[h % BAND_PALETTE.length];
+}
+
+/** A muted, dark band colour with the same hue as `hex` (e.g. a bright orange becomes a dusty rust-brown). */
+export function mutedBandColor(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return BAND_PALETTE[0];
+  const n = parseInt(m[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  let hue = 0;
+  if (d > 0) hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  hue = (hue * 60 + 360) % 360;
+  const light = (max + min) / 2;
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * light - 1));
+  return hslToHex(hue, Math.min(sat, 0.3), 0.3);
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  const to = (v: number) => Math.round((v + l - c / 2) * 255).toString(16).padStart(2, "0");
+  return `#${to(r)}${to(g)}${to(b)}`.toUpperCase();
+}
+
+/** The band colour for a story: the character's override, else a muted version of their signature colour, else the palette. */
+export function storyBandColor(storyId: string, character?: { signatureColor: string; bandColor: string | null } | null): string {
+  if (character?.bandColor) return character.bandColor;
+  if (character) return mutedBandColor(character.signatureColor);
+  return bandColorFor(storyId);
 }
 
 export const MOTION_PRESETS = ["slow-zoom-in", "slow-zoom-out", "pan-left", "pan-right", "pan-up", "still"] as const;

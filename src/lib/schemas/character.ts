@@ -10,7 +10,7 @@ export const CharacterProfileSchema = z.object({
   visualDescription: z
     .string()
     .describe("How to draw them as a bold stick figure: build, head/hair, clothing, one signature colour item, and one recognisable prop. One or two sentences."),
-  signatureColor: z.string().describe("Hex colour of their signature item, e.g. '#E0362C'. Saturated and readable behind white text."),
+  signatureColor: z.string().describe("Hex colour of their signature item, e.g. '#E0362C'. A clear, distinctive colour that stands out on the character in a mostly black-and-white drawing."),
 });
 
 export type CharacterProfile = z.infer<typeof CharacterProfileSchema>;
@@ -20,4 +20,5 @@ export const CharacterEditSchema = CharacterProfileSchema.extend({
   signatureColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a hex colour like #E0362C"),
   perspective: z.enum(["FIRST_PERSON", "THIRD_PERSON"]),
   voiceId: z.string().nullable(),
+  bandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a hex colour like #4A5D6B").nullable(),
 });

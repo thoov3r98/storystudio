@@ -121,8 +121,8 @@ const Captions: React.FC<{ captions: EpisodeProps["captions"]; layout: EpisodePr
             <span
               key={i}
               style={{
-                // On a band, upcoming words are a translucent dark tone so they read on any band colour.
-                color: current ? "#111111" : onBand ? (spoken ? "#FFFFFF" : "rgba(0,0,0,0.42)") : spoken ? "#111111" : "#9A9A96",
+                // Bands are muted and dark, so upcoming words are translucent white.
+                color: current ? "#111111" : onBand ? (spoken ? "#FFFFFF" : "rgba(255,255,255,0.45)") : spoken ? "#111111" : "#9A9A96",
                 backgroundColor: current ? "#FFE45C" : "transparent",
                 textShadow: onBand && spoken && !current ? "0 3px 0 rgba(0,0,0,0.25)" : undefined,
                 borderRadius: 12,

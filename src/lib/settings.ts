@@ -35,7 +35,8 @@ export const DefaultsSchema = z.object({
   durationSec: z.number().default(75),
   quality: z.enum(["DRAFT", "STANDARD", "PREMIUM"]).default("STANDARD"),
   maxBatchBudgetUsd: z.number().default(25),
-  imageReview: z.boolean().default(false),
+  /** Check each illustration against the story and redraw it once if it is wrong. */
+  imageCheck: z.boolean().default(true),
   useStyleReferences: z.boolean().default(true),
 });
 export type Defaults = z.infer<typeof DefaultsSchema>;

@@ -3,7 +3,7 @@ import { computeStaleness, type RenderInputs } from "@/lib/invalidation";
 import { renderCost } from "@/lib/costs/pricing";
 import { assertWithinBudget, recordCost, type CostContext } from "@/lib/costs/record";
 import { env } from "@/lib/env";
-import { bandColorFor, videoFormat } from "@/lib/constants";
+import { storyBandColor, videoFormat } from "@/lib/constants";
 import { getAudioMix, getPricing } from "@/lib/settings";
 import { setJobStage } from "@/lib/jobs";
 import { renderClient, type RenderClient } from "@/lib/render/client";
@@ -15,7 +15,7 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
   const version = await db.episodeVersion.findUniqueOrThrow({
     where: { id: input.versionId },
     include: {
-      episode: { include: { story: { include: { character: { select: { signatureColor: true } } } } } },
+      episode: { include: { story: { include: { character: { select: { signatureColor: true, bandColor: true } } } } } },
       voiceover: true,
       scenes: { orderBy: { sceneNumber: "asc" }, include: { currentImage: true } },
     },
@@ -49,7 +49,7 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
         ? {
             seriesTitle: version.episode.story.title,
             partLabel: `Part ${version.episode.partNumber}`,
-            accentColor: version.episode.story.character?.signatureColor ?? bandColorFor(version.episode.storyId),
+            accentColor: storyBandColor(version.episode.storyId, version.episode.story.character),
           }
         : null,
   });

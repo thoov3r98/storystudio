@@ -12,10 +12,16 @@ export const TOKEN_HEURISTICS = {
   ideationPerConcept: { input: 250, output: 260 },
   evaluationPerConcept: { input: 420, output: 520 },
   hooksPerConcept: { input: 900, output: 900 },
-  writeEpisode: { input: 4500, output: 4200 },
+  /** Three beat outlines, then an editor picks one. */
+  outlineEpisode: { input: 3500, output: 1800 },
+  pickOutline: { input: 2200, output: 600 },
+  writeEpisode: { input: 5500, output: 5000 },
+  storyReview: { input: 1800, output: 500 },
   continuityReview: { input: 4200, output: 900 },
-  /** Expected correction passes per episode (continuity fixes on Part 2+, bounded at 2). */
-  expectedRevisions: 0.3,
+  /** Expected correction passes per episode (story editor notes, plus continuity fixes on Part 2+). */
+  expectedRevisions: 0.6,
+  /** Share of images the check sends back for one redraw. */
+  expectedRedraws: 0.2,
 };
 
 export type ModelNames = { main: string; fast: string };
@@ -59,15 +65,17 @@ export function estimateEpisodeCost(pricing: Pricing, models: ModelNames, input:
   const scale = input.durationSec / 75;
   const writes = 1 + h.expectedRevisions;
   let text =
-    textCost(pricing, writer, { inputTokens: h.writeEpisode.input * writes, outputTokens: h.writeEpisode.output * scale * writes });
+    textCost(pricing, writer, { inputTokens: h.writeEpisode.input * writes, outputTokens: h.writeEpisode.output * scale * writes }) +
+    textCost(pricing, writer, { inputTokens: h.outlineEpisode.input + h.pickOutline.input + h.storyReview.input, outputTokens: h.outlineEpisode.output + h.pickOutline.output + h.storyReview.output });
   if (input.isContinuation) {
     text += textCost(pricing, reviewer, { inputTokens: h.continuityReview.input * writes, outputTokens: h.continuityReview.output * writes });
   }
   text *= cal.textFactor;
 
   const [, maxScenes] = sceneCountRange(input.durationSec);
-  // Budget for the upper scene count plus ~10% retries.
-  const images = imageCost(pricing, preset.imageQuality).costUsd * maxScenes * 1.1;
+  // Budget for the upper scene count, the check's redraws and ~10% retries.
+  const checks = textCost(pricing, reviewer === models.fast ? reviewer : models.fast, { inputTokens: 1200, outputTokens: 150 }) * maxScenes * (1 + h.expectedRedraws);
+  const images = imageCost(pricing, preset.imageQuality).costUsd * maxScenes * (1.1 + h.expectedRedraws) + checks;
 
   // ~5.6 characters per spoken word including spaces/punctuation, ~2.5 words/sec.
   const chars = input.durationSec * 2.5 * 5.6;

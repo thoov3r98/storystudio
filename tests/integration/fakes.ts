@@ -18,6 +18,19 @@ const SUBJECTS = ["luggage", "water", "elevators", "subway", "mail", "ports", "p
 export type FakeTextOptions = {
   /** Continuity verdict to return for Part 2+. */
   continuity?: "consistent" | "material-conflicts";
+  /** Story editor verdict on the first script. */
+  storyReview?: "pass" | "revise";
+};
+
+const OUTLINE = {
+  logline: "A traveller's shortcut strands them.",
+  trigger: "They skip the queue.",
+  stakes: "Their flight in an hour.",
+  escalations: ["Bag lost", "Phone dies", "Gate moves"],
+  cleverMove: "Tracks the bag by its tag.",
+  funnyMoment: "Argues with a vending machine.",
+  endingTurn: "The bag is on another plane.",
+  beats: ["b1", "b2", "b3", "b4", "b5", "b6"],
 };
 
 function emptyUpdate(part: number) {
@@ -38,7 +51,7 @@ function emptyUpdate(part: number) {
   };
 }
 
-export function makeDraft(hook: string, part: number, sceneCount = 12): EpisodeDraft {
+export function makeDraft(hook: string, part: number, sceneCount = 12, hero = "You"): EpisodeDraft {
   const words = (n: number, seed: number) => Array.from({ length: n }, (_, i) => `beat${seed}w${i}`).join(" ");
   const narrations = Array.from({ length: sceneCount }, (_, i) => (i === 0 ? `${hook} ${words(10, i)}.` : `${words(14, i)}.`));
   return {
@@ -46,13 +59,16 @@ export function makeDraft(hook: string, part: number, sceneCount = 12): EpisodeD
     storyNarration: narrations.join(" "),
     selectedHook: hook,
     summary: `Part ${part} summary.`,
+    visualState: { setting: "A busy airport hall", timeAndLight: "Evening, bright indoor light", weather: "Indoors", heroSituation: "On foot in the terminal", heroLook: "Backpack", rules: ["The traveller stays inside the terminal"] },
     scenes: Array.from({ length: sceneCount }, (_, i) => ({
       sceneNumber: i + 1,
       narration: narrations[i],
       visualDescription: `visual ${i + 1}`,
       imagePrompt: `A stick figure in scene ${i + 1}`,
       composition: "wide shot",
-      characters: ["You"],
+      continuity: `Still in the terminal, scene ${i + 1}`,
+      // Scene 5 is a cutaway without the hero.
+      characters: i === 4 ? [] : [hero],
       objects: ["suitcase"],
       intendedDurationSec: 6,
       motionPreset: "slow-zoom-in",
@@ -134,7 +150,21 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
           const hook =
             /Opening line \(required, verbatim\): "([^"]+)"/.exec(user)?.[1] ?? /Hook ideas[^\n]*\n- (.+)/.exec(user)?.[1] ?? "You land after ten hours.";
           const part = Number(/^Part: (\d+)/m.exec(user)?.[1] ?? 1);
-          return out(makeDraft(hook, part));
+          const hero = /NARRATOR AND HERO: (.+?) —/.exec(user)?.[1];
+          return out(makeDraft(hook, part, 12, hero));
+        }
+        case "story_outlines":
+          return out({ outlines: [OUTLINE, { ...OUTLINE, logline: "Second outline" }, { ...OUTLINE, logline: "Third outline" }] });
+        case "outline_pick":
+          return out({
+            reviews: [0, 1, 2].map((index) => ({ index, stakes: 7, escalation: 7, character: 7, ending: 7, note: "n" })),
+            chosenIndex: 1,
+            improvements: ["Make the ending sharper"],
+          });
+        case "story_review": {
+          const revise = opts.storyReview === "revise" && (calls.story_review ?? 0) === 1;
+          const n = revise ? 5 : 8;
+          return out({ scores: { hook: n, stakes: n, escalation: n, character: n, ending: n, flow: n }, notes: revise ? ['The ending "x" is a status report; end on a turn.'] : [] });
         }
         case "continuity_review":
           return out(
@@ -153,10 +183,27 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
   };
 }
 
-export function fakeImages(failScenes: Set<string> = new Set()): ImageProvider & { count: number; calls: { prompt: string; size?: string; references: number }[] } {
+export function fakeImages(
+  failScenes: Set<string> = new Set(),
+  opts: { rejectOnce?: Set<string> } = {},
+): ImageProvider & { count: number; calls: { prompt: string; size?: string; references: number }[]; reviews: number } {
+  const rejected = new Set<string>();
   const provider = {
     count: 0,
+    reviews: 0,
     calls: [] as { prompt: string; size?: string; references: number }[],
+    // Passes every image, except the first image of each scene listed in rejectOnce.
+    async review({ prompt }: { png: Buffer; prompt: string; model: string }) {
+      provider.reviews++;
+      const scene = [...(opts.rejectOnce ?? [])].find((n) => prompt.includes(`scene ${n}"`) || prompt.includes(`beat${Number(n) - 1}w`));
+      const reject = scene !== undefined && !rejected.has(scene);
+      if (reject) rejected.add(scene);
+      return {
+        review: { pass: !reject, containsText: false, styleViolations: reject ? ["Hero is standing on the ground"] : [], matchesScene: !reject, notes: "" },
+        usage: { inputTokens: 500, cachedInputTokens: 0, outputTokens: 50 },
+        model: "fake-model",
+      };
+    },
     async generate({ prompt, size, references }: { prompt: string; size?: string; references: Buffer[] }) {
       provider.count++;
       provider.calls.push({ prompt, size, references: references.length });
@@ -217,9 +264,9 @@ export function fakeRender(): RenderClient & { renders: RenderCall[] } {
   return client;
 }
 
-export function fakeDeps(opts: FakeTextOptions = {}) {
+export function fakeDeps(opts: FakeTextOptions = {}, imageOpts: { rejectOnce?: Set<string> } = {}) {
   const text = fakeText(opts);
-  const images = fakeImages();
+  const images = fakeImages(new Set(), imageOpts);
   const speech = fakeSpeech();
   const render = fakeRender();
   const deps: PipelineDeps = { text, images, speech, render: () => render };

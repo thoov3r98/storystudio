@@ -174,8 +174,10 @@ model Character {
   speakingStyle     String
   /// How to draw them: stick-figure build, clothing, props, signature colour item.
   visualDescription String
-  /// Hex colour used for the character's clothing accent and the video's title/caption bands.
+  /// Hex colour of the character's clothing accent (their signature item).
   signatureColor    String               @default("#E0362C")
+  /// Video band colour; null derives a muted version of signatureColor.
+  bandColor         String?
   perspective       NarrationPerspective @default(FIRST_PERSON)
   voiceId           String?
   /// Character reference sheet, passed to every scene illustration.
@@ -366,6 +368,8 @@ model Scene {
   narration           String
   imagePrompt         String
   composition         String
+  /// What must stay true in this shot (where the hero is, time of day, what changed).
+  continuity          String         @default("")
   characters          String[]
   objects             String[]
   intendedDurationSec Float

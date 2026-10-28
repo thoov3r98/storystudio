@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAction } from "@/components/client-helpers";
 import { createCharacter, drawCharacter, updateCharacter } from "@/app/actions";
 import type { Voice } from "@/lib/settings";
+import { mutedBandColor } from "@/lib/constants";
 
 const BRIEF_EXAMPLES = [
   "A big, friendly ex-trucker who keeps getting stranded and talks his way through it",
@@ -65,6 +66,7 @@ type Editable = {
   speakingStyle: string;
   visualDescription: string;
   signatureColor: string;
+  bandColor: string | null;
   perspective: "FIRST_PERSON" | "THIRD_PERSON";
   voiceId: string | null;
 };
@@ -89,7 +91,7 @@ export function CharacterEditor({ characterId, initial, voices }: { characterId:
         <Field label="Name" htmlFor="c-name">
           <Input id="c-name" value={c.name} onChange={(e) => set("name", e.target.value)} />
         </Field>
-        <Field label="Signature colour" hint="Their clothing accent, and the video's title and caption bands.">
+        <Field label="Signature colour" hint="Their clothing accent in every drawing.">
           <div className="flex items-center gap-2">
             <input
               type="color"
@@ -102,6 +104,29 @@ export function CharacterEditor({ characterId, initial, voices }: { characterId:
           </div>
         </Field>
       </div>
+      <Field label="Video band colour" hint="The title and caption bands. Auto uses a muted, darker version of the signature colour.">
+        <div className="flex items-center gap-2">
+          <span className="h-9 w-12 shrink-0 rounded border" style={{ backgroundColor: c.bandColor ?? mutedBandColor(c.signatureColor) }} aria-hidden />
+          {c.bandColor ? (
+            <>
+              <input
+                type="color"
+                value={c.bandColor}
+                onChange={(e) => set("bandColor", e.target.value.toUpperCase())}
+                className="h-9 w-12 cursor-pointer rounded border bg-transparent"
+                aria-label="Video band colour"
+              />
+              <Button variant="ghost" size="sm" onClick={() => set("bandColor", null)}>
+                Use auto
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => set("bandColor", mutedBandColor(c.signatureColor))}>
+              Auto · choose my own
+            </Button>
+          )}
+        </div>
+      </Field>
       <Field label="Tagline" htmlFor="c-tagline">
         <Input id="c-tagline" value={c.tagline} onChange={(e) => set("tagline", e.target.value)} />
       </Field>

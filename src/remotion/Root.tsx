@@ -25,7 +25,7 @@ const sample: EpisodeProps = {
   layout: "bands",
   seriesTitle: "Stranded on the Highway",
   partLabel: "Part 1",
-  accentColor: "#E0362C",
+  accentColor: "#4A5D6B",
 };
 
 export const RemotionRoot: React.FC = () => (

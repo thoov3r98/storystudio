@@ -32,7 +32,7 @@ export const EpisodePropsSchema = z.object({
   layout: z.enum(["bands", "full"]).default("full"),
   seriesTitle: z.string().default(""),
   partLabel: z.string().default(""),
-  accentColor: z.string().default("#E0362C"),
+  accentColor: z.string().default("#4A5D6B"),
 });
 
 export type EpisodeProps = z.infer<typeof EpisodePropsSchema>;

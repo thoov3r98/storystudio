@@ -1,18 +1,38 @@
 import { z } from "zod";
 import { MOTION_PRESETS } from "@/lib/constants";
 import { StoryBibleUpdateSchema } from "./story-bible";
+import { StoryOutlineSchema, StoryReviewSchema } from "./story-plan";
 
 export const SceneSpecSchema = z.object({
   sceneNumber: z.number().int(),
   narration: z.string().describe("An exact, contiguous excerpt of storyNarration (usually one or two sentences). All scenes joined in order must reproduce storyNarration word for word."),
   visualDescription: z.string().describe("What the viewer sees, in plain language."),
-  imagePrompt: z.string().describe("Subject-only image prompt for ONE clear action: who is doing what, where, with which key objects. At most three figures. Do not describe art style or mention text."),
-  composition: z.string().describe("Framing and layout, e.g. 'wide shot, figure small at left, conveyor belt diagonal'."),
-  characters: z.array(z.string()).describe("Character names from the story bible appearing in this scene."),
+  imagePrompt: z
+    .string()
+    .describe(
+      "One or two specific sentences for the illustrator: who is doing what, exactly where they are (consistent with visualState), their expression, the key object, and the light. Subject only: no art style, no text.",
+    ),
+  composition: z.string().describe("Shot type and layout, e.g. 'close-up on his gloved hands and the phone screen' or 'wide, chair tiny against the dark slope'."),
+  continuity: z
+    .string()
+    .describe("What must be true in this shot: where the hero physically is, time of day and light, weather, and anything that changed since the previous shot."),
+  characters: z.array(z.string()).describe("Names of the characters VISIBLE in this shot only. Leave someone out when the shot is about someone or something else."),
   objects: z.array(z.string()),
   intendedDurationSec: z.number(),
   motionPreset: z.enum(MOTION_PRESETS),
 });
+
+/** The physical facts every shot of an episode must respect, so images agree with the story and each other. */
+export const VisualStateSchema = z.object({
+  setting: z.string().describe("Where the episode happens, concretely (e.g. 'a stopped two-seat chairlift about 20 metres above an empty ski run')."),
+  timeAndLight: z.string().describe("Time of day at the start and how the light changes by the end (e.g. 'late afternoon, sun low; after scene 9 the sun is behind the ridge and the slope is in blue shadow')."),
+  weather: z.string(),
+  heroSituation: z.string().describe("Where the hero physically is and what they can and cannot do, through the episode (e.g. 'seated on the chair the entire episode; never on the ground')."),
+  heroLook: z.string().describe("What the hero wears and carries in this episode."),
+  rules: z.array(z.string()).describe("Things that must be true in every shot (e.g. 'Ridge never leaves the chair', 'the base is far below and small')."),
+});
+
+export type VisualState = z.infer<typeof VisualStateSchema>;
 
 export type SceneSpec = z.infer<typeof SceneSpecSchema>;
 
@@ -23,6 +43,7 @@ export const EpisodeDraftSchema = z.object({
   storyNarration: z.string().describe("The complete voiceover as one continuous, flowing story, written to be read aloud."),
   selectedHook: z.string().describe("The opening line(s), copied exactly from the start of storyNarration."),
   summary: z.string().describe("3–5 sentence summary of what happens and what is revealed."),
+  visualState: VisualStateSchema,
   scenes: z.array(SceneSpecSchema),
   keyReveals: z.array(z.string()),
   establishedFacts: z.array(z.string()),
@@ -70,6 +91,10 @@ export const SceneNarrationRewriteSchema = z.object({
 export const EpisodeSpecRecordSchema = EpisodeDraftSchema.omit({ scenes: true }).extend({
   /** Absent on versions written before story-first drafting. */
   storyNarration: z.string().optional(),
+  visualState: VisualStateSchema.optional(),
+  /** The beat outline the script was written from, and the story editor's scores. */
+  outline: StoryOutlineSchema.optional(),
+  storyReview: StoryReviewSchema.optional(),
   storyId: z.string(),
   partNumber: z.number().int(),
   alternativeHooks: z.array(z.string()),

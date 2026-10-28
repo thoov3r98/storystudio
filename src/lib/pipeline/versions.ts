@@ -25,6 +25,7 @@ export async function forkVersion(
       narration: o?.narration ?? s.narration,
       imagePrompt: o?.imagePrompt ?? s.imagePrompt,
       composition: o?.composition ?? s.composition,
+      continuity: s.continuity,
       characters: s.characters,
       objects: s.objects,
       intendedDurationSec: s.intendedDurationSec,

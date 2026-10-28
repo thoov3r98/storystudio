@@ -110,6 +110,7 @@ async function CharacterContent({ params }: { params: PageProps<"/characters/[ch
             speakingStyle: c.speakingStyle,
             visualDescription: c.visualDescription,
             signatureColor: c.signatureColor,
+            bandColor: c.bandColor,
             perspective: c.perspective,
             voiceId: c.voiceId,
           }}

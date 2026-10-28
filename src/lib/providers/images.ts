@@ -2,7 +2,8 @@ import { toFile } from "openai";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { openai } from "@/lib/ai/openai";
-import { imageReviewPrompt } from "@/lib/ai/prompts";
+import type { TokenUsage } from "@/lib/ai/structured";
+import type { VisualState } from "@/lib/schemas/episode";
 import { env } from "@/lib/env";
 import { getModels } from "@/lib/settings";
 import { styleSpec, VIDEO_FORMATS, type VideoFormat } from "@/lib/constants";
@@ -17,7 +18,19 @@ export interface ImageProvider {
     usage: ImageUsage | null;
     usedReference: boolean;
   }>;
+  /** Vision check of a finished image against what the shot must show. Null if the check itself fails. */
+  review(args: { png: Buffer; prompt: string; model: string }): Promise<{ review: ImageReview | null; usage: TokenUsage; model: string } | null>;
 }
+
+/** The story around a shot, so each illustration shows that exact moment and agrees with the others. */
+export type ShotContext = {
+  summary: string;
+  visualState?: VisualState | null;
+  narration: string;
+  previous?: string | null;
+  next?: string | null;
+  continuity?: string | null;
+};
 
 /** Builds the final prompt from the global style spec, story visual notes and the scene. */
 export function buildImagePrompt(input: {
@@ -29,6 +42,11 @@ export function buildImagePrompt(input: {
   format?: VideoFormat;
   /** The series' recurring character; the first reference image is their character sheet. */
   hero?: { name: string; visualDescription: string } | null;
+  /** The hero's name when they are NOT in this shot, so the model leaves them out. */
+  absentHero?: string | null;
+  shot?: ShotContext | null;
+  /** Problems with a rejected earlier attempt, to fix this time. */
+  fix?: string[];
 }): string {
   const chars = input.scene.characters
     .map((name) => input.characterSheet.find((c) => c.name.toLowerCase() === name.toLowerCase()))
@@ -42,14 +60,36 @@ export function buildImagePrompt(input: {
         ? "Match the line weight, figure proportions and overall drawing style of the reference image(s) exactly; do not copy their content."
         : "",
     input.visualNotes ? `SERIES VISUAL NOTES: ${input.visualNotes}` : "",
+    ...shotLines(input.shot),
     `SCENE: ${input.scene.imagePrompt}`,
     `COMPOSITION: ${input.scene.composition}. ${VIDEO_FORMATS[input.format ?? "full"].safeArea}`,
     chars.length ? `CHARACTERS (draw consistently): ${chars.join(" | ")}` : "",
     input.scene.objects.length ? `KEY OBJECTS: ${input.scene.objects.join(", ")}` : "",
+    input.shot ? "Draw exactly the moment of THIS MOMENT, true to the episode facts and continuity. Only the characters listed appear." : "",
+    input.shot
+      ? "Keep the STYLE's palette and light background in every shot. Show time of day and weather with small cues only (sun position, a pale tint in the sky, lit windows, long shadows, falling snow); never wash the whole image in a colour."
+      : "",
+    input.absentHero ? `${input.absentHero} is not in this shot.` : "",
+    input.fix?.length ? `A previous attempt was rejected. Fix these problems: ${input.fix.join("; ")}` : "",
     "Absolutely no text, words, letters, numbers, signage, logos or watermarks.",
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function shotLines(shot: ShotContext | null | undefined): string[] {
+  if (!shot) return [];
+  const v = shot.visualState;
+  return [
+    `EPISODE: ${shot.summary}`,
+    v
+      ? `EPISODE FACTS (true in every shot): Setting: ${v.setting}. Time and light: ${v.timeAndLight}. Weather: ${v.weather}. Hero: ${v.heroSituation}. Hero's look: ${v.heroLook}.${v.rules.length ? ` Rules: ${v.rules.join("; ")}.` : ""}`
+      : "",
+    shot.previous ? `PREVIOUS MOMENT: "${shot.previous}"` : "",
+    `THIS MOMENT (narrated over this image): "${shot.narration}"`,
+    shot.next ? `NEXT MOMENT: "${shot.next}"` : "",
+    shot.continuity ? `CONTINUITY: ${shot.continuity}` : "",
+  ].filter(Boolean);
 }
 
 function readUsage(usage: unknown): ImageUsage | null {
@@ -87,6 +127,7 @@ export const openAIImageProvider: ImageProvider = {
     if (!b64) throw new Error("Image API returned no image data.");
     return { png: Buffer.from(b64, "base64"), model, usage: readUsage(response.usage), usedReference: references.length > 0 };
   },
+  review: ({ png, prompt, model }) => reviewImage(png, prompt, model),
 };
 
 export const ImageReviewSchema = z.object({
@@ -98,8 +139,8 @@ export const ImageReviewSchema = z.object({
 });
 export type ImageReview = z.infer<typeof ImageReviewSchema>;
 
-/** Optional vision check for text/style violations. Returns null if the review itself fails. */
-export async function reviewImage(png: Buffer, sceneDescription: string, model: string) {
+/** Vision check against the shot's requirements. Returns null if the review itself fails. */
+async function reviewImage(png: Buffer, reviewPrompt: string, model: string) {
   try {
     const response = await openai().responses.parse({
       model,
@@ -107,7 +148,7 @@ export async function reviewImage(png: Buffer, sceneDescription: string, model: 
         {
           role: "user",
           content: [
-            { type: "input_text", text: imageReviewPrompt(sceneDescription) },
+            { type: "input_text", text: reviewPrompt },
             { type: "input_image", image_url: `data:image/png;base64,${png.toString("base64")}`, detail: "low" },
           ],
         },

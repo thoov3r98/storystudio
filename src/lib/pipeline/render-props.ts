@@ -48,6 +48,6 @@ export function buildEpisodeProps(input: {
     layout: input.bands ? "bands" : "full",
     seriesTitle: input.bands?.seriesTitle ?? "",
     partLabel: input.bands?.partLabel ?? "",
-    accentColor: input.bands?.accentColor ?? "#E0362C",
+    accentColor: input.bands?.accentColor ?? "#4A5D6B",
   };
 }

@@ -255,10 +255,12 @@ export function SettingsForms(props: {
           </div>
           <div className="flex items-center justify-between gap-4">
             <div>
-              <Label htmlFor="review">Automatic image review</Label>
-              <p className="text-xs text-muted-foreground">A vision model checks each image for text, logos and style violations. Adds a small cost per image.</p>
+              <Label htmlFor="review">Check and redraw images</Label>
+              <p className="text-xs text-muted-foreground">
+                A vision model checks each image against its line of the story (right place, right people, right time of day, no text) and redraws it once if it is wrong. About $0.002 per check plus the occasional redraw.
+              </p>
             </div>
-            <Switch id="review" checked={defaults.imageReview} onCheckedChange={(c) => setDefaults({ ...defaults, imageReview: c })} />
+            <Switch id="review" checked={defaults.imageCheck} onCheckedChange={(c) => setDefaults({ ...defaults, imageCheck: c })} />
           </div>
           <Button size="sm" disabled={a.pending} onClick={() => a.run(() => saveDefaults(defaults), { success: "Defaults saved" })}>
             Save
