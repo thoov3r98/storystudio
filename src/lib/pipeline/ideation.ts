@@ -109,7 +109,7 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
       client: input.deps.text,
       pricing,
       model: reviewerModel,
-      ...evaluationPrompt({ concepts: group, existingTitles: avoidTitles }),
+      ...evaluationPrompt({ concepts: group, existingTitles: avoidTitles, premise: batch.customDirection }),
       schema: ConceptEvaluationSchema,
       schemaName: "concept_evaluation",
       validate: (v) => {

@@ -22,10 +22,12 @@ const STORY_CRAFT = `What makes a viewer keep watching:
 - Escalation: at least three complications, each worse than the last, each caused by the one before or by the hero's own attempt to fix things.
 - Inner life: the hero reacts. Fear, stubbornness, embarrassment and jokes come through at least two short inner thoughts or spoken lines, and one moment of humour that comes from who they are.
 - Show, don't lecture: the clever move is shown through what the hero does. Never turn to the viewer with advice ("you should...", "in most places...") and never add safety disclaimers.
-- Concrete, sensory detail: the sound, the cold, what the phone screen says, the exact thing in their pocket.
+- Big premise, told simply: say the situation plainly up front, the way you'd tell a friend ("Kenny woke up and there was nobody left in the world"). Don't explain how or why it happened unless the story needs it; a mystery can stay open across episodes.
+- Vivid, not logistical: one striking image or feeling per beat (a silent street, a coffee still warm in an empty café, the sound of their own footsteps). Never logistics: no deadlines, schedules, clock times, notices, maps, routes, official procedures or packing lists.
 - The hero solves it, at least partly. Rescuers, luck or other people never solve the main problem for them.
 - The ending is a turn, not a status report: the last line makes things worse or forces a hard choice. Never end by summarising where they are.
-- Avoid logistics lists ("he did X, then Y, then Z") with no reaction or consequence.`;
+- Avoid logistics lists ("he did X, then Y, then Z") with no reaction or consequence.
+- Stay true to the premise exactly. Never shrink it into something smaller, safer or more explainable (if everyone vanished, they vanished; it was not an evacuation).`;
 
 export const HOUSE_STYLE = `You write narrated, illustrated short vertical story videos (TikTok, YouTube Shorts, Reels) on whatever subject the producer chooses: hidden systems, history, science, fiction, true stories, what-ifs and more.
 
@@ -35,7 +37,7 @@ Voice:
 - Narrator perspective is set per story. With no narrator character, use second person ("you") in the present tense.
 - Open inside the situation. No greetings, no "Have you ever wondered", no "In this video", no channel plugs.
 - Clear cause and effect: every moment follows from the one before. Concrete actions and details over mood.
-- Believable and grounded. Specific where it is true; honest about uncertainty where it is not.
+- Grounded in how a real person would feel and react, even when the situation itself is impossible. Never over-explain.
 - Avoid AI clichés: "little did you know", "buckle up", "let's dive in", "here's the thing", "spoiler alert", "mind-blowing", "but here's where it gets interesting", "the answer may surprise you", rhetorical question chains, "game-changer", "delve", and forced-twist formulas such as "the real danger isn't X, it's Y", "what nobody realizes is", "the surprising part is", "but the real problem is".
 - No engagement bait. Never ask viewers to like, follow, comment or subscribe.
 - Endings deliver a real payoff AND turn the screw: the last line makes things worse or forces a choice. Never a cheap cliffhanger that withholds the point of the episode.
@@ -50,28 +52,42 @@ export function ideationPrompt(input: { category: string; customDirection?: stri
   const ownTopic = input.category === "custom";
   const c = input.character;
   const starring = c
-    ? `\n## Series character\n${narratorBlock(c)}\n\nEvery concept is the opening situation of a series starring ${c.name}. Pitch situations an ordinary person like ${c.name} could realistically land in, where their personality and choices matter. Titles name the situation plainly, with or without their name (e.g. "${c.name} Breaks Down in the Middle of Nowhere", "Three Days Snowed In at a Truck Stop"). Write premise, logline and openingSituation about ${c.name}, not "you".\n`
+    ? `\n## Series character\n${narratorBlock(c)}\n\nEvery concept is the opening situation of a series starring ${c.name}. Pitch situations where ${c.name}'s personality and choices matter (everyday ones unless the producer's premise says otherwise). Titles name the situation plainly, with or without their name (e.g. "${c.name} Breaks Down in the Middle of Nowhere", "Three Days Snowed In at a Truck Stop"). Write premise, logline and openingSituation about ${c.name}, not "you".\n`
+    : "";
+  const direction = input.customDirection?.trim();
+  // The producer's direction is the premise itself, never a loose theme: it outranks the category and the realism defaults.
+  const premise = direction
+    ? `## The producer's premise (follow it exactly)
+${direction}
+
+- Keep its central situation exactly as given, even if it is impossible, apocalyptic or supernatural. Never swap it for a smaller, realistic or explainable version (e.g. "everyone in the world vanished" must not become "the building was evacuated").
+- Every concept is a different way into THIS premise: a different first moment, angle or first problem. Not a different premise.
+- Don't explain how or why it happened unless the producer does; the mystery can stay open.
+`
     : "";
   const brief = ownTopic
-    ? `The producer's brief. Every concept must be about this, in its subject, genre and tone:\n${input.customDirection}\n\nSet each concept's category to a short label for its subject.`
+    ? `Set each concept's category to a short label for its subject.`
     : input.category === "mixed"
       ? `Category: any mix of these.\n${PRESET_CATEGORIES.map((c) => `- ${c.label}: ${c.description}`).join("\n")}`
-      : `Category: ${categoryLabel(input.category)}. ${CATEGORIES.find((c) => c.value === input.category)?.description ?? ""}\nFind everyday situations within this category; it is a source of situations, not a reason to get technical or extreme.`;
+      : `Category: ${categoryLabel(input.category)}. ${CATEGORIES.find((c) => c.value === input.category)?.description ?? ""}${
+          direction ? "\nThe category sets the tone only; the producer's premise decides the situation." : "\nFind everyday situations within this category; it is a source of situations, not a reason to get technical or extreme."
+        }`;
   return {
     system: `${CONCEPT_DEVELOPER}
 
 ${TRUTHFULNESS}`,
     user: `Pitch exactly ${input.count} concepts.
 
-${brief}
-${!ownTopic && input.customDirection ? `\nCreative direction from the producer: ${input.customDirection}\n` : ""}${starring}
-Each concept must have a different central situation.
-Do not repeat the central situation of any existing story (reusing a familiar setting is fine):
+${premise}${brief}
+${starring}
+Write each premise the way you'd say it out loud in one breath ("Kenny wakes up and everyone in the world is gone"). Big and simple beats detailed: no clock times, deadlines, notices, routes or official procedures.
+${direction ? "Each concept must open differently (a different first moment or first problem)." : "Each concept must have a different central situation."}
+Do not repeat ${direction ? "the opening" : "the central situation"} of any existing story (reusing a familiar setting is fine):
 ${input.avoidTitles.length ? input.avoidTitles.map((t) => `- ${t}`).join("\n") : "- (none yet)"}`,
   };
 }
 
-export function evaluationPrompt(input: { concepts: { title: string; premise: string; logline: string; seriesPotential: string }[]; existingTitles: string[] }) {
+export function evaluationPrompt(input: { concepts: { title: string; premise: string; logline: string; seriesPotential: string }[]; existingTitles: string[]; premise?: string | null }) {
   return {
     system: `You are a demanding story editor for short-form vertical video. You score concepts consistently on a 1–10 integer scale per criterion, where 5 is an average pitch and 9–10 is rare.
 These are editorial heuristics, not predictions of view counts.
@@ -82,10 +98,15 @@ ${criteriaGuide()}
 The audience is everyday adults scrolling short-form video, not experts. Favor clear, familiar, relatable situations over clever, unusual or technical ones.
 - relatability, curiosity, hookStrength and audienceAppeal: high only if an ordinary person would understand the idea within two seconds, could picture themselves in it, and would want to know what happens next.
 - A concept that cannot be explained to a friend in one plain sentence, needs world-building or specialist knowledge, has manufactured stakes, or rests on a forced twist ("the real danger isn't X, it's Y") scores at most 4 on curiosity, hookStrength and audienceAppeal.
+- A big, simple premise ("everyone in the world vanished overnight") is easy to understand in one sentence; it is not world-building. Penalise detail and logistics (deadlines, notices, procedures), not scale.
 - seriesPotential: a credible natural continuation scores well; two strong episodes beat six stretched ones. Do not reward convoluted plots.
 For originality, compare against the producer's existing stories: penalise only repeating the same central situation, not reusing a familiar setting (lost luggage and a missed connection are different stories).
 Give one honest sentence of rationale per score. Evaluate every concept, using its index.`,
-    user: `Existing stories:
+    user: `${
+      input.premise
+        ? `The producer's premise, which every concept must keep exactly:\n${input.premise}\nA concept that shrinks it into something smaller, realistic or explained away (e.g. an evacuation instead of an empty world) scores at most 3 on every criterion.\n\n`
+        : ""
+    }Existing stories:
 ${input.existingTitles.length ? input.existingTitles.map((t) => `- ${t}`).join("\n") : "- (none)"}
 
 Concepts to evaluate:

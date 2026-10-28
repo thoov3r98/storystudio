@@ -28,11 +28,13 @@ export const FactModeSchema = z.enum(["FACTUAL", "HYPOTHETICAL", "FICTIONAL", "M
 
 export const ConceptCandidateSchema = z.object({
   title: z.string().describe("Plain title describing a recognizable situation or natural question, e.g. 'Your Suitcase Never Arrives at Baggage Claim'."),
-  premise: z.string().describe("Two or three plain sentences explaining what happens. Do not advertise how surprising or clever it is."),
+  premise: z
+    .string()
+    .describe("Two or three plain sentences: the big, simple situation, the way you'd say it out loud. No logistics (clock times, deadlines, notices, routes). Do not advertise how surprising or clever it is."),
   logline: z.string().describe("The idea in one plain sentence, as you would tell a friend."),
   category: z.string(),
   keywords: z.array(z.string()).describe("4–8 lowercase topical keywords."),
-  openingSituation: z.string().describe("The concrete, everyday second-person situation the first episode opens on."),
+  openingSituation: z.string().describe("The first moment the episode opens on, in one plain sentence."),
   seriesPotential: z.string().describe("How the story could naturally continue, if it does. Two strong episodes is fine; do not invent mysteries to stretch it."),
 });
 
