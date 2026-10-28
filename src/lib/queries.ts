@@ -108,7 +108,6 @@ export async function getEpisode(episodeId: string) {
     where: { id: episodeId },
     include: {
       story: true,
-      hooks: { orderBy: [{ round: "desc" }, { totalScore: "desc" }] },
       versions: { orderBy: { version: "desc" }, select: { id: true, version: true, status: true, reason: true, createdAt: true, factCheckStatus: true } },
       currentVersion: {
         include: {

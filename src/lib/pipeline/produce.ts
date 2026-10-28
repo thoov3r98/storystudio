@@ -3,17 +3,15 @@ import { db } from "@/lib/db";
 import { setJobStage } from "@/lib/jobs";
 import type { CostContext } from "@/lib/costs/record";
 import { computeStaleness } from "@/lib/invalidation";
-import { generateHooks, rewriteScene, writeEpisode } from "./writing";
+import { rewriteScene, writeEpisode } from "./writing";
 import { generateSceneImages } from "./illustrations";
 import { generateVoiceover, synchronizeNarration } from "./voiceover";
 import { renderVersion } from "./render";
-import { applyHookSwap, ensureEditableVersion, refreshStoryStatus } from "./versions";
+import { ensureEditableVersion, refreshStoryStatus } from "./versions";
 import type { PipelineDeps } from "./deps";
 
 export const EpisodeActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("produce"), direction: z.string().nullish(), allowContinuityConflicts: z.boolean().default(false) }),
-  z.object({ action: z.literal("regenerate-hooks") }),
-  z.object({ action: z.literal("swap-hook"), hookId: z.string() }),
   z.object({ action: z.literal("regenerate-script"), direction: z.string().nullish(), allowContinuityConflicts: z.boolean().default(false) }),
   z.object({ action: z.literal("rewrite-scene"), sceneNumber: z.number().int(), instruction: z.string().nullish() }),
   z.object({ action: z.literal("regenerate-image"), sceneNumbers: z.array(z.number().int()).min(1) }),
@@ -128,20 +126,6 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
     }
     case "regenerate-script": {
       await writeAndCheck("regenerate-script", req.direction, req.allowContinuityConflicts);
-      return payload.continueProduction ? produceDownstream(episode.id, jobId, cost, deps) : { scripted: true };
-    }
-    case "regenerate-hooks": {
-      await setJobStage(jobId, "WRITING_STORY", "Writing new hook candidates", 0.1);
-      return generateHooks(ctx);
-    }
-    case "swap-hook": {
-      await setJobStage(jobId, "WRITING_STORY", "Applying new opening hook", 0.1);
-      const versionId = await applyHookSwap(episode.id, req.hookId);
-      if (!versionId) {
-        // Scene 1 doesn't start with the old hook verbatim; rewrite the script around the new hook.
-        const hook = await db.hook.findUniqueOrThrow({ where: { id: req.hookId } });
-        await writeEpisode({ ...ctx, reason: "regenerate-hook", hookText: hook.text });
-      }
       return payload.continueProduction ? produceDownstream(episode.id, jobId, cost, deps) : { scripted: true };
     }
     case "rewrite-scene": {

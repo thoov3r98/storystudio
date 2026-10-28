@@ -60,13 +60,6 @@ async function main() {
   });
 
   const episode = await db.episode.create({ data: { storyId: story.id, partNumber: 1, title: draft.title, status: "READY" } });
-  await db.hook.createMany({
-    data: [
-      { episodeId: episode.id, type: "RELATABLE", text: hook, scores: {}, totalScore: 7.5, rationale: "Relatable", isPrimary: true },
-      { episodeId: episode.id, type: "SURPRISING_FACT", text: "Your bag travels miles before you see it.", scores: {}, totalScore: 6.4, rationale: "Surprising" },
-    ],
-  });
-
   const narration = draft.scenes.map((s) => s.narration).join(" ");
   const chars = [...narration];
   let t = 0;
@@ -79,7 +72,7 @@ async function main() {
       episodeId: episode.id,
       version: 1,
       reason: "initial",
-      spec: { ...draft, scenes: undefined, storyId: story.id, partNumber: 1, alternativeHooks: [], narration, wordCount: 169, estimatedDurationSec: 72, factCheckStatus: "PASSED" },
+      spec: { ...draft, scenes: undefined, storyId: story.id, partNumber: 1, narration, wordCount: 169, estimatedDurationSec: 72, factCheckStatus: "PASSED" },
       narration,
       wordCount: 169,
       estimatedDurationSec: 72,
@@ -87,7 +80,7 @@ async function main() {
       factCheckStatus: "PASSED",
       styleKey: "stick-figure",
       timing,
-      scenes: { create: draft.scenes.map(({ visualDescription: _v, ...s }) => s) },
+      scenes: { create: draft.scenes.map((s) => ({ ...s, intendedDurationSec: 6 })) },
     },
     include: { scenes: true },
   });

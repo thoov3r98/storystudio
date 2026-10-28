@@ -142,7 +142,7 @@ export function ModelsPricingForm(props: { models: Models; pricing: Pricing; ima
       }
     >
       <div className="rounded-xl border bg-card p-5">
-        <ModelRow role="Writing" description="Concepts, hooks and scripts at Standard and Premium quality; reviews too at Premium." model={models.main} onModel={(v) => pickText("main", v)} suggestions={SUGGESTIONS.text}>
+        <ModelRow role="Writing" description="Concepts, outlines and scripts at Standard and Premium quality; reviews too at Premium." model={models.main} onModel={(v) => pickText("main", v)} suggestions={SUGGESTIONS.text}>
           <Money label="Input" unit="per 1M tokens" value={main.inputPerMTok} onChange={(v) => setMain({ ...main, inputPerMTok: v })} />
           <Money label="Cached input" unit="per 1M tokens" value={main.cachedInputPerMTok} onChange={(v) => setMain({ ...main, cachedInputPerMTok: v })} />
           <Money label="Output" unit="per 1M tokens" value={main.outputPerMTok} onChange={(v) => setMain({ ...main, outputPerMTok: v })} />

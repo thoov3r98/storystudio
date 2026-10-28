@@ -13,10 +13,6 @@ describe("planRegeneration", () => {
     expect(plan.regenerate).toEqual(expect.arrayContaining(["voiceover", "timing", "render"]));
   });
 
-  it("hook swaps keep images", () => {
-    expect(planRegeneration({ kind: "hook", hookText: "x" }).imageScenes).toBe("none");
-  });
-
   it("scene narration changes only redraw when the visual changes", () => {
     expect(planRegeneration({ kind: "scene-narration", sceneNumber: 2, imagePromptChanged: false }).imageScenes).toBe("none");
     expect(planRegeneration({ kind: "scene-narration", sceneNumber: 2, imagePromptChanged: true }).imageScenes).toEqual([2]);

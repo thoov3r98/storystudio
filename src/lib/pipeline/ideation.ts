@@ -19,7 +19,6 @@ import { chunk, mapSettled } from "@/lib/async";
 import { getPricing, getModels } from "@/lib/settings";
 import { assertWithinBudget, type CostContext } from "@/lib/costs/record";
 import { setJobStage, assertNotCanceled } from "@/lib/jobs";
-import { generateHooks } from "./writing";
 import type { PipelineDeps } from "./deps";
 
 const IDEATION_CHUNK = 10;
@@ -45,13 +44,10 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
   const reviewerModel = preset.reviewerModel === "main" ? models.main : models.fast;
   const cost: CostContext = { jobId: input.jobId, batchId: batch.id, budgetUsd: Number(batch.maxBudgetUsd), budgetScope: "batch" };
 
-  // Retry safety: if concepts were already selected, only finish the hook stage.
-  const alreadySelected = await db.concept.findMany({ where: { batchId: batch.id, status: "SELECTED" }, include: { story: { include: { episodes: { include: { _count: { select: { hooks: true } } } } } } } });
+  // Retry safety: concepts already selected (and their stories) are kept.
+  const alreadySelected = await db.concept.findMany({ where: { batchId: batch.id, status: "SELECTED" }, include: { story: { include: { episodes: true } } } });
   if (alreadySelected.length > 0) {
     const episodes = alreadySelected.flatMap((c) => c.story?.episodes ?? []).filter((e) => e.partNumber === 1);
-    const needHooks = episodes.filter((e) => e._count.hooks === 0);
-    await setJobStage(input.jobId, "EVALUATING_CONCEPTS", `Resuming: writing hooks for ${needHooks.length} concepts`, 0.65);
-    await mapSettled(needHooks, 4, (e) => generateHooks({ episodeId: e.id, deps: input.deps, cost: { ...cost, storyId: e.storyId, episodeId: e.id } }));
     return { candidates: 0, duplicates: 0, evaluated: 0, selected: alreadySelected.length, episodeIds: episodes.map((e) => e.id), generationFailures: 0, resumed: true };
   }
 
@@ -95,7 +91,6 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
       logline: d.candidate.logline,
       category: d.candidate.category,
       keywords: d.candidate.keywords,
-      factMode: d.candidate.factMode,
       seriesPotential: d.candidate.seriesPotential,
       status: "DUPLICATE" as const,
       duplicateOfTitle: d.duplicateOf.title,
@@ -151,7 +146,6 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
           logline: e.concept.logline,
           category: e.concept.category || batch.category,
           keywords: e.concept.keywords.map((k) => k.toLowerCase()),
-          factMode: e.concept.factMode,
           seriesPotential: e.concept.seriesPotential,
           scores: { ...e.evaluation.scores, summary: e.evaluation.summary },
           totalScore: e.total,
@@ -174,7 +168,6 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
         premise: c.premise,
         logline: source?.openingSituation ? `${c.logline} Opening: ${source.openingSituation}` : c.logline,
         keywords: c.keywords,
-        factMode: c.factMode,
         styleKey: batch.styleKey,
         voiceId: character?.voiceId ?? batch.voiceId,
         characterId: character?.id ?? null,
@@ -197,16 +190,6 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
     });
     episodeIds.push(story.episodes[0].id);
   }
-
-  // ── 5. Hooks for every selected concept ──────────────────────────────
-  let hooked = 0;
-  await mapSettled(episodeIds, 4, async (episodeId) => {
-    await assertNotCanceled(input.jobId);
-    const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, select: { storyId: true } });
-    await generateHooks({ episodeId, deps: input.deps, cost: { ...cost, storyId: episode.storyId, episodeId } });
-    hooked++;
-    await setJobStage(input.jobId, "EVALUATING_CONCEPTS", `Wrote hooks for ${hooked} of ${episodeIds.length}`, 0.65 + 0.33 * (hooked / episodeIds.length));
-  });
 
   return {
     candidates: candidates.length,

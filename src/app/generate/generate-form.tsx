@@ -112,7 +112,7 @@ export function GenerateForm({
         <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Generation mode">
           {(
             [
-              { value: "CONCEPT", title: "Concept mode", icon: Lightbulb, body: "Generate, evaluate and save concepts with hooks. No images, narration or rendering." },
+              { value: "CONCEPT", title: "Concept mode", icon: Lightbulb, body: "Generate, evaluate and save concepts. No images, narration or rendering." },
               { value: "FULL_PRODUCTION", title: "Full production", icon: Clapperboard, body: "Concepts first, then produce MP4s for the ones you approve — or select automatically." },
             ] as const
           ).map((m) => (
@@ -286,7 +286,7 @@ export function GenerateForm({
         </div>
         <dl className="space-y-1.5 border-t pt-4 text-sm">
           <div className="flex justify-between">
-            <dt className="text-muted-foreground">Concepts + scoring + hooks</dt>
+            <dt className="text-muted-foreground">Concepts + scoring</dt>
             <dd className="tabular-nums">{formatUsd(estimate.ideation.total)}</dd>
           </div>
           <div className="flex justify-between">

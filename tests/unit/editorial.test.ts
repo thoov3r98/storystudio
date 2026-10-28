@@ -46,26 +46,20 @@ function draft(sceneWords: number, scenes: number, hook = "You land after ten ho
     scenes: Array.from({ length: scenes }, (_, i) => ({
       sceneNumber: i + 1,
       narration: narrations[i],
-      visualDescription: "v",
       imagePrompt: "p",
       composition: "c",
       continuity: "",
       characters: [],
       objects: [],
-      intendedDurationSec: 6,
       motionPreset: "still",
     })),
     keyReveals: [],
-    establishedFacts: [],
     unresolvedQuestions: [],
-    continuationOpportunities: [],
     bibleUpdate: {
       addCharacters: [],
       updateCharacters: [],
       addLocations: [],
       addTimelineEvents: [],
-      addEstablishedFacts: [],
-      addTechnicalFacts: [],
       addMysteries: [],
       openThreads: [],
       resolveThreads: [],
@@ -100,11 +94,6 @@ describe("validateDraft", () => {
     const d = draft(14, 12);
     d.selectedHook = "A different opening line entirely.";
     expect(validateDraft(d, opts).join(" ")).toMatch(/opening line/);
-  });
-
-  it("enforces an explicitly required opening line", () => {
-    expect(validateDraft(draft(14, 12), { ...opts, requiredHook: "You land after ten hours." })).toEqual([]);
-    expect(validateDraft(draft(14, 12), { ...opts, requiredHook: "Your bag is gone." }).join(" ")).toMatch(/required opening line/);
   });
 });
 

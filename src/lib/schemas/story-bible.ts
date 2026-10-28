@@ -75,8 +75,6 @@ export const StoryBibleUpdateSchema = z.object({
   ),
   addLocations: z.array(LocationSchema),
   addTimelineEvents: z.array(TimelineEventSchema),
-  addEstablishedFacts: z.array(FactSchema),
-  addTechnicalFacts: z.array(FactSchema),
   addMysteries: z.array(z.string()),
   openThreads: z.array(z.object({ id: z.string(), description: z.string() })),
   resolveThreads: z.array(z.object({ id: z.string(), resolution: z.string() })),
@@ -161,8 +159,6 @@ export function applyBibleUpdate(bible: StoryBible, update: StoryBibleUpdate, pa
     timeline: [...bible.timeline.filter((e) => e.part !== part), ...update.addTimelineEvents.map((e) => ({ ...e, part }))].sort(
       (a, b) => a.part - b.part || a.order - b.order,
     ),
-    establishedFacts: upsertBy(bible.establishedFacts, update.addEstablishedFacts.map((f) => ({ ...f, part })), (f) => f.statement),
-    technicalFacts: upsertBy(bible.technicalFacts, update.addTechnicalFacts.map((f) => ({ ...f, part })), (f) => f.statement),
     mysteries: uniqueStrings(bible.mysteries, update.addMysteries),
     unresolvedThreads: threads,
     revealedInformation: uniqueStrings(bible.revealedInformation, update.addRevealedInformation),

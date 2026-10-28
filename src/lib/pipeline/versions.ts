@@ -1,10 +1,13 @@
 import { db } from "@/lib/db";
 import { applyBibleUpdate, openThreads, StoryBibleUpdateSchema } from "@/lib/schemas/story-bible";
-import { EpisodeSpecRecordSchema } from "@/lib/schemas/episode";
 import { countWords, estimateSpokenDuration, joinNarration } from "@/lib/text";
 import { loadCanonicalBible } from "./context";
 
 type SceneOverride = { narration?: string; imagePrompt?: string; composition?: string; dropImage?: boolean };
+
+function firstSentence(text: string): string {
+  return (/^.*?[.!?](?=\s|$)/.exec(text.trim())?.[0] ?? text.trim()).trim();
+}
 
 /**
  * Copies a version into a new DRAFT version. Scenes keep their current images
@@ -35,7 +38,8 @@ export async function forkVersion(
   });
   const narration = joinNarration(scenes);
   const narrationChanged = narration !== source.narration;
-  const spec = { ...(source.spec as object), ...(opts.specPatch ?? {}), narration, wordCount: countWords(narration) };
+  // The scenes are a cut of the story, so the story text and its opening follow any scene edit.
+  const spec = { ...(source.spec as object), selectedHook: firstSentence(narration), ...(opts.specPatch ?? {}), narration, storyNarration: narration, wordCount: countWords(narration) };
 
   return db.$transaction(async (tx) => {
     const last = await tx.episodeVersion.aggregate({ where: { episodeId: source.episodeId }, _max: { version: true } });
@@ -85,36 +89,6 @@ export async function ensureEditableVersion(episodeId: string, reason: string): 
   // A changed episode must be re-approved; published state is kept on the episode for history.
   await db.episode.update({ where: { id: episodeId }, data: { status: "READY" } });
   return forked;
-}
-
-/**
- * Swaps the opening hook. If scene 1 starts with the old hook it is replaced in
- * place (new version, images kept, voiceover regenerated). Returns null when a
- * full rewrite is needed instead.
- */
-export async function applyHookSwap(episodeId: string, hookId: string): Promise<string | null> {
-  const hook = await db.hook.findUniqueOrThrow({ where: { id: hookId } });
-  const episode = await db.episode.findUniqueOrThrow({
-    where: { id: episodeId },
-    include: { currentVersion: { include: { scenes: { orderBy: { sceneNumber: "asc" }, take: 1 } } } },
-  });
-  await db.$transaction([
-    db.hook.updateMany({ where: { episodeId }, data: { isPrimary: false } }),
-    db.hook.update({ where: { id: hookId }, data: { isPrimary: true } }),
-  ]);
-  const version = episode.currentVersion;
-  if (!version) return null;
-  const spec = EpisodeSpecRecordSchema.partial().parse(version.spec);
-  const oldHook = spec.selectedHook?.trim();
-  const scene1 = version.scenes[0];
-  if (!oldHook || !scene1 || !scene1.narration.trim().startsWith(oldHook)) return null;
-  const narration = `${hook.text.trim()} ${scene1.narration.trim().slice(oldHook.length).trim()}`.trim();
-  return forkVersion(version.id, {
-    reason: "regenerate-hook",
-    keepVoiceover: false,
-    sceneOverrides: { 1: { narration } },
-    specPatch: { selectedHook: hook.text.trim(), alternativeHooks: [...(spec.alternativeHooks ?? []).filter((h) => h !== hook.text), oldHook] },
-  });
 }
 
 export class ApprovalBlockedError extends Error {

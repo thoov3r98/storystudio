@@ -39,8 +39,6 @@ function emptyUpdate(part: number) {
     updateCharacters: [],
     addLocations: [{ name: `Location ${part}`, description: "A place" }],
     addTimelineEvents: [{ part, order: 1, event: `Event of part ${part}` }],
-    addEstablishedFacts: [],
-    addTechnicalFacts: [{ statement: `Fact from part ${part}`, kind: "real-world" as const, part }],
     addMysteries: [],
     openThreads: [{ id: `thread-${part}`, description: `Open question from part ${part}` }],
     resolveThreads: part > 1 ? [{ id: `thread-${part - 1}`, resolution: "Answered" }] : [],
@@ -63,20 +61,16 @@ export function makeDraft(hook: string, part: number, sceneCount = 12, hero = "Y
     scenes: Array.from({ length: sceneCount }, (_, i) => ({
       sceneNumber: i + 1,
       narration: narrations[i],
-      visualDescription: `visual ${i + 1}`,
       imagePrompt: `A stick figure in scene ${i + 1}`,
       composition: "wide shot",
       continuity: `Still in the terminal, scene ${i + 1}`,
       // Scene 5 is a cutaway without the hero.
       characters: i === 4 ? [] : [hero],
       objects: ["suitcase"],
-      intendedDurationSec: 6,
       motionPreset: "slow-zoom-in",
     })),
     keyReveals: [`Reveal ${part}`],
-    establishedFacts: [],
     unresolvedQuestions: [`Question ${part}`],
-    continuationOpportunities: ["More"],
     bibleUpdate: emptyUpdate(part),
   };
 }
@@ -130,14 +124,6 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
           const n = (user.match(/^\[\d+\]/gm) ?? []).length;
           return out({ evaluations: Array.from({ length: n }, (_, i) => ({ conceptIndex: i, scores: scores(4 + ((i * 3) % 6)), summary: "ok" })) });
         }
-        case "hook_candidates":
-          return out({
-            hooks: [
-              { type: "RELATABLE", text: "You land after ten hours.", scores: scores(8), rationale: "r" },
-              { type: "SURPRISING_FACT", text: "Your bag travels miles before you see it.", scores: scores(6), rationale: "r" },
-              { type: "IMMEDIATE_DANGER", text: "Your bag is about to vanish.", scores: scores(5), rationale: "r" },
-            ],
-          });
         case "episode_draft": {
           if (user.includes("Current draft (JSON):")) {
             const json = user.slice(user.indexOf("Current draft (JSON):") + "Current draft (JSON):".length).trim();
@@ -146,9 +132,7 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
             draft.storyNarration = draft.scenes.map((s) => s.narration).join(" ");
             return out(draft);
           }
-          // A required opening is used verbatim; otherwise the fake adopts the first hook idea.
-          const hook =
-            /Opening line \(required, verbatim\): "([^"]+)"/.exec(user)?.[1] ?? /Hook ideas[^\n]*\n- (.+)/.exec(user)?.[1] ?? "You land after ten hours.";
+          const hook = "You land after ten hours.";
           const part = Number(/^Part: (\d+)/m.exec(user)?.[1] ?? 1);
           const hero = /NARRATOR AND HERO: (.+?) —/.exec(user)?.[1];
           return out(makeDraft(hook, part, 12, hero));

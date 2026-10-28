@@ -8,8 +8,6 @@ export const CRITERIA = [
   { key: "seriesPotential", label: "Future episode capacity", weight: 1.2 },
   { key: "visualSimplicity", label: "Visual simplicity", weight: 0.8 },
   { key: "originality", label: "Originality vs. existing stories", weight: 1.0 },
-  // Scored so that 10 = easy to get right. High research complexity lowers the score.
-  { key: "researchFeasibility", label: "Research feasibility (inverse of factual complexity)", weight: 0.7 },
   { key: "audienceAppeal", label: "Potential audience appeal", weight: 1.0 },
 ] as const;
 
@@ -34,9 +32,6 @@ export const ConceptCandidateSchema = z.object({
   logline: z.string().describe("The idea in one plain sentence, as you would tell a friend."),
   category: z.string(),
   keywords: z.array(z.string()).describe("4–8 lowercase topical keywords."),
-  factMode: FactModeSchema.describe(
-    "FACTUAL: real-world explanation. HYPOTHETICAL: clearly framed what-if. FICTIONAL: invented narrative. MIXED: real systems with fictional connective storytelling.",
-  ),
   openingSituation: z.string().describe("The concrete, everyday second-person situation the first episode opens on."),
   seriesPotential: z.string().describe("How the story could naturally continue, if it does. Two strong episodes is fine; do not invent mysteries to stretch it."),
 });
@@ -58,21 +53,6 @@ export const ConceptEvaluationSchema = z.object({
 });
 
 export type ConceptEvaluation = z.infer<typeof ConceptEvaluationSchema>["evaluations"][number];
-
-export const HookTypeSchema = z.enum(["RELATABLE", "SURPRISING_FACT", "IMMEDIATE_DANGER", "QUESTION", "OTHER"]);
-
-export const HookCandidatesSchema = z.object({
-  hooks: z.array(
-    z.object({
-      type: HookTypeSchema,
-      text: z.string().describe("The spoken opening, 1–3 short sentences, under 5 seconds to say."),
-      scores: CriteriaScoresSchema,
-      rationale: z.string(),
-    }),
-  ),
-});
-
-export type HookCandidate = z.infer<typeof HookCandidatesSchema>["hooks"][number];
 
 export function clampScore(n: number): number {
   if (!Number.isFinite(n)) return 1;

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ActionButton, useAction } from "@/components/client-helpers";
-import { restoreVersion, runEpisodeAction, setPrimaryHook, selectSceneImage } from "@/app/actions";
+import { restoreVersion, runEpisodeAction, selectSceneImage } from "@/app/actions";
 import { cn } from "@/lib/utils";
 
 type EpisodeRequest = Parameters<typeof runEpisodeAction>[1];
@@ -48,38 +48,7 @@ export function EpisodeActionButton({
   );
 }
 
-export function HookActions({ episodeId, hookId, hasScript, disabled }: { episodeId: string; hookId: string; hasScript: boolean; disabled?: boolean }) {
-  if (!hasScript) {
-    return (
-      <div className="mt-3">
-        <ActionButton size="xs" variant="outline" disabled={disabled} action={() => setPrimaryHook(episodeId, hookId)} success="Hook selected">
-          Use this hook
-        </ActionButton>
-      </div>
-    );
-  }
-  return (
-    <div className="mt-3">
-      <ActionButton
-        size="xs"
-        variant="outline"
-        disabled={disabled}
-        action={() => runEpisodeAction(episodeId, { action: "swap-hook", hookId }, true)}
-        success="Swapping hook"
-        confirm={{
-          title: "Use this hook?",
-          description:
-            "Creates a new script version with this opening. Scene images are kept; the narration is re-recorded, re-synchronised and the video re-rendered. If the opening can't be swapped in place, the script is rewritten around the new hook.",
-          confirmLabel: "Swap hook",
-        }}
-      >
-        Use this hook
-      </ActionButton>
-    </div>
-  );
-}
-
-export function RewriteSceneDialog({ episodeId, sceneNumber, disabled }: { episodeId: string; sceneNumber: number; disabled?: boolean }) {
+export function RewriteSceneDialog({ episodeId, sceneNumber, disabled, opening }: { episodeId: string; sceneNumber: number; disabled?: boolean; opening?: boolean }) {
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [cont, setCont] = useState(true);
@@ -88,19 +57,19 @@ export function RewriteSceneDialog({ episodeId, sceneNumber, disabled }: { episo
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="xs" variant="outline" disabled={disabled}>
-          <PenLine /> Rewrite narration
+          <PenLine /> {opening ? "Rewrite opening" : "Rewrite narration"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rewrite scene {sceneNumber}</DialogTitle>
+          <DialogTitle>{opening ? "Rewrite the opening" : `Rewrite scene ${sceneNumber}`}</DialogTitle>
           <DialogDescription>
             Creates a new script version. The voiceover, timing and captions are regenerated; this scene’s image is regenerated only if its visual changes.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
           <Label htmlFor={`ins-${sceneNumber}`}>Instruction (optional)</Label>
-          <Textarea id={`ins-${sceneNumber}`} rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder="e.g. Make this beat more tense and remove the statistic" />
+          <Textarea id={`ins-${sceneNumber}`} rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder={opening ? "e.g. Start in the moment the chair stops, and make it funnier" : "e.g. Make this beat more tense and remove the statistic"} />
         </div>
         <div className="flex items-center justify-between rounded-lg border p-3">
           <Label htmlFor={`cont-${sceneNumber}`} className="text-sm font-normal">

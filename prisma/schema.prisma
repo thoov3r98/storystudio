@@ -521,7 +521,7 @@ model Concept {
   logline          String
   category         String
   keywords         String[]
-  factMode         FactMode
+  factMode         FactMode @default(MIXED)
   seriesPotential  String
   scores           Json?
   totalScore       Float?

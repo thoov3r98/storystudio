@@ -57,12 +57,13 @@ test.describe("studio pages", () => {
     await expect(page.getByText(/Canonical v2/)).toBeVisible();
   });
 
-  test("episode details shows script, hooks and scenes, with no fact review", async ({ page }) => {
+  test("episode details shows script and scenes, with no hooks panel or fact review", async ({ page }) => {
     const { episodeId } = seedIds();
     await page.goto(`/episodes/${episodeId}`);
-    await expect(page.getByText("Opening hook", { exact: true })).toBeVisible();
+    await expect(page.getByText("Opening", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Rewrite opening" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Scene timeline \(12\)/ })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Opening hooks" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Opening hooks" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Fact review" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Regenerate image" }).first()).toBeVisible();
   });

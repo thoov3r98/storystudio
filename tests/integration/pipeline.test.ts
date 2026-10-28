@@ -55,7 +55,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   });
   beforeEach(reset);
 
-  it("ideates, dedupes, ranks, selects and writes hooks", async () => {
+  it("ideates, dedupes, ranks and selects, with no separate hook step", async () => {
     await db.story.create({
       data: { title: "Where Does Your Lost Luggage Actually Go?", normalizedTitle: "lost luggage", category: "travel-transportation", premise: "Your lost suitcase travels through hidden baggage systems.", keywords: ["luggage"] },
     });
@@ -73,15 +73,13 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(concepts.filter((c) => c.status === "SELECTED")).toHaveLength(3);
     const ranked = concepts.filter((c) => c.rank !== null).sort((a, b) => a.rank! - b.rank!);
     expect(ranked[0].totalScore!).toBeGreaterThanOrEqual(ranked.at(-1)!.totalScore!);
-    const stories = await db.story.findMany({ where: { conceptId: { not: null } }, include: { episodes: { include: { hooks: true } }, bibles: true } });
+    const stories = await db.story.findMany({ where: { conceptId: { not: null } }, include: { episodes: true, bibles: true } });
     expect(stories).toHaveLength(3);
     for (const s of stories) {
       expect(s.status).toBe("CONCEPT");
       expect(s.bibles).toHaveLength(1);
-      expect(s.episodes[0].hooks.length).toBeGreaterThanOrEqual(3);
-      expect(s.episodes[0].hooks.filter((h) => h.isPrimary)).toHaveLength(1);
     }
-    expect(text.calls.hook_candidates).toBe(3);
+    expect(Object.keys(text.calls).sort()).toEqual(["concept_batch", "concept_evaluation"]);
     const costs = await db.costEntry.count({ where: { batchId: batch.id } });
     expect(costs).toBeGreaterThan(0);
 
@@ -191,22 +189,24 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(ep.currentVersion!.voiceoverId).toBe(untouched.voiceoverId);
   });
 
-  it("swaps a hook into a new version without redrawing images", async () => {
+  it("rewrites the opening into a new version and keeps the story text in sync", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps();
     const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
-    const alt = await db.hook.findFirstOrThrow({ where: { episodeId, isPrimary: false } });
     const imagesBefore = f.images.count;
 
-    await runEpisodeJob({ jobId: (await newJob({ type: "REGENERATE_HOOKS", episodeId })).id, episodeId, continueProduction: true, request: { action: "swap-hook", hookId: alt.id } }, f.deps);
+    await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "rewrite-scene", sceneNumber: 1, instruction: "Funnier" } }, f.deps);
 
-    const ep = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: true } });
-    expect(ep.currentVersion!.narration.startsWith(alt.text)).toBe(true);
-    expect(ep.currentVersion!.version).toBe(2);
-    expect(f.images.count).toBe(imagesBefore);
-    expect(f.speech.count).toBe(2);
+    const ep = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: { include: { scenes: { orderBy: { sceneNumber: "asc" } } } } } });
+    const v = ep.currentVersion!;
+    const spec = v.spec as { selectedHook: string; storyNarration: string };
+    expect(v.version).toBe(2);
+    expect(v.scenes[0].narration).toMatch(/rewritten\.$/);
+    expect(spec.storyNarration).toBe(v.narration);
+    expect(v.narration.startsWith(spec.selectedHook)).toBe(true);
+    expect(f.images.count).toBe(imagesBefore + 1); // only scene 1, whose visual changed
     expect(ep.status).toBe("READY");
   });
 

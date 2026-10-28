@@ -12,7 +12,6 @@
 
 export type ChangeKind =
   | { kind: "script" } // whole script regenerated
-  | { kind: "hook"; hookText: string } // a different opening hook selected
   | { kind: "scene-narration"; sceneNumber: number; imagePromptChanged: boolean }
   | { kind: "scene-image"; sceneNumber: number }
   | { kind: "voiceover" }
@@ -33,9 +32,6 @@ export function planRegeneration(change: ChangeKind): RegenerationPlan {
   switch (change.kind) {
     case "script":
       return { forkVersion: true, regenerate: ["script", "scene-images", "voiceover", "timing", "render"], imageScenes: "all" };
-    case "hook":
-      // Hook swaps only rewrite scene 1's opening; downstream scenes keep their images.
-      return { forkVersion: true, regenerate: ["script", "voiceover", "timing", "render"], imageScenes: "none" };
     case "scene-narration":
       return {
         forkVersion: true,

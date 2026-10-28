@@ -65,7 +65,6 @@ function ConceptCard({ c, selectable, checked, onCheck }: { c: Concept; selectab
             ) : null}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Badge variant="outline">{c.factMode.toLowerCase()}</Badge>
             {c.status === "DUPLICATE" ? (
               <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
                 <Copy /> Similar to “{c.duplicateOfTitle}” ({Math.round((c.similarity ?? 0) * 100)}%)

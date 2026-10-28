@@ -2,7 +2,6 @@ import { db } from "@/lib/db";
 import { generateStructured } from "@/lib/ai/structured";
 import {
   continuityPrompt,
-  hooksPrompt,
   outlinePickPrompt,
   outlinePrompt,
   revisionPrompt,
@@ -12,7 +11,6 @@ import {
   writerPrompt,
 } from "@/lib/ai/prompts";
 import { OutlinePickSchema, type StoryOutline, StoryOutlinesSchema, type StoryReview, StoryReviewSchema, storyNeedsRevision } from "@/lib/schemas/story-plan";
-import { HookCandidatesSchema, normalizeScores, totalScore, validateScores } from "@/lib/schemas/concept";
 import {
   type ContinuityReview,
   ContinuityReviewSchema,
@@ -31,7 +29,7 @@ import { toNarrator } from "./characters";
 
 const MAX_REVISION_ROUNDS = 2;
 
-export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; wordsPerSecond: number; requiredHook?: string | null }): string[] {
+export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; wordsPerSecond: number }): string[] {
   const issues: string[] = [];
   const [minScenes, maxScenes] = sceneCountRange(opts.durationSec);
   if (draft.scenes.length < minScenes || draft.scenes.length > maxScenes) {
@@ -62,7 +60,6 @@ export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; 
     return p.length > 0 && tokenize(text).slice(0, p.length).join(" ") === p.join(" ");
   };
   if (!startsWith(draft.storyNarration, draft.selectedHook)) issues.push("selectedHook must be the opening line(s) of storyNarration, copied exactly.");
-  if (opts.requiredHook && !startsWith(draft.storyNarration, opts.requiredHook)) issues.push("storyNarration must begin with the required opening line verbatim.");
   return issues;
 }
 
@@ -91,67 +88,6 @@ async function loadEpisodeSetup(episodeId: string) {
     writerModel: preset.writerModel === "main" ? models.main : models.fast,
     reviewerModel: preset.reviewerModel === "main" ? models.main : models.fast,
   };
-}
-
-/** Generates (or adds a new round of) scored hook candidates for an episode. */
-export async function generateHooks(ctx: WriteContext & { count?: number }) {
-  const { episode, story, bible, pricing, writerModel } = await loadEpisodeSetup(ctx.episodeId);
-  const history = episode.partNumber > 1 ? await approvedHistory(story.id, episode.partNumber) : [];
-  const concept = story.conceptId ? await db.concept.findUnique({ where: { id: story.conceptId } }) : null;
-  const prompt = hooksPrompt({
-    title: story.title,
-    premise: story.premise,
-    openingSituation: concept?.logline ?? story.logline ?? story.premise,
-    factMode: story.factMode,
-    partNumber: episode.partNumber,
-    previously: episode.partNumber > 1 ? `${bible.data.arcSummary}\nLast episode: ${history.at(-1)?.summary ?? ""}` : undefined,
-    count: ctx.count,
-    narrator: story.character ? toNarrator(story.character) : null,
-  });
-  await assertWithinBudget(ctx.cost, 0.05);
-  const result = await generateStructured({
-    client: ctx.deps.text,
-    pricing,
-    model: writerModel,
-    ...prompt,
-    schema: HookCandidatesSchema,
-    schemaName: "hook_candidates",
-    validate: (v) => {
-      const issues = v.hooks.flatMap((h, i) => validateScores(h.scores).map((s) => `hooks[${i}]: ${s}`));
-      if (v.hooks.length < 3) issues.push("Write at least three hooks.");
-      const types = new Set(v.hooks.map((h) => h.type));
-      for (const t of ["RELATABLE", "SURPRISING_FACT", "IMMEDIATE_DANGER"] as const) if (!types.has(t)) issues.push(`Include a ${t} hook.`);
-      return issues;
-    },
-    cost: { ctx: ctx.cost, operation: "hooks" },
-  });
-
-  const prevRound = await db.hook.aggregate({ where: { episodeId: episode.id }, _max: { round: true } });
-  const round = (prevRound._max.round ?? 0) + 1;
-  const ranked = result.hooks
-    .map((h) => ({ ...h, scores: normalizeScores(h.scores) }))
-    .map((h) => ({ ...h, total: totalScore(h.scores) }))
-    .sort((a, b) => b.total - a.total);
-  const hasPrimary = (await db.hook.count({ where: { episodeId: episode.id, isPrimary: true } })) > 0;
-
-  await db.hook.createMany({
-    data: ranked.map((h, i) => ({
-      episodeId: episode.id,
-      type: h.type,
-      text: h.text.trim(),
-      scores: h.scores,
-      totalScore: h.total,
-      rationale: h.rationale,
-      isPrimary: !hasPrimary && i === 0,
-      round,
-    })),
-  });
-  return { round, count: ranked.length };
-}
-
-async function primaryHook(episodeId: string): Promise<string | null> {
-  const hook = await db.hook.findFirst({ where: { episodeId, isPrimary: true } });
-  return hook?.text ?? null;
 }
 
 function continuityIssuesFrom(review: ContinuityReview | null): string[] {
@@ -202,15 +138,9 @@ async function planEpisode(ctx: WriteContext, input: WriterInput, opts: { model:
  * continuity review (Part 2+) → up to two correction rounds → persist.
  * The proposed bible update is stored as a pending proposal, never applied here.
  */
-export async function writeEpisode(ctx: WriteContext & { reason: string; hookText?: string | null; direction?: string | null }): Promise<WriteResult> {
+export async function writeEpisode(ctx: WriteContext & { reason: string; direction?: string | null }): Promise<WriteResult> {
   const setup = await loadEpisodeSetup(ctx.episodeId);
   const { episode, story, bible, pricing, wps, writerModel, reviewerModel } = setup;
-
-  // Hooks are inspiration; the writer adapts one so the opening flows into the story.
-  // An explicitly chosen hook (ctx.hookText) is the exception and is used verbatim.
-  if (!ctx.hookText && !(await primaryHook(episode.id))) await generateHooks(ctx);
-  const hookRows = await db.hook.findMany({ where: { episodeId: episode.id }, orderBy: [{ isPrimary: "desc" }, { totalScore: "desc" }] });
-  const hookIdeas = hookRows.map((h) => h.text).slice(0, 5);
 
   const history = episode.partNumber > 1 ? await approvedHistory(story.id, episode.partNumber) : [];
   const selected = selectContinuationContext(history);
@@ -219,12 +149,9 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
     storyId: story.id,
     title: story.title,
     premise: story.premise,
-    factMode: story.factMode,
     partNumber: episode.partNumber,
     durationSec: story.targetDurationSec,
     wordsPerSecond: wps,
-    hookIdeas,
-    requiredHook: ctx.hookText ?? null,
     narrator: story.character ? toNarrator(story.character) : null,
     bible: bible.data,
     previousEpisodes: selected.previousEpisodes,
@@ -234,7 +161,7 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
   const plan = await planEpisode(ctx, writerInput, { model: writerModel, pricing });
   const writer = writerPrompt({ ...writerInput, outline: plan.outline, outlineNotes: plan.notes });
 
-  const validate = (d: EpisodeDraft) => validateDraft(d, { durationSec: story.targetDurationSec, wordsPerSecond: wps, requiredHook: ctx.hookText });
+  const validate = (d: EpisodeDraft) => validateDraft(d, { durationSec: story.targetDurationSec, wordsPerSecond: wps });
 
   await assertWithinBudget(ctx.cost, 0.25);
   let draft = await generateStructured({
@@ -309,7 +236,6 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
   const materialConflicts = continuityIssuesFrom(continuityReview);
 
   const hook = draft.selectedHook.trim();
-  const alternativeHooks = hookRows.map((h) => h.text).filter((t) => t !== hook);
 
   const versionId = await persistVersion({
     episodeId: episode.id,
@@ -320,7 +246,6 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
     parentVersionId: episode.currentVersionId,
     draft,
     hook,
-    alternativeHooks,
     wps,
     continuityReview,
     baseBibleVersion: bible.version,
@@ -346,7 +271,6 @@ async function persistVersion(input: {
   parentVersionId: string | null;
   draft: EpisodeDraft;
   hook: string;
-  alternativeHooks: string[];
   wps: number;
   continuityReview: ContinuityReview | null;
   baseBibleVersion: number;
@@ -362,7 +286,6 @@ async function persistVersion(input: {
     selectedHook: input.hook,
     storyId: input.storyId,
     partNumber: input.partNumber,
-    alternativeHooks: input.alternativeHooks,
     narration,
     wordCount,
     estimatedDurationSec,
@@ -400,7 +323,8 @@ async function persistVersion(input: {
             continuity: s.continuity,
             characters: s.characters,
             objects: s.objects,
-            intendedDurationSec: s.intendedDurationSec,
+            // Planned length from the word count; real timing comes from the voiceover.
+            intendedDurationSec: estimateSpokenDuration(s.narration, input.wps),
             motionPreset: s.motionPreset,
           })),
         },

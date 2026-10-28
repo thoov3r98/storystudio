@@ -6,7 +6,6 @@ import { StoryOutlineSchema, StoryReviewSchema } from "./story-plan";
 export const SceneSpecSchema = z.object({
   sceneNumber: z.number().int(),
   narration: z.string().describe("An exact, contiguous excerpt of storyNarration (usually one or two sentences). All scenes joined in order must reproduce storyNarration word for word."),
-  visualDescription: z.string().describe("What the viewer sees, in plain language."),
   imagePrompt: z
     .string()
     .describe(
@@ -18,7 +17,6 @@ export const SceneSpecSchema = z.object({
     .describe("What must be true in this shot: where the hero physically is, time of day and light, weather, and anything that changed since the previous shot."),
   characters: z.array(z.string()).describe("Names of the characters VISIBLE in this shot only. Leave someone out when the shot is about someone or something else."),
   objects: z.array(z.string()),
-  intendedDurationSec: z.number(),
   motionPreset: z.enum(MOTION_PRESETS),
 });
 
@@ -46,9 +44,7 @@ export const EpisodeDraftSchema = z.object({
   visualState: VisualStateSchema,
   scenes: z.array(SceneSpecSchema),
   keyReveals: z.array(z.string()),
-  establishedFacts: z.array(z.string()),
   unresolvedQuestions: z.array(z.string()),
-  continuationOpportunities: z.array(z.string()),
   bibleUpdate: StoryBibleUpdateSchema,
 });
 
@@ -97,7 +93,6 @@ export const EpisodeSpecRecordSchema = EpisodeDraftSchema.omit({ scenes: true })
   storyReview: StoryReviewSchema.optional(),
   storyId: z.string(),
   partNumber: z.number().int(),
-  alternativeHooks: z.array(z.string()),
   narration: z.string(),
   wordCount: z.number().int(),
   estimatedDurationSec: z.number(),

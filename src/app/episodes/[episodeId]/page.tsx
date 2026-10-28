@@ -11,12 +11,11 @@ import { AutoRefresh } from "@/components/client-helpers";
 import { getEpisode } from "@/lib/queries";
 import { reconcileStaleJobs } from "@/lib/enqueue";
 import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
-import { CRITERIA } from "@/lib/schemas/concept";
 import type { ContinuityReview, EpisodeSpecRecord } from "@/lib/schemas/episode";
 import type { EpisodeTiming } from "@/lib/timing";
 import { downloadUrl, previewUrl } from "@/lib/urls";
 import { ApproveEpisodeButton } from "@/app/stories/[storyId]/story-client";
-import { EpisodeActionButton, HookActions, RewriteSceneDialog, SceneImageHistory, VersionRestoreButton } from "./episode-client";
+import { EpisodeActionButton, RewriteSceneDialog, SceneImageHistory, VersionRestoreButton } from "./episode-client";
 
 export const metadata: Metadata = { title: "Episode" };
 
@@ -47,7 +46,6 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
   const locked = v?.status === "APPROVED";
   const continuity = (v?.continuityReview ?? null) as ContinuityReview | null;
   const busy = Boolean(activeJob);
-  const latestRound = episode.hooks[0]?.round ?? 0;
 
   return (
     <>
@@ -140,7 +138,9 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
       ) : null}
 
       {!v ? (
-        <HooksSection episode={episode} busy={busy} latestRound={latestRound} />
+        <div className="rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
+          No script yet. <span className="font-medium text-foreground">Write &amp; produce</span> outlines the episode, writes the script and makes the video.
+        </div>
       ) : (
         <div className="grid gap-10 xl:grid-cols-[360px_minmax(0,1fr)]">
           <div className="space-y-8 xl:sticky xl:top-8 xl:self-start">
@@ -233,7 +233,10 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
             >
               <div className="space-y-4 rounded-xl border bg-card p-5">
                 <div>
-                  <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Opening hook</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Opening</div>
+                    <RewriteSceneDialog episodeId={episode.id} sceneNumber={1} disabled={busy} opening />
+                  </div>
                   <p className="mt-1 text-lg font-medium text-balance">{spec?.selectedHook}</p>
                 </div>
                 <div>
@@ -244,12 +247,11 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                   <summary className="cursor-pointer text-sm font-medium">Full narration</summary>
                   <p className="mt-2 text-sm leading-relaxed whitespace-pre-line">{v.narration}</p>
                 </details>
-                <div className="grid gap-4 text-sm sm:grid-cols-3">
+                <div className="grid gap-4 text-sm sm:grid-cols-2">
                   {(
                     [
                       ["Key reveals", spec?.keyReveals],
                       ["Unresolved questions", spec?.unresolvedQuestions],
-                      ["Continuation opportunities", spec?.continuationOpportunities],
                     ] as const
                   ).map(([label, items]) => (
                     <div key={label}>
@@ -264,8 +266,6 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                 </div>
               </div>
             </Section>
-
-            <HooksSection episode={episode} busy={busy} latestRound={latestRound} currentHook={spec?.selectedHook} />
 
             <Section title={`Scene timeline (${v.scenes.length})`} description="Each scene holds one illustration while its narration plays. Timing comes from the real voiceover alignment.">
               <div className="space-y-3">
@@ -377,54 +377,5 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         </div>
       )}
     </>
-  );
-}
-
-function HooksSection({
-  episode,
-  busy,
-  latestRound,
-  currentHook,
-}: {
-  episode: NonNullable<Awaited<ReturnType<typeof getEpisode>>>["episode"];
-  busy: boolean;
-  latestRound: number;
-  currentHook?: string;
-}) {
-  return (
-    <Section
-      title="Opening hooks"
-      description="Candidates are scored on the same editorial criteria as concepts. Switching hooks creates a new script version and re-records narration."
-      actions={<EpisodeActionButton episodeId={episode.id} request={{ action: "regenerate-hooks" }} disabled={busy} label="Write more hooks" size="sm" variant="outline" />}
-    >
-      <div className="grid gap-3 md:grid-cols-2">
-        {episode.hooks.length === 0 ? <p className="text-sm text-muted-foreground">No hooks yet.</p> : null}
-        {episode.hooks.map((h) => {
-          const scores = h.scores as Record<string, { score: number; rationale: string }>;
-          const inUse = currentHook ? currentHook.trim() === h.text.trim() : h.isPrimary;
-          return (
-            <div key={h.id} className={`rounded-xl border bg-card p-4 ${inUse ? "border-primary ring-2 ring-primary/10" : ""}`}>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{h.type.replaceAll("_", " ").toLowerCase()}</Badge>
-                  {inUse ? <Badge>in use</Badge> : null}
-                  {h.round === latestRound && latestRound > 1 ? <Badge variant="secondary">new</Badge> : null}
-                </div>
-                <span className="text-lg font-semibold tabular-nums">{h.totalScore.toFixed(1)}</span>
-              </div>
-              <p className="mt-2 text-sm font-medium text-pretty">“{h.text}”</p>
-              <p className="mt-1 text-xs text-muted-foreground">{h.rationale}</p>
-              <details className="mt-2 text-xs">
-                <summary className="cursor-pointer text-muted-foreground">Scores</summary>
-                <ul className="mt-1 space-y-0.5">
-                  {CRITERIA.map((c) => (scores[c.key] ? <li key={c.key}>{c.label}: {scores[c.key].score} — {scores[c.key].rationale}</li> : null))}
-                </ul>
-              </details>
-              {!inUse ? <HookActions episodeId={episode.id} hookId={h.id} hasScript={Boolean(episode.currentVersion)} disabled={busy} /> : null}
-            </div>
-          );
-        })}
-      </div>
-    </Section>
   );
 }

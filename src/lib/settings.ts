@@ -76,7 +76,7 @@ export async function getDefaults(): Promise<Defaults> {
 }
 
 export const ModelsSchema = z.object({
-  /** Writes concepts, hooks and scripts. */
+  /** Writes concepts, outlines and scripts. */
   main: z.string().trim().min(1),
   /** Reviews facts and continuity; Draft quality writes with it too. */
   fast: z.string().trim().min(1),

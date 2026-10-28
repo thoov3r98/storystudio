@@ -11,11 +11,10 @@ import { type Pricing, imageCost, renderCost, speechCost, textCost } from "./pri
 export const TOKEN_HEURISTICS = {
   ideationPerConcept: { input: 250, output: 260 },
   evaluationPerConcept: { input: 420, output: 520 },
-  hooksPerConcept: { input: 900, output: 900 },
   /** Three beat outlines, then an editor picks one. */
   outlineEpisode: { input: 3500, output: 1800 },
   pickOutline: { input: 2200, output: 600 },
-  writeEpisode: { input: 5500, output: 5000 },
+  writeEpisode: { input: 5500, output: 4300 },
   storyReview: { input: 1800, output: 500 },
   continuityReview: { input: 4200, output: 900 },
   /** Expected correction passes per episode (story editor notes, plus continuity fixes on Part 2+). */
@@ -51,8 +50,7 @@ export function estimateIdeationCost(pricing: Pricing, models: ModelNames, reque
   const h = TOKEN_HEURISTICS;
   const text =
     (textCost(pricing, writer, { inputTokens: candidates * h.ideationPerConcept.input, outputTokens: candidates * h.ideationPerConcept.output }) +
-      textCost(pricing, reviewer, { inputTokens: candidates * h.evaluationPerConcept.input, outputTokens: candidates * h.evaluationPerConcept.output }) +
-      textCost(pricing, writer, { inputTokens: requested * h.hooksPerConcept.input, outputTokens: requested * h.hooksPerConcept.output })) *
+      textCost(pricing, reviewer, { inputTokens: candidates * h.evaluationPerConcept.input, outputTokens: candidates * h.evaluationPerConcept.output })) *
     cal.textFactor;
   return sum({ text, images: 0, speech: 0, render: 0 });
 }

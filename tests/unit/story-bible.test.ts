@@ -7,8 +7,6 @@ const noChanges: StoryBibleUpdate = {
   updateCharacters: [],
   addLocations: [],
   addTimelineEvents: [],
-  addEstablishedFacts: [],
-  addTechnicalFacts: [],
   addMysteries: [],
   openThreads: [],
   resolveThreads: [],

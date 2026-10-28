@@ -95,22 +95,15 @@ function BibleView({ bible }: { bible: StoryBible }) {
           ))}
         </ol>
       </div>
-      <div>
-        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Established facts</h3>
-        <div className="mt-2">
-          <List
-            empty="None yet."
-            items={[...bible.establishedFacts, ...bible.technicalFacts].map((f, i) => (
-              <span key={i}>
-                <Badge variant="outline" className={f.kind === "real-world" ? "mr-1.5 border-sky-200 bg-sky-50 text-sky-800" : "mr-1.5"}>
-                  {f.kind}
-                </Badge>
-                {f.statement}
-              </span>
-            ))}
-          />
+      {/* Older stories recorded facts; newer ones track continuity through the timeline and threads. */}
+      {bible.establishedFacts.length ? (
+        <div>
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Established facts</h3>
+          <div className="mt-2">
+            <List items={bible.establishedFacts.map((f, i) => <span key={i}>{f.statement}</span>)} empty="None yet." />
+          </div>
         </div>
-      </div>
+      ) : null}
       {bible.revealedInformation.length ? (
         <div>
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Already revealed</h3>
@@ -168,7 +161,6 @@ function ProposalSummary({ update }: { update: unknown }) {
     ["Character changes", u.updateCharacters.map((c) => `${c.name}: ${[c.description, c.visualDescription].filter(Boolean).join(" / ")}`)],
     ["New locations", u.addLocations.map((l) => l.name)],
     ["Timeline events", u.addTimelineEvents.map((e) => e.event)],
-    ["Established facts", [...u.addEstablishedFacts, ...u.addTechnicalFacts].map((f) => `[${f.kind}] ${f.statement}`)],
     ["Opens threads", u.openThreads.map((t) => `${t.id}: ${t.description}`)],
     ["Resolves threads", u.resolveThreads.map((t) => `${t.id}: ${t.resolution}`)],
     ["Reveals", u.addRevealedInformation],
@@ -241,7 +233,6 @@ async function StoryContent({ params }: { params: PageProps<"/stories/[storyId]"
 
       <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
         <StoryStatusBadge status={story.status} />
-        <span>{story.factMode.toLowerCase()} story</span>
         <span>{story.targetDurationSec}s episodes</span>
         <span>Created {story.createdAt.toLocaleDateString()}</span>
         <span>Active {relativeTime(story.lastActivityAt)}</span>

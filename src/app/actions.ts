@@ -383,14 +383,3 @@ export async function addAudioAsset(input: z.input<typeof AudioAssetInput>) {
   });
 }
 
-/** Chooses the opening hook before a script exists (no job needed). */
-export async function setPrimaryHook(episodeId: string, hookId: string) {
-  return attempt(async () => {
-    const hook = await db.hook.findUniqueOrThrow({ where: { id: hookId } });
-    if (hook.episodeId !== episodeId) throw new Error("Hook does not belong to this episode.");
-    await db.$transaction([
-      db.hook.updateMany({ where: { episodeId }, data: { isPrimary: false } }),
-      db.hook.update({ where: { id: hookId }, data: { isPrimary: true } }),
-    ]);
-  });
-}

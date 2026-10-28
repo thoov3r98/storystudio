@@ -71,7 +71,7 @@ ${input.avoidTitles.length ? input.avoidTitles.map((t) => `- ${t}`).join("\n") :
   };
 }
 
-export function evaluationPrompt(input: { concepts: { title: string; premise: string; logline: string; factMode: string; seriesPotential: string }[]; existingTitles: string[] }) {
+export function evaluationPrompt(input: { concepts: { title: string; premise: string; logline: string; seriesPotential: string }[]; existingTitles: string[] }) {
   return {
     system: `You are a demanding story editor for short-form vertical video. You score concepts consistently on a 1–10 integer scale per criterion, where 5 is an average pitch and 9–10 is rare.
 These are editorial heuristics, not predictions of view counts.
@@ -83,7 +83,6 @@ The audience is everyday adults scrolling short-form video, not experts. Favor c
 - relatability, curiosity, hookStrength and audienceAppeal: high only if an ordinary person would understand the idea within two seconds, could picture themselves in it, and would want to know what happens next.
 - A concept that cannot be explained to a friend in one plain sentence, needs world-building or specialist knowledge, has manufactured stakes, or rests on a forced twist ("the real danger isn't X, it's Y") scores at most 4 on curiosity, hookStrength and audienceAppeal.
 - seriesPotential: a credible natural continuation scores well; two strong episodes beat six stretched ones. Do not reward convoluted plots.
-For researchFeasibility, 10 means easy to tell accurately with well-documented general knowledge; 1 means it hinges on obscure, disputed or unverifiable specifics.
 For originality, compare against the producer's existing stories: penalise only repeating the same central situation, not reusing a familiar setting (lost luggage and a missed connection are different stories).
 Give one honest sentence of rationale per score. Evaluate every concept, using its index.`,
     user: `Existing stories:
@@ -95,28 +94,9 @@ ${input.concepts
     (c, i) => `[${i}] ${c.title}
 Premise: ${c.premise}
 Logline: ${c.logline}
-Fact mode: ${c.factMode}
 Series potential: ${c.seriesPotential}`,
   )
   .join("\n\n")}`,
-  };
-}
-
-export function hooksPrompt(input: { title: string; premise: string; openingSituation: string; factMode: string; partNumber: number; previously?: string; count?: number; narrator?: NarratorProfile | null }) {
-  return {
-    system: `${HOUSE_STYLE}
-
-You write opening hooks: the first 3–5 seconds of narration. A hook must put the viewer inside the moment immediately.
-Write at least one of each type: RELATABLE (an ordinary moment going wrong), SURPRISING_FACT (a true, well-documented surprise — no invented numbers), IMMEDIATE_DANGER (stakes that land right now). You may add QUESTION or OTHER.
-Score every hook with the standard criteria (1–10 integers):
-${criteriaGuide()}`,
-    user: `Story: ${input.title}
-Premise: ${input.premise}
-Opening situation: ${input.openingSituation}
-Fact mode: ${input.factMode}
-Part: ${input.partNumber}
-${input.previously ? `Previously: ${input.previously}\n` : ""}${input.narrator ? `\n${narratorBlock(input.narrator)}\nWrite every hook in ${input.narrator.name}'s narrating voice.\n` : ""}
-Write ${input.count ?? 4} distinct hooks.`,
   };
 }
 
@@ -133,11 +113,10 @@ Locations:
 ${bible.locations.map((l) => `- ${l.name}: ${l.description}`).join("\n") || "- none yet"}
 Timeline:
 ${bible.timeline.map((e) => `- Part ${e.part}.${e.order}: ${e.event}`).join("\n") || "- none yet"}
-Established story facts:
-${bible.establishedFacts.map((f) => `- [${f.kind}] ${f.statement}`).join("\n") || "- none yet"}
-Technical facts already used:
-${bible.technicalFacts.map((f) => `- [${f.kind}] ${f.statement}`).join("\n") || "- none yet"}
-Already revealed (do not re-reveal as new):
+${
+  // Older bibles recorded facts; kept in context so continuations don't contradict them.
+  bible.establishedFacts.length ? `Established story facts:\n${bible.establishedFacts.map((f) => `- ${f.statement}`).join("\n")}\n` : ""
+}Already revealed (do not re-reveal as new):
 ${bible.revealedInformation.map((r) => `- ${r}`).join("\n") || "- nothing yet"}
 Open threads:
 ${open.map((t) => `- [${t.id}] ${t.description} (since Part ${t.introducedPart})`).join("\n") || "- none"}
@@ -152,14 +131,9 @@ export type WriterInput = {
   storyId: string;
   title: string;
   premise: string;
-  factMode: string;
   partNumber: number;
   durationSec: number;
   wordsPerSecond: number;
-  /** Candidate openings to draw on; the writer picks and adapts one. */
-  hookIdeas: string[];
-  /** When set, the episode must open with exactly this line. */
-  requiredHook?: string | null;
   narrator?: NarratorProfile | null;
   bible: StoryBible;
   previousEpisodes: { partNumber: number; title: string; summary: string }[];
@@ -196,15 +170,8 @@ function episodeContext(input: WriterInput): string {
   return `Story ID: ${input.storyId}
 Series title: ${input.title}
 Premise: ${input.premise}
-Fact mode: ${input.factMode}
 Part: ${input.partNumber}
-${input.narrator ? `\n${narratorBlock(input.narrator)}\n` : ""}
-${
-  input.requiredHook
-    ? `Opening line (required, verbatim): "${input.requiredHook}"`
-    : `Hook ideas (inspiration, best first):\n${input.hookIdeas.map((h) => `- ${h}`).join("\n") || "- (none; write your own)"}`
-}
-${input.direction ? `Producer direction: ${input.direction}\n` : ""}
+${input.narrator ? `\n${narratorBlock(input.narrator)}\n` : ""}${input.direction ? `Producer direction: ${input.direction}\n` : ""}
 ${bibleContextBlock(input.bible)}
 ${
   isContinuation
@@ -274,7 +241,7 @@ You are the head writer. You write one episode in three steps, in this order.
 STEP 1 — storyNarration: write the whole episode as one continuous story told aloud, ${minWords}–${maxWords} words (about ${input.durationSec}s at ~${input.wordsPerSecond.toFixed(2)} words/second for this narrator). Write it as a story, not as captions.
 ${input.outline ? "Follow the chosen outline's beats, trigger, escalations and ending turn, applying the editor's notes." : "Plan it first: how the hero's choice causes the trouble, three escalating complications, a clever move, a moment of humour and an ending turn."}
 - Tell it in time order. No flash-forwards, no "one second ago", no rewinding after the opening.
-- The opening line is the hook: it drops the viewer straight into the moment things go wrong and flows directly into the next sentence. Use the hook ideas as inspiration; pick the best and adapt it so it fits the story you are telling.
+- The opening line is the hook: it drops the viewer straight into the moment things go wrong and flows directly into the next sentence.
 - Within the first two sentences the viewer knows who, where and what is at stake.
 - Numbers written as they are spoken; no abbreviations that read awkwardly.
 
@@ -346,7 +313,7 @@ ${input.draftJson}`,
 export function continuityPrompt(input: { bible: StoryBible; previousSummaries: string[]; draftSummary: string; narrationByScene: { sceneNumber: number; narration: string }[]; partNumber: number }) {
   return {
     system: `You are the continuity supervisor for a serialized story. Compare a new episode draft with the canonical story bible and earlier episodes.
-Flag: character contradictions, location contradictions, impossible timelines, repeated reveals presented as new, broken causal chains, unexplained new facts that the story relies on, and conflicts with established real-world facts.
+Flag: character contradictions, location contradictions, impossible timelines, repeated reveals presented as new, broken causal chains, and unexplained new facts that the story relies on.
 Severity "material" means a viewer who watched earlier parts would notice and be confused; "minor" otherwise.
 Do not flag deliberate new developments that are set up and explained.`,
     user: `${bibleContextBlock(input.bible)}
