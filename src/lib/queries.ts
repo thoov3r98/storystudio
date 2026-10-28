@@ -87,7 +87,6 @@ export async function getStory(storyId: string) {
             include: {
               renders: { where: { status: "SUCCEEDED" }, orderBy: { createdAt: "desc" }, take: 1 },
               proposal: true,
-              claims: { where: { status: { in: ["FLAGGED", "UNVERIFIED"] } }, select: { id: true } },
             },
           },
           metrics: { orderBy: { recordedAt: "desc" } },
@@ -120,7 +119,6 @@ export async function getEpisode(episodeId: string) {
           voiceover: true,
           voiceovers: { orderBy: { version: "desc" }, take: 5 },
           renders: { orderBy: { createdAt: "desc" }, take: 10 },
-          claims: { orderBy: { createdAt: "asc" } },
           proposal: true,
         },
       },

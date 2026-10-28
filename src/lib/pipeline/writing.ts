@@ -2,7 +2,6 @@ import { db } from "@/lib/db";
 import { generateStructured } from "@/lib/ai/structured";
 import {
   continuityPrompt,
-  factReviewPrompt,
   hooksPrompt,
   revisionPrompt,
   sceneRewritePrompt,
@@ -15,8 +14,6 @@ import {
   type EpisodeDraft,
   EpisodeDraftSchema,
   type EpisodeSpecRecord,
-  type FactReview,
-  FactReviewSchema,
   SceneNarrationRewriteSchema,
 } from "@/lib/schemas/episode";
 import { MOTION_PRESETS, QUALITY_PRESETS, sceneCountRange, targetWordRange } from "@/lib/constants";
@@ -26,7 +23,6 @@ import { assertWithinBudget, type CostContext } from "@/lib/costs/record";
 import { approvedHistory, loadCanonicalBible, selectContinuationContext } from "./context";
 import type { PipelineDeps } from "./deps";
 import { toNarrator } from "./characters";
-import type { ClaimClassification, ClaimStatus, FactCheckStatus } from "@/generated/prisma/enums";
 
 const MAX_REVISION_ROUNDS = 2;
 
@@ -153,26 +149,6 @@ async function primaryHook(episodeId: string): Promise<string | null> {
   return hook?.text ?? null;
 }
 
-function claimStatusFor(assessment: FactReview["claims"][number]["assessment"]): ClaimStatus {
-  switch (assessment) {
-    case "widely-documented":
-      return "SUPPORTED";
-    case "fictional-framed":
-      return "SUPPORTED";
-    case "plausible-unverified":
-      return "FLAGGED";
-    case "dubious":
-    case "presented-as-fact-but-unsupported":
-      return "FLAGGED";
-  }
-}
-
-function factIssuesFrom(review: FactReview): string[] {
-  return review.claims
-    .filter((c) => c.assessment === "dubious" || c.assessment === "presented-as-fact-but-unsupported")
-    .map((c) => `Scene ${c.sceneNumber}: unsupported claim "${c.claim}". ${c.suggestedRevision ? `Suggested: ${c.suggestedRevision}` : "Remove the unsupported specificity."}`);
-}
-
 function continuityIssuesFrom(review: ContinuityReview | null): string[] {
   if (!review) return [];
   return review.issues
@@ -180,10 +156,10 @@ function continuityIssuesFrom(review: ContinuityReview | null): string[] {
     .map((i) => `Continuity (${i.type}${i.sceneNumber ? `, scene ${i.sceneNumber}` : ""}): ${i.description} Fix: ${i.suggestedFix}`);
 }
 
-export type WriteResult = { versionId: string; materialConflicts: string[]; factCheckStatus: FactCheckStatus };
+export type WriteResult = { versionId: string; materialConflicts: string[] };
 
 /**
- * Writes a complete new script version for an episode: draft → fact review →
+ * Writes a complete new script version for an episode: draft →
  * continuity review (Part 2+) → up to two correction rounds → persist.
  * The proposed bible update is stored as a pending proposal, never applied here.
  */
@@ -231,55 +207,33 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
     cost: { ctx: ctx.cost, operation: "write-episode" },
   });
 
-  let factReview: FactReview;
+  // Part 2+ is checked against the story bible and revised (bounded) until it no longer contradicts earlier episodes.
   let continuityReview: ContinuityReview | null = null;
-  let round = 0;
-
-  for (;;) {
-    factReview = await generateStructured({
+  for (let round = 1; episode.partNumber > 1; round++) {
+    continuityReview = await generateStructured({
       client: ctx.deps.text,
       pricing,
       model: reviewerModel,
-      ...factReviewPrompt({
-        title: draft.title,
-        factMode: story.factMode,
+      ...continuityPrompt({
+        bible: bible.data,
+        previousSummaries: history.map((h) => `Part ${h.partNumber}: ${h.summary}`),
+        draftSummary: draft.summary,
         narrationByScene: draft.scenes.map((s) => ({ sceneNumber: s.sceneNumber, narration: s.narration })),
-        declaredClaims: draft.claims,
+        partNumber: episode.partNumber,
       }),
-      schema: FactReviewSchema,
-      schemaName: "fact_review",
-      cost: { ctx: ctx.cost, operation: "fact-review" },
+      schema: ContinuityReviewSchema,
+      schemaName: "continuity_review",
+      cost: { ctx: ctx.cost, operation: "continuity-review" },
     });
-
-    if (episode.partNumber > 1) {
-      continuityReview = await generateStructured({
-        client: ctx.deps.text,
-        pricing,
-        model: reviewerModel,
-        ...continuityPrompt({
-          bible: bible.data,
-          previousSummaries: history.map((h) => `Part ${h.partNumber}: ${h.summary}`),
-          draftSummary: draft.summary,
-          narrationByScene: draft.scenes.map((s) => ({ sceneNumber: s.sceneNumber, narration: s.narration })),
-          partNumber: episode.partNumber,
-        }),
-        schema: ContinuityReviewSchema,
-        schemaName: "continuity_review",
-        cost: { ctx: ctx.cost, operation: "continuity-review" },
-      });
-    }
-
-    const factIssues = factIssuesFrom(factReview);
     const continuityIssues = continuityIssuesFrom(continuityReview);
-    if ((factIssues.length === 0 && continuityIssues.length === 0) || round >= MAX_REVISION_ROUNDS) break;
+    if (continuityIssues.length === 0 || round > MAX_REVISION_ROUNDS) break;
 
-    round++;
     await assertWithinBudget(ctx.cost, 0.2);
     draft = await generateStructured({
       client: ctx.deps.text,
       pricing,
       model: writerModel,
-      ...revisionPrompt({ draftJson: JSON.stringify(draft), factIssues, continuityIssues, lengthIssues: [] }),
+      ...revisionPrompt({ draftJson: JSON.stringify(draft), continuityIssues, lengthIssues: [] }),
       schema: EpisodeDraftSchema,
       schemaName: "episode_draft",
       validate,
@@ -288,8 +242,6 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
   }
 
   const materialConflicts = continuityIssuesFrom(continuityReview);
-  const unresolvedFacts = factReview.claims.filter((c) => c.assessment !== "widely-documented" && c.assessment !== "fictional-framed");
-  const factCheckStatus: FactCheckStatus = unresolvedFacts.length === 0 ? "PASSED" : "NEEDS_REVIEW";
 
   const hook = draft.selectedHook.trim();
   const alternativeHooks = hookRows.map((h) => h.text).filter((t) => t !== hook);
@@ -305,8 +257,6 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
     hook,
     alternativeHooks,
     wps,
-    factReview,
-    factCheckStatus,
     continuityReview,
     baseBibleVersion: bible.version,
   });
@@ -317,15 +267,8 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
   });
   await db.story.update({ where: { id: story.id }, data: { lastActivityAt: new Date() } });
 
-  return { versionId, materialConflicts, factCheckStatus };
+  return { versionId, materialConflicts };
 }
-
-const classificationMap: Record<string, ClaimClassification> = {
-  ESTABLISHED_FACT: "ESTABLISHED_FACT",
-  PLAUSIBLE_EXAMPLE: "PLAUSIBLE_EXAMPLE",
-  FICTIONAL: "FICTIONAL",
-  NEEDS_VERIFICATION: "NEEDS_VERIFICATION",
-};
 
 async function persistVersion(input: {
   episodeId: string;
@@ -338,8 +281,6 @@ async function persistVersion(input: {
   hook: string;
   alternativeHooks: string[];
   wps: number;
-  factReview: FactReview;
-  factCheckStatus: FactCheckStatus;
   continuityReview: ContinuityReview | null;
   baseBibleVersion: number;
 }): Promise<string> {
@@ -356,7 +297,7 @@ async function persistVersion(input: {
     narration,
     wordCount,
     estimatedDurationSec,
-    factCheckStatus: input.factCheckStatus,
+    factCheckStatus: "PASSED",
   };
 
   return db.$transaction(async (tx) => {
@@ -375,8 +316,8 @@ async function persistVersion(input: {
         wordCount,
         estimatedDurationSec,
         summary: input.draft.summary,
-        factCheckStatus: input.factCheckStatus,
-        factReview: input.factReview,
+        // Fact checking is off; versions are written as passed so nothing waits on it.
+        factCheckStatus: "PASSED",
         continuityReview: input.continuityReview ?? undefined,
         styleKey: input.styleKey,
         scenes: {
@@ -392,18 +333,6 @@ async function persistVersion(input: {
           })),
         },
       },
-    });
-
-    await tx.factClaim.createMany({
-      data: input.factReview.claims.map((c) => ({
-        storyId: input.storyId,
-        episodeVersionId: version.id,
-        claim: c.claim,
-        classification: classificationMap[c.classification] ?? "NEEDS_VERIFICATION",
-        status: claimStatusFor(c.assessment),
-        reasoning: `${c.assessment}: ${c.reasoning}${c.suggestedRevision ? ` Suggested revision: ${c.suggestedRevision}` : ""}`,
-        references: c.verificationHints,
-      })),
     });
 
     await tx.bibleUpdateProposal.updateMany({
@@ -466,49 +395,6 @@ export async function rewriteScene(ctx: WriteContext & { sceneNumber: number; in
         dropImage: imagePromptChanged,
       },
     },
-    resetFactCheck: true,
   });
   return { versionId: newVersionId, imagePromptChanged };
-}
-
-/** Re-runs the fact review on an existing version (used after hook swaps and scene rewrites). */
-export async function reviewVersionFacts(ctx: WriteContext & { versionId: string }) {
-  const setup = await loadEpisodeSetup(ctx.episodeId);
-  const version = await db.episodeVersion.findUniqueOrThrow({
-    where: { id: ctx.versionId },
-    include: { scenes: { orderBy: { sceneNumber: "asc" } } },
-  });
-  const spec = version.spec as Partial<EpisodeSpecRecord>;
-  const review = await generateStructured({
-    client: ctx.deps.text,
-    pricing: setup.pricing,
-    model: setup.reviewerModel,
-    ...factReviewPrompt({
-      title: setup.episode.title,
-      factMode: setup.story.factMode,
-      narrationByScene: version.scenes.map((s) => ({ sceneNumber: s.sceneNumber, narration: s.narration })),
-      declaredClaims: spec.claims ?? [],
-    }),
-    schema: FactReviewSchema,
-    schemaName: "fact_review",
-    cost: { ctx: ctx.cost, operation: "fact-review" },
-  });
-  const unresolved = review.claims.filter((c) => c.assessment !== "widely-documented" && c.assessment !== "fictional-framed");
-  const factCheckStatus: FactCheckStatus = unresolved.length === 0 ? "PASSED" : "NEEDS_REVIEW";
-  await db.$transaction([
-    db.factClaim.deleteMany({ where: { episodeVersionId: version.id } }),
-    db.factClaim.createMany({
-      data: review.claims.map((c) => ({
-        storyId: setup.story.id,
-        episodeVersionId: version.id,
-        claim: c.claim,
-        classification: classificationMap[c.classification] ?? "NEEDS_VERIFICATION",
-        status: claimStatusFor(c.assessment),
-        reasoning: `${c.assessment}: ${c.reasoning}${c.suggestedRevision ? ` Suggested revision: ${c.suggestedRevision}` : ""}`,
-        references: c.verificationHints,
-      })),
-    }),
-    db.episodeVersion.update({ where: { id: version.id }, data: { factReview: review, factCheckStatus, spec: { ...spec, factCheckStatus } } }),
-  ]);
-  return factCheckStatus;
 }

@@ -12,11 +12,11 @@ type SceneOverride = { narration?: string; imagePrompt?: string; composition?: s
  */
 export async function forkVersion(
   versionId: string,
-  opts: { reason: string; keepVoiceover: boolean; sceneOverrides?: Record<number, SceneOverride>; resetFactCheck?: boolean; specPatch?: Record<string, unknown> },
+  opts: { reason: string; keepVoiceover: boolean; sceneOverrides?: Record<number, SceneOverride>; specPatch?: Record<string, unknown> },
 ): Promise<string> {
   const source = await db.episodeVersion.findUniqueOrThrow({
     where: { id: versionId },
-    include: { scenes: { orderBy: { sceneNumber: "asc" } }, proposal: true, claims: true },
+    include: { scenes: { orderBy: { sceneNumber: "asc" } }, proposal: true },
   });
   const scenes = source.scenes.map((s) => {
     const o = opts.sceneOverrides?.[s.sceneNumber];
@@ -49,8 +49,8 @@ export async function forkVersion(
         wordCount: countWords(narration),
         estimatedDurationSec: narrationChanged ? estimateSpokenDuration(narration) : source.estimatedDurationSec,
         summary: source.summary,
-        factCheckStatus: opts.resetFactCheck ? "PENDING" : source.factCheckStatus,
-        factReview: source.factReview ?? undefined,
+        // Fact checking is off; nothing waits on it.
+        factCheckStatus: "PASSED",
         continuityReview: source.continuityReview ?? undefined,
         styleKey: source.styleKey,
         voiceoverId: opts.keepVoiceover && !narrationChanged ? source.voiceoverId : null,
@@ -58,11 +58,6 @@ export async function forkVersion(
         scenes: { create: scenes },
       },
     });
-    if (!opts.resetFactCheck && source.claims.length) {
-      await tx.factClaim.createMany({
-        data: source.claims.map(({ id: _id, createdAt: _c, updatedAt: _u, episodeVersionId: _v, ...c }) => ({ ...c, episodeVersionId: created.id })),
-      });
-    }
     if (source.proposal) {
       await tx.bibleUpdateProposal.create({
         data: { storyId: source.proposal.storyId, episodeVersionId: created.id, baseBibleVersion: source.proposal.baseBibleVersion, update: source.proposal.update as object },
@@ -116,7 +111,6 @@ export async function applyHookSwap(episodeId: string, hookId: string): Promise<
   return forkVersion(version.id, {
     reason: "regenerate-hook",
     keepVoiceover: false,
-    resetFactCheck: true,
     sceneOverrides: { 1: { narration } },
     specPatch: { selectedHook: hook.text.trim(), alternativeHooks: [...(spec.alternativeHooks ?? []).filter((h) => h !== hook.text), oldHook] },
   });
@@ -131,15 +125,9 @@ export class ApprovalBlockedError extends Error {
 
 /** Reasons approval should be blocked; empty when the episode can be approved. */
 export async function approvalBlockers(episodeId: string): Promise<string[]> {
-  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: { include: { claims: true } } } });
-  const v = episode.currentVersion;
+  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: true } });
   const reasons: string[] = [];
-  if (!v) return ["There is no script to approve."];
-  const flagged = v.claims.filter((c) => c.status === "FLAGGED" || c.status === "UNVERIFIED");
-  if (v.factCheckStatus === "PENDING") reasons.push("The fact review has not run for this version.");
-  if (flagged.length > 0 && v.factCheckStatus !== "MANUALLY_APPROVED") {
-    reasons.push(`${flagged.length} claim(s) are flagged for verification. Verify, revise, or reject them first.`);
-  }
+  if (!episode.currentVersion) return ["There is no script to approve."];
   if (episode.partNumber > 1) {
     const earlier = await db.episode.count({ where: { storyId: episode.storyId, partNumber: { lt: episode.partNumber }, status: { notIn: ["APPROVED", "PUBLISHED"] } } });
     if (earlier > 0) reasons.push("Earlier parts must be approved first.");

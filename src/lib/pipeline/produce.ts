@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { setJobStage } from "@/lib/jobs";
 import type { CostContext } from "@/lib/costs/record";
 import { computeStaleness } from "@/lib/invalidation";
-import { generateHooks, reviewVersionFacts, rewriteScene, writeEpisode } from "./writing";
+import { generateHooks, rewriteScene, writeEpisode } from "./writing";
 import { generateSceneImages } from "./illustrations";
 import { generateVoiceover, synchronizeNarration } from "./voiceover";
 import { renderVersion } from "./render";
@@ -141,15 +141,12 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
         // Scene 1 doesn't start with the old hook verbatim; rewrite the script around the new hook.
         const hook = await db.hook.findUniqueOrThrow({ where: { id: req.hookId } });
         await writeEpisode({ ...ctx, reason: "regenerate-hook", hookText: hook.text });
-      } else {
-        await reviewVersionFacts({ ...ctx, versionId });
       }
       return payload.continueProduction ? produceDownstream(episode.id, jobId, cost, deps) : { scripted: true };
     }
     case "rewrite-scene": {
       await setJobStage(jobId, "WRITING_STORY", `Rewriting scene ${req.sceneNumber}`, 0.1);
-      const { versionId } = await rewriteScene({ ...ctx, sceneNumber: req.sceneNumber, instruction: req.instruction });
-      await reviewVersionFacts({ ...ctx, versionId });
+      await rewriteScene({ ...ctx, sceneNumber: req.sceneNumber, instruction: req.instruction });
       return payload.continueProduction ? produceDownstream(episode.id, jobId, cost, deps) : { scripted: true };
     }
     case "regenerate-image": {

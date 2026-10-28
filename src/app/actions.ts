@@ -323,17 +323,6 @@ export async function restoreVersion(episodeId: string, versionId: string) {
   });
 }
 
-export async function resolveClaim(claimId: string, status: "MANUALLY_VERIFIED" | "REJECTED" | "FLAGGED", note: string) {
-  return attempt(async () => {
-    const claim = await db.factClaim.update({ where: { id: claimId }, data: { status, resolutionNote: note.trim() || null } });
-    const open = await db.factClaim.count({ where: { episodeVersionId: claim.episodeVersionId, status: { in: ["FLAGGED", "UNVERIFIED"] } } });
-    const rejected = await db.factClaim.count({ where: { episodeVersionId: claim.episodeVersionId, status: "REJECTED" } });
-    if (open === 0 && rejected === 0) {
-      await db.episodeVersion.update({ where: { id: claim.episodeVersionId }, data: { factCheckStatus: "MANUALLY_APPROVED" } });
-    }
-  });
-}
-
 // ───────────────────────────── Jobs ─────────────────────────────
 
 export async function cancelJobAction(jobId: string) {

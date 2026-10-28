@@ -131,8 +131,7 @@ export function ApproveEpisodeButton({ episodeId, hasProposal }: { episodeId: st
         <DialogHeader>
           <DialogTitle>Approve this episode?</DialogTitle>
           <DialogDescription>
-            Approval locks this script version (later edits create a new version) and{hasProposal ? " applies its proposed continuity updates to the story bible, which future episodes will treat as canon." : " makes it part of the canonical history."}{" "}
-            Episodes with unverified flagged claims can’t be approved until you resolve them on the episode page.
+            Approval locks this script version (later edits create a new version) and{hasProposal ? " applies its proposed continuity updates to the story bible, which future episodes will treat as canon." : " makes it part of the canonical history."}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">

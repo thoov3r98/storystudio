@@ -93,7 +93,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   it("produces Part 1, approves it into the bible, and continues to Part 2 with context", async () => {
     const batch = await createBatch(1);
     const ideJob = await newJob({ type: "BATCH_IDEATION", batchId: batch.id });
-    const f = fakeDeps({ firstFactReviewFails: true });
+    const f = fakeDeps();
     const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: ideJob.id, deps: f.deps });
     const episodeId = episodeIds[0];
 
@@ -102,7 +102,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
 
     const ep = await db.episode.findUniqueOrThrow({
       where: { id: episodeId },
-      include: { currentVersion: { include: { scenes: { include: { currentImage: true } }, voiceover: true, renders: true, claims: true, proposal: true } } },
+      include: { currentVersion: { include: { scenes: { include: { currentImage: true } }, voiceover: true, renders: true, proposal: true } } },
     });
     const v = ep.currentVersion!;
     expect(ep.status).toBe("READY");
@@ -112,8 +112,9 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(v.voiceover?.durationMs).toBeGreaterThan(0);
     expect(v.renders.filter((r) => r.status === "SUCCEEDED")).toHaveLength(1);
     expect(v.narration.startsWith("You land after ten hours.")).toBe(true);
-    // Bounded correction ran once (first fact review failed) and the final claims pass.
-    expect(f.text.calls.episode_draft).toBe(2);
+    // Fact checking is off: one draft, no review call, nothing waits on it.
+    expect(f.text.calls.episode_draft).toBe(1);
+    expect(f.text.calls.fact_review).toBeUndefined();
     expect(v.factCheckStatus).toBe("PASSED");
     expect(v.proposal?.status).toBe("PENDING");
     const timing = v.timing as { scenes: { startMs: number }[]; totalDurationMs: number };

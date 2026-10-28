@@ -148,7 +148,7 @@ export function ModelsPricingForm(props: { models: Models; pricing: Pricing; ima
           <Money label="Output" unit="per 1M tokens" value={main.outputPerMTok} onChange={(v) => setMain({ ...main, outputPerMTok: v })} />
         </ModelRow>
 
-        <ModelRow role="Reviewing" description="Concept scoring and fact and continuity checks at Draft and Standard; all writing at Draft." model={models.fast} onModel={(v) => pickText("fast", v)} suggestions={SUGGESTIONS.text}>
+        <ModelRow role="Reviewing" description="Concept scoring and continuity checks at Draft and Standard; all writing at Draft." model={models.fast} onModel={(v) => pickText("fast", v)} suggestions={SUGGESTIONS.text}>
           <Money label="Input" unit="per 1M tokens" value={fast.inputPerMTok} onChange={(v) => setFast({ ...fast, inputPerMTok: v })} />
           <Money label="Cached input" unit="per 1M tokens" value={fast.cachedInputPerMTok} onChange={(v) => setFast({ ...fast, cachedInputPerMTok: v })} />
           <Money label="Output" unit="per 1M tokens" value={fast.outputPerMTok} onChange={(v) => setFast({ ...fast, outputPerMTok: v })} />

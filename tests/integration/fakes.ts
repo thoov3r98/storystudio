@@ -16,8 +16,6 @@ const scores = (n: number) => Object.fromEntries(CRITERIA.map((c) => [c.key, { s
 const SUBJECTS = ["luggage", "water", "elevators", "subway", "mail", "ports", "power", "satellites", "bridges", "sewers", "trains", "hospitals", "shipping", "airports", "tunnels", "dams", "trucks", "ferries", "cables", "grain"];
 
 export type FakeTextOptions = {
-  /** Make the first fact review demand a revision (exercises bounded corrections). */
-  firstFactReviewFails?: boolean;
   /** Continuity verdict to return for Part 2+. */
   continuity?: "consistent" | "material-conflicts";
 };
@@ -63,7 +61,6 @@ export function makeDraft(hook: string, part: number, sceneCount = 12): EpisodeD
     establishedFacts: [],
     unresolvedQuestions: [`Question ${part}`],
     continuationOpportunities: ["More"],
-    claims: [{ claim: "Bags are scanned", sceneNumber: 2, classification: "ESTABLISHED_FACT" }],
     bibleUpdate: emptyUpdate(part),
   };
 }
@@ -138,24 +135,6 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
             /Opening line \(required, verbatim\): "([^"]+)"/.exec(user)?.[1] ?? /Hook ideas[^\n]*\n- (.+)/.exec(user)?.[1] ?? "You land after ten hours.";
           const part = Number(/^Part: (\d+)/m.exec(user)?.[1] ?? 1);
           return out(makeDraft(hook, part));
-        }
-        case "fact_review": {
-          const fail = opts.firstFactReviewFails && calls.fact_review === 1;
-          return out({
-            claims: [
-              {
-                claim: fail ? "Exactly 4,217 bags are lost per hour" : "Bags are scanned",
-                sceneNumber: 2,
-                classification: "ESTABLISHED_FACT",
-                assessment: fail ? "presented-as-fact-but-unsupported" : "widely-documented",
-                reasoning: "test",
-                suggestedRevision: fail ? "Say 'many bags'" : null,
-                verificationHints: ["Airline baggage handling manuals"],
-              },
-            ],
-            verdict: fail ? "needs-revision" : "pass",
-            notes: "",
-          });
         }
         case "continuity_review":
           return out(

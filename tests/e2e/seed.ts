@@ -95,7 +95,6 @@ async function main() {
     const img = await db.sceneImage.create({ data: { sceneId: scene.id, version: 1, status: "SUCCEEDED", url: svg(scene.sceneNumber), prompt: scene.imagePrompt, model: "seed", quality: "low" } });
     await db.scene.update({ where: { id: scene.id }, data: { currentImageId: img.id } });
   }
-  await db.factClaim.create({ data: { storyId: story.id, episodeVersionId: version.id, claim: "Bags are scanned several times", classification: "ESTABLISHED_FACT", status: "SUPPORTED", reasoning: "widely-documented", references: [] } });
   await db.bibleUpdateProposal.create({ data: { storyId: story.id, episodeVersionId: version.id, baseBibleVersion: 1, update: draft.bibleUpdate } });
   await db.episode.update({ where: { id: episode.id }, data: { currentVersionId: version.id } });
   // Pre-compute what approval would produce so the bible view has content to show.

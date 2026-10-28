@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Download, Flag } from "lucide-react";
+import { Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -274,7 +274,6 @@ async function StoryContent({ params }: { params: PageProps<"/stories/[storyId]"
                 const v = e.currentVersion;
                 const render = v?.renders[0];
                 const job = e.jobs[0];
-                const flagged = v?.claims.length ?? 0;
                 return (
                   <div key={e.id} className="rounded-xl border bg-card p-4">
                     <div className="flex flex-col gap-4 sm:flex-row">
@@ -287,11 +286,6 @@ async function StoryContent({ params }: { params: PageProps<"/stories/[storyId]"
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Part {e.partNumber}</span>
                           <EpisodeStatusBadge status={e.status} />
-                          {flagged ? (
-                            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
-                              <Flag /> {flagged} claim{flagged === 1 ? "" : "s"} to verify
-                            </Badge>
-                          ) : null}
                           {v ? <span className="text-xs text-muted-foreground">script v{v.version}</span> : null}
                         </div>
                         <Link href={`/episodes/${e.id}`} className="block font-medium hover:underline">

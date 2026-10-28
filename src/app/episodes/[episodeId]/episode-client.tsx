@@ -1,15 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Flag, Loader2, PenLine, X } from "lucide-react";
+import { Loader2, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ActionButton, useAction } from "@/components/client-helpers";
-import { resolveClaim, restoreVersion, runEpisodeAction, setPrimaryHook, selectSceneImage } from "@/app/actions";
+import { restoreVersion, runEpisodeAction, setPrimaryHook, selectSceneImage } from "@/app/actions";
 import { cn } from "@/lib/utils";
 
 type EpisodeRequest = Parameters<typeof runEpisodeAction>[1];
@@ -96,8 +95,7 @@ export function RewriteSceneDialog({ episodeId, sceneNumber, disabled }: { episo
         <DialogHeader>
           <DialogTitle>Rewrite scene {sceneNumber}</DialogTitle>
           <DialogDescription>
-            Creates a new script version. The voiceover, timing and captions are regenerated; this scene’s image is regenerated only if its visual changes. Facts are
-            re-reviewed.
+            Creates a new script version. The voiceover, timing and captions are regenerated; this scene’s image is regenerated only if its visual changes.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
@@ -161,32 +159,6 @@ export function SceneImageHistory({
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-export function ClaimActions({ claimId, status }: { claimId: string; status: string }) {
-  const [note, setNote] = useState("");
-  const { pending, run } = useAction();
-  const act = (s: "MANUALLY_VERIFIED" | "REJECTED" | "FLAGGED", msg: string) => run(() => resolveClaim(claimId, s, note), { success: msg });
-  return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Source or note (recommended)" className="h-7 max-w-xs text-xs" />
-      {status !== "MANUALLY_VERIFIED" ? (
-        <Button size="xs" variant="outline" disabled={pending} onClick={() => act("MANUALLY_VERIFIED", "Marked verified")}>
-          <Check /> I verified this
-        </Button>
-      ) : null}
-      {status !== "REJECTED" ? (
-        <Button size="xs" variant="outline" disabled={pending} onClick={() => act("REJECTED", "Claim rejected")}>
-          <X /> Reject
-        </Button>
-      ) : null}
-      {status !== "FLAGGED" ? (
-        <Button size="xs" variant="ghost" disabled={pending} onClick={() => act("FLAGGED", "Flagged")}>
-          <Flag /> Flag
-        </Button>
-      ) : null}
     </div>
   );
 }

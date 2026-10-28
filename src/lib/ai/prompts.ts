@@ -211,10 +211,7 @@ STEP 2 — scenes: cut storyNarration into ${minScenes}–${maxScenes} shots, in
 
 selectedHook is the opening line(s) of storyNarration, copied exactly.
 
-Truthfulness:
-- List in "claims" every real-world factual claim the narration makes, with its scene and classification:
-  ESTABLISHED_FACT (widely documented), PLAUSIBLE_EXAMPLE (illustrative, framed as typical/possible), FICTIONAL (story-world), NEEDS_VERIFICATION (you are not certain).
-- Prefer general truthful phrasing over invented precision. Survival and safety advice must be sound.
+Keep real-world details and advice sound; prefer general truthful phrasing over invented precision.
 
 Continuity:
 - "bibleUpdate" lists only what THIS episode adds or changes. Thread ids must be short stable slugs; resolve threads by their existing ids.
@@ -254,42 +251,17 @@ Write Part 1, the opening episode. It must stand alone as a satisfying story whi
   };
 }
 
-export function revisionPrompt(input: { draftJson: string; factIssues: string[]; continuityIssues: string[]; lengthIssues: string[] }) {
+export function revisionPrompt(input: { draftJson: string; continuityIssues: string[]; lengthIssues: string[] }) {
   return {
     system: `${HOUSE_STYLE}
 
 You are revising an episode draft to fix specific problems while keeping everything else as close to the original as possible. Return the complete revised episode in the same structure.
-Keep storyNarration and the scenes in sync: change the story in storyNarration first, then make the scenes' narration the exact contiguous excerpts of it again. Keep the story flowing; fixes must read naturally aloud.
-For unsupported factual claims: remove the unsupported specificity, reframe as clearly illustrative, or move it into the story world. Do not replace one unverified specific with another.`,
+Keep storyNarration and the scenes in sync: change the story in storyNarration first, then make the scenes' narration the exact contiguous excerpts of it again. Keep the story flowing; fixes must read naturally aloud.`,
     user: `Problems to fix:
-${[...input.factIssues, ...input.continuityIssues, ...input.lengthIssues].map((i) => `- ${i}`).join("\n")}
+${[...input.continuityIssues, ...input.lengthIssues].map((i) => `- ${i}`).join("\n")}
 
 Current draft (JSON):
 ${input.draftJson}`,
-  };
-}
-
-export function factReviewPrompt(input: { title: string; factMode: string; narrationByScene: { sceneNumber: number; narration: string }[]; declaredClaims: { claim: string; sceneNumber: number; classification: string }[] }) {
-  return {
-    system: `You are a meticulous fact-checker for short educational story videos. You do not have web access, so be explicit about the limits of your knowledge.
-
-For every factual-sounding statement in the narration (not only the declared claims), assess:
-- widely-documented: you are highly confident it is broadly documented general knowledge.
-- plausible-unverified: plausible, but you cannot confirm the specifics; must be flagged for a human.
-- fictional-framed: clearly story-world or hypothetical as presented.
-- dubious: likely wrong or misleading.
-- presented-as-fact-but-unsupported: stated as fact with invented-seeming precision (numbers, named procedures, policies, incidents).
-
-Give a concrete suggestedRevision for anything not widely-documented or fictional-framed. verificationHints name the kind of authoritative source a human should check (agency, standard, manual) — never invent URLs or citations.
-Verdict: "pass" if nothing needs attention; "needs-revision" if any dubious or presented-as-fact-but-unsupported claim exists; otherwise "needs-review".`,
-    user: `Episode: ${input.title}
-Fact mode: ${input.factMode}
-
-Narration by scene:
-${input.narrationByScene.map((s) => `[${s.sceneNumber}] ${s.narration}`).join("\n")}
-
-Writer-declared claims:
-${input.declaredClaims.map((c) => `- (scene ${c.sceneNumber}, ${c.classification}) ${c.claim}`).join("\n") || "- none declared"}`,
   };
 }
 

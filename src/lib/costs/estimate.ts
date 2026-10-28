@@ -13,10 +13,9 @@ export const TOKEN_HEURISTICS = {
   evaluationPerConcept: { input: 420, output: 520 },
   hooksPerConcept: { input: 900, output: 900 },
   writeEpisode: { input: 4500, output: 4200 },
-  factReview: { input: 3200, output: 1800 },
   continuityReview: { input: 4200, output: 900 },
-  /** Expected correction passes per episode (bounded at 2). */
-  expectedRevisions: 0.5,
+  /** Expected correction passes per episode (continuity fixes on Part 2+, bounded at 2). */
+  expectedRevisions: 0.3,
 };
 
 export type ModelNames = { main: string; fast: string };
@@ -60,8 +59,7 @@ export function estimateEpisodeCost(pricing: Pricing, models: ModelNames, input:
   const scale = input.durationSec / 75;
   const writes = 1 + h.expectedRevisions;
   let text =
-    textCost(pricing, writer, { inputTokens: h.writeEpisode.input * writes, outputTokens: h.writeEpisode.output * scale * writes }) +
-    textCost(pricing, reviewer, { inputTokens: h.factReview.input * writes, outputTokens: h.factReview.output * writes });
+    textCost(pricing, writer, { inputTokens: h.writeEpisode.input * writes, outputTokens: h.writeEpisode.output * scale * writes });
   if (input.isContinuation) {
     text += textCost(pricing, reviewer, { inputTokens: h.continuityReview.input * writes, outputTokens: h.continuityReview.output * writes });
   }

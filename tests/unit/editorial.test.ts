@@ -57,7 +57,6 @@ function draft(sceneWords: number, scenes: number, hook = "You land after ten ho
     establishedFacts: [],
     unresolvedQuestions: [],
     continuationOpportunities: [],
-    claims: [],
     bibleUpdate: {
       addCharacters: [],
       updateCharacters: [],

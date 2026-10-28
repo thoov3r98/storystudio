@@ -6,7 +6,7 @@ import { AlertTriangle, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { EpisodeStatusBadge, FactBadge, JobStatusBadge, Money, PageHeader, PageSkeleton, Section, relativeTime } from "@/components/studio";
+import { EpisodeStatusBadge, JobStatusBadge, Money, PageHeader, PageSkeleton, Section, relativeTime } from "@/components/studio";
 import { AutoRefresh } from "@/components/client-helpers";
 import { getEpisode } from "@/lib/queries";
 import { reconcileStaleJobs } from "@/lib/enqueue";
@@ -16,7 +16,7 @@ import type { ContinuityReview, EpisodeSpecRecord } from "@/lib/schemas/episode"
 import type { EpisodeTiming } from "@/lib/timing";
 import { downloadUrl, previewUrl } from "@/lib/urls";
 import { ApproveEpisodeButton } from "@/app/stories/[storyId]/story-client";
-import { ClaimActions, EpisodeActionButton, HookActions, RewriteSceneDialog, SceneImageHistory, VersionRestoreButton } from "./episode-client";
+import { EpisodeActionButton, HookActions, RewriteSceneDialog, SceneImageHistory, VersionRestoreButton } from "./episode-client";
 
 export const metadata: Metadata = { title: "Episode" };
 
@@ -65,7 +65,6 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         description={
           <span className="flex flex-wrap items-center gap-2">
             <EpisodeStatusBadge status={episode.status} />
-            {v ? <FactBadge status={v.factCheckStatus} /> : null}
             {v ? (
               <span>
                 Script v{v.version}
@@ -333,42 +332,6 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                     </div>
                   );
                 })}
-              </div>
-            </Section>
-
-            <Section
-              title="Fact review"
-              description="Claims are classified and assessed by a reviewer model without web access. Anything not widely documented is flagged for you to verify, revise, or reject."
-            >
-              <div className="space-y-2">
-                {v.claims.length === 0 ? <p className="text-sm text-muted-foreground">No factual claims recorded.</p> : null}
-                {v.claims.map((c) => (
-                  <div key={c.id} className="rounded-xl border bg-card p-4 text-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">{c.classification.replaceAll("_", " ").toLowerCase()}</Badge>
-                      <Badge
-                        variant="outline"
-                        className={
-                          c.status === "FLAGGED" || c.status === "UNVERIFIED"
-                            ? "border-amber-200 bg-amber-50 text-amber-800"
-                            : c.status === "REJECTED"
-                              ? "border-red-200 bg-red-50 text-red-700"
-                              : "border-emerald-200 bg-emerald-50 text-emerald-800"
-                        }
-                      >
-                        {c.status.replaceAll("_", " ").toLowerCase()}
-                      </Badge>
-                    </div>
-                    <p className="mt-2 font-medium">“{c.claim}”</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{c.reasoning}</p>
-                    {c.references.length ? <p className="mt-1 text-xs text-muted-foreground">Verify with: {c.references.join("; ")}</p> : null}
-                    {c.resolutionNote ? <p className="mt-1 text-xs">Your note: {c.resolutionNote}</p> : null}
-                    <ClaimActions claimId={c.id} status={c.status} />
-                  </div>
-                ))}
-                {v.claims.some((c) => c.status === "REJECTED") ? (
-                  <p className="text-xs text-muted-foreground">Rejected claims should be removed: use “Rewrite narration” on the scene, or regenerate the script.</p>
-                ) : null}
               </div>
             </Section>
 

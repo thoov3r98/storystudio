@@ -2,8 +2,6 @@ import { z } from "zod";
 import { MOTION_PRESETS } from "@/lib/constants";
 import { StoryBibleUpdateSchema } from "./story-bible";
 
-export const ClaimClassificationSchema = z.enum(["ESTABLISHED_FACT", "PLAUSIBLE_EXAMPLE", "FICTIONAL", "NEEDS_VERIFICATION"]);
-
 export const SceneSpecSchema = z.object({
   sceneNumber: z.number().int(),
   narration: z.string().describe("An exact, contiguous excerpt of storyNarration (usually one or two sentences). All scenes joined in order must reproduce storyNarration word for word."),
@@ -30,37 +28,10 @@ export const EpisodeDraftSchema = z.object({
   establishedFacts: z.array(z.string()),
   unresolvedQuestions: z.array(z.string()),
   continuationOpportunities: z.array(z.string()),
-  claims: z.array(
-    z.object({
-      claim: z.string(),
-      sceneNumber: z.number().int(),
-      classification: ClaimClassificationSchema,
-    }),
-  ),
   bibleUpdate: StoryBibleUpdateSchema,
 });
 
 export type EpisodeDraft = z.infer<typeof EpisodeDraftSchema>;
-
-export const FactReviewSchema = z.object({
-  claims: z.array(
-    z.object({
-      claim: z.string(),
-      sceneNumber: z.number().int(),
-      classification: ClaimClassificationSchema,
-      assessment: z.enum(["widely-documented", "plausible-unverified", "fictional-framed", "dubious", "presented-as-fact-but-unsupported"]),
-      reasoning: z.string(),
-      suggestedRevision: z.string().nullable(),
-      verificationHints: z
-        .array(z.string())
-        .describe("Where a human could verify this (e.g. 'FAA Aeronautical Information Manual, lost comms procedures'). Never invent URLs."),
-    }),
-  ),
-  verdict: z.enum(["pass", "needs-review", "needs-revision"]),
-  notes: z.string(),
-});
-
-export type FactReview = z.infer<typeof FactReviewSchema>;
 
 export const CONTINUITY_ISSUE_TYPES = [
   "character-contradiction",

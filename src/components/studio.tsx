@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { JOB_STATUS_LABELS, STORY_STATUS_LABELS } from "@/lib/constants";
-import type { EpisodeStatus, FactCheckStatus, JobStatus, StoryStatus } from "@/generated/prisma/enums";
+import type { EpisodeStatus, JobStatus, StoryStatus } from "@/generated/prisma/enums";
 import { formatUsd } from "@/lib/costs/estimate";
 
 export function PageHeader({ title, description, actions, eyebrow }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode; eyebrow?: React.ReactNode }) {
@@ -132,21 +132,6 @@ export function JobStatusBadge({ status }: { status: JobStatus }) {
     <Badge variant="outline" className={cn("border", tone)}>
       {running ? <span className="size-1.5 animate-pulse rounded-full bg-current" /> : null}
       {JOB_STATUS_LABELS[status]}
-    </Badge>
-  );
-}
-
-export function FactBadge({ status }: { status: FactCheckStatus }) {
-  const map: Record<FactCheckStatus, [string, string]> = {
-    PENDING: ["Fact review pending", "bg-secondary text-secondary-foreground"],
-    PASSED: ["Facts reviewed", "bg-emerald-50 text-emerald-800 border-emerald-200"],
-    NEEDS_REVIEW: ["Claims need review", "bg-amber-50 text-amber-800 border-amber-200"],
-    MANUALLY_APPROVED: ["Facts approved by you", "bg-emerald-50 text-emerald-800 border-emerald-200"],
-  };
-  const [label, tone] = map[status];
-  return (
-    <Badge variant="outline" className={cn("border", tone)}>
-      {label}
     </Badge>
   );
 }
