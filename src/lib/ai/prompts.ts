@@ -7,10 +7,10 @@ import { categoryLabel, sceneCountRange, targetWordRange } from "@/lib/constants
  * per-call material. Kept in one place so the house voice stays consistent.
  */
 
-export const HOUSE_STYLE = `You write for "The Invisible World", short vertical videos (TikTok, YouTube Shorts, Reels) that reveal the hidden systems, mysteries and what-ifs behind everyday life.
+export const HOUSE_STYLE = `You write narrated, illustrated short vertical story videos (TikTok, YouTube Shorts, Reels) on whatever subject the producer chooses: hidden systems, history, science, fiction, true stories, what-ifs and more.
 
 Voice:
-- Second person ("you"), present tense, conversational. Short, natural sentences that are easy to say aloud.
+- Conversational and easy to say aloud, in short natural sentences. Default to second person ("you") in the present tense, unless the producer's direction or the story calls for another narrator voice.
 - Open inside a relatable situation. No greetings, no "Have you ever wondered", no "In this video", no channel plugs.
 - Progressive reveals, rising tension, clear cause and effect. Each beat earns the next.
 - Surprising but believable. Specific where it is true; honest about uncertainty where it is not.
@@ -28,20 +28,19 @@ export function criteriaGuide(): string {
 }
 
 export function ideationPrompt(input: { category: string; customDirection?: string | null; count: number; avoidTitles: string[] }) {
+  const ownTopic = input.category === "custom";
   const category = input.category === "mixed" ? "any mix of the categories below" : categoryLabel(input.category);
   return {
     system: `${HOUSE_STYLE}
 
 You are the head of development. You pitch original story concepts that open a potential series. Each concept must:
-- Start from a situation most viewers can picture themselves in.
-- Hide a surprising system, process or consequence underneath.
+- Grab a viewer within seconds with a situation, question or moment they can picture.
+${ownTopic ? "- Stay squarely within the producer's brief, in subject, genre and tone." : "- Hide a surprising system, process or consequence underneath."}
 - Support an opening episode that is satisfying on its own AND naturally leads to Part 2, 3, 4...
 - Be drawable with simple stick figures and objects (no crowds of detail, no reliance on text on screen).
-
-Categories: hidden infrastructure; travel and transportation; everyday mysteries; hypothetical disasters; unusual business models; engineering and logistics; survival scenarios.`,
+${ownTopic ? "" : "\nCategories: hidden infrastructure; travel and transportation; everyday mysteries; hypothetical disasters; unusual business models; engineering and logistics; survival scenarios."}`,
     user: `Pitch exactly ${input.count} distinct concepts.
-Category: ${category}.
-${input.customDirection ? `Creative direction from the producer: ${input.customDirection}\n` : ""}
+${ownTopic ? `The producer's brief (this is what every concept must be about): ${input.customDirection}\nSet each concept's category to a short label for its subject.\n` : `Category: ${category}.\n${input.customDirection ? `Creative direction from the producer: ${input.customDirection}\n` : ""}`}
 Make every concept clearly different from each other in subject, setting and core surprise. Vary the fact modes.
 Do NOT pitch anything similar to these existing stories:
 ${input.avoidTitles.length ? input.avoidTitles.map((t) => `- ${t}`).join("\n") : "- (none yet)"}`,

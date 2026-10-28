@@ -18,6 +18,9 @@ test.describe("studio pages", () => {
     await page.getByRole("radio", { name: /Full production/ }).click();
     await expect(total).not.toHaveText(conceptCost ?? "");
     await expect(page.getByText("Episodes the budget covers")).toBeVisible();
+    // "Your own topic" is the default and needs a prompt before a batch can start.
+    await expect(page.getByRole("button", { name: "Start production batch" })).toBeDisabled();
+    await page.getByLabel("What should these videos be about?").fill("Strange true stories from ancient Rome");
     await expect(page.getByRole("button", { name: "Start production batch" })).toBeEnabled();
   });
 

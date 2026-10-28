@@ -34,8 +34,8 @@ function Brand() {
         </svg>
       </span>
       <span className="leading-tight">
-        <span className="block text-sm font-semibold tracking-tight">The Invisible World</span>
-        <span className="block text-xs text-muted-foreground">Studio</span>
+        <span className="block text-sm font-semibold tracking-tight">Story Studio</span>
+        <span className="block text-xs text-muted-foreground">Illustrated story videos</span>
       </span>
     </Link>
   );

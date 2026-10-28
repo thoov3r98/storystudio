@@ -1,6 +1,7 @@
 import type { JobStatus, Quality, StoryStatus } from "@/generated/prisma/enums";
 
 export const CATEGORIES = [
+  { value: "custom", label: "Your own topic" },
   { value: "hidden-infrastructure", label: "Hidden infrastructure" },
   { value: "travel-transportation", label: "Travel and transportation" },
   { value: "everyday-mysteries", label: "Everyday mysteries" },
@@ -9,7 +10,6 @@ export const CATEGORIES = [
   { value: "engineering-logistics", label: "Engineering and logistics" },
   { value: "survival-scenarios", label: "Survival scenarios" },
   { value: "mixed", label: "Mixed categories" },
-  { value: "custom", label: "Custom" },
 ] as const;
 
 export type CategoryValue = (typeof CATEGORIES)[number]["value"];

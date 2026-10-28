@@ -33,7 +33,7 @@ function Field({ label, hint, children, htmlFor }: { label: string; hint?: strin
 
 export function GenerateForm({ voices, defaults, pricing, models }: { voices: Voice[]; defaults: Defaults; pricing: Pricing; models: ModelNames }) {
   const [mode, setMode] = useState<Mode>("CONCEPT");
-  const [category, setCategory] = useState<string>("mixed");
+  const [category, setCategory] = useState<string>("custom");
   const [direction, setDirection] = useState("");
   const [count, setCount] = useState(10);
   const [durationSec, setDuration] = useState<number>(defaults.durationSec);
@@ -100,7 +100,7 @@ export function GenerateForm({ voices, defaults, pricing, models }: { voices: Vo
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
-          <Field label="Story category">
+          <Field label="Topic">
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -132,15 +132,19 @@ export function GenerateForm({ voices, defaults, pricing, models }: { voices: Vo
 
           <div className="sm:col-span-2">
             <Field
-              label="Custom creative direction"
+              label={category === "custom" ? "What should these videos be about?" : "Extra creative direction"}
               htmlFor="direction"
-              hint={category === "custom" ? "Required for the Custom category." : "Optional. Themes, settings, or angles you want explored."}
+              hint={category === "custom" ? "Required. Describe the subject, genre, tone or angle; concepts are pitched from this." : "Optional. Themes, settings, or angles you want explored."}
             >
               <Textarea
                 id="direction"
                 value={direction}
                 onChange={(e) => setDirection(e.target.value)}
-                placeholder="e.g. Things that happen at night in airports that passengers never see"
+                placeholder={
+                  category === "custom"
+                    ? "e.g. Strange true stories from ancient Rome, told as tense mini-mysteries"
+                    : "e.g. Things that happen at night in airports that passengers never see"
+                }
                 rows={3}
               />
             </Field>

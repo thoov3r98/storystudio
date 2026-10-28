@@ -9,7 +9,7 @@ const geistSans = Geist({ variable: "--font-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "The Invisible World Studio", template: "%s · Invisible World Studio" },
+  title: { default: "Story Studio", template: "%s · Story Studio" },
   description: "Private studio for producing serialized illustrated story videos.",
   robots: { index: false, follow: false },
 };

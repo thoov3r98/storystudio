@@ -58,7 +58,7 @@ export async function createBatch(input: GenerateInput): Promise<ActionResult<{ 
   let batchId = "";
   const result = await attempt(async () => {
     const data = GenerateSchema.parse(input);
-    if (data.category === "custom" && !data.customDirection.trim()) throw new Error("Custom category needs a creative direction.");
+    if (data.category === "custom" && !data.customDirection.trim()) throw new Error("Describe what the videos should be about.");
     const estimate = estimateBatchCost(await getPricing(), modelNames(), {
       requested: data.count,
       durationSec: data.durationSec,
