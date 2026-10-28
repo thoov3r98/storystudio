@@ -35,6 +35,7 @@ export function GenerateForm({ voices, defaults, pricing, models }: { voices: Vo
   const [mode, setMode] = useState<Mode>("CONCEPT");
   const [category, setCategory] = useState<string>("custom");
   const [direction, setDirection] = useState("");
+  const selectedCategory = CATEGORIES.find((c) => c.value === category) ?? CATEGORIES[0];
   const [count, setCount] = useState(10);
   const [durationSec, setDuration] = useState<number>(defaults.durationSec);
   const [styleKey, setStyle] = useState(defaults.styleKey);
@@ -100,20 +101,28 @@ export function GenerateForm({ voices, defaults, pricing, models }: { voices: Vo
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2">
-          <Field label="Topic">
+          <div className="space-y-2">
+            <Label>Topic</Label>
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue>{selectedCategory.label}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {CATEGORIES.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
+                  <SelectItem key={c.value} value={c.value} className="py-2">
+                    <span className="flex flex-col items-start gap-0.5">
+                      <span>{c.label}</span>
+                      <span className="max-w-72 text-xs whitespace-normal text-muted-foreground">{c.description}</span>
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </Field>
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
+              <p className="text-foreground">{selectedCategory.description}</p>
+              <p className="mt-1 text-muted-foreground">Example: “{selectedCategory.example}”</p>
+            </div>
+          </div>
 
           <Field label={`Opening episodes: ${count}`} hint={`About ${count * CANDIDATE_MULTIPLIER} candidates will be pitched and scored; the best ${count} are kept.`}>
             <div className="flex items-center gap-3 pt-1">

@@ -1,6 +1,8 @@
 import { CRITERIA } from "@/lib/schemas/concept";
 import type { StoryBible } from "@/lib/schemas/story-bible";
-import { categoryLabel, sceneCountRange, targetWordRange } from "@/lib/constants";
+import { CATEGORIES, categoryLabel, sceneCountRange, targetWordRange } from "@/lib/constants";
+
+const PRESET_CATEGORIES = CATEGORIES.filter((c) => c.value !== "custom" && c.value !== "mixed");
 
 /*
  * Prompt library. System prompts carry stable rules; user prompts carry the
@@ -38,7 +40,7 @@ You are the head of development. You pitch original story concepts that open a p
 ${ownTopic ? "- Stay squarely within the producer's brief, in subject, genre and tone." : "- Hide a surprising system, process or consequence underneath."}
 - Support an opening episode that is satisfying on its own AND naturally leads to Part 2, 3, 4...
 - Be drawable with simple stick figures and objects (no crowds of detail, no reliance on text on screen).
-${ownTopic ? "" : "\nCategories: hidden infrastructure; travel and transportation; everyday mysteries; hypothetical disasters; unusual business models; engineering and logistics; survival scenarios."}`,
+${ownTopic ? "" : `\nCategories:\n${PRESET_CATEGORIES.map((c) => `- ${c.label}: ${c.description}`).join("\n")}`}`,
     user: `Pitch exactly ${input.count} distinct concepts.
 ${ownTopic ? `The producer's brief (this is what every concept must be about): ${input.customDirection}\nSet each concept's category to a short label for its subject.\n` : `Category: ${category}.\n${input.customDirection ? `Creative direction from the producer: ${input.customDirection}\n` : ""}`}
 Make every concept clearly different from each other in subject, setting and core surprise. Vary the fact modes.
