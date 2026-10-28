@@ -79,6 +79,6 @@ test.describe("studio pages", () => {
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Narrator voices" })).toBeVisible();
     await expect(page.locator('input[value="Test Narrator"]')).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Provider pricing" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Models & pricing" })).toBeVisible();
   });
 });

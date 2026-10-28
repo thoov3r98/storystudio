@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import type { Metadata } from "next";
 import { PageHeader, PageSkeleton } from "@/components/studio";
 import { GenerateForm } from "./generate-form";
-import { getDefaults, getPricing, getVoices, modelNames } from "@/lib/settings";
+import { getDefaults, getPricing, getVoices, getModels } from "@/lib/settings";
 
 export const metadata: Metadata = { title: "Generate" };
 
@@ -24,5 +24,5 @@ export default function GeneratePage() {
 async function GenerateContent() {
   await connection();
   const [voices, defaults, pricing] = await Promise.all([getVoices(), getDefaults(), getPricing()]);
-  return <GenerateForm voices={voices} defaults={defaults} pricing={pricing} models={modelNames()} />;
+  return <GenerateForm voices={voices} defaults={defaults} pricing={pricing} models={await getModels()} />;
 }

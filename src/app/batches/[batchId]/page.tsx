@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { getBatch } from "@/lib/queries";
 import { ACTIVE_JOB_STATUSES, categoryLabel, QUALITY_PRESETS } from "@/lib/constants";
 import { estimateEpisodeCost } from "@/lib/costs/estimate";
-import { getPricing, modelNames } from "@/lib/settings";
+import { getPricing, getModels } from "@/lib/settings";
 import { ConceptBoard } from "./concept-board";
 
 export const metadata: Metadata = { title: "Batch" };
@@ -27,7 +27,7 @@ async function BatchContent({ params }: { params: PageProps<"/batches/[batchId]"
   const { batch, spentUsd } = data;
   const ideationJob = batch.jobs.find((j) => j.type === "BATCH_IDEATION");
   const active = batch.jobs.some((j) => ACTIVE_JOB_STATUSES.includes(j.status));
-  const perEpisode = estimateEpisodeCost(await getPricing(), modelNames(), { durationSec: batch.targetDurationSec, quality: batch.quality }).total;
+  const perEpisode = estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: batch.targetDurationSec, quality: batch.quality }).total;
 
   return (
     <>

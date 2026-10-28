@@ -1,7 +1,7 @@
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
-import { env, requireEnv } from "@/lib/env";
+import { requireEnv } from "@/lib/env";
 import type { CharAlignment } from "@/lib/timing";
-import type { VoiceSettings } from "@/lib/settings";
+import { getModels, type VoiceSettings } from "@/lib/settings";
 
 export interface SpeechProvider {
   synthesize(args: { voiceId: string; text: string; settings: VoiceSettings }): Promise<{
@@ -25,7 +25,7 @@ export function elevenlabs(): ElevenLabsClient {
  */
 export const elevenLabsSpeechProvider: SpeechProvider = {
   async synthesize({ voiceId, text, settings }) {
-    const modelId = env().ELEVENLABS_MODEL_ID;
+    const modelId = (await getModels()).speech;
     const response = await elevenlabs().textToSpeech.convertWithTimestamps(
       voiceId,
       {

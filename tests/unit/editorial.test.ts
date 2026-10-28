@@ -124,6 +124,12 @@ describe("cost estimates", () => {
     const cached = textCost(DEFAULT_PRICING, "gpt-5.5", { inputTokens: 1_000_000, cachedInputTokens: 1_000_000, outputTokens: 0 });
     expect(cached).toBeLessThan(full);
   });
+
+  it("prices dated model snapshots at their alias's rate", () => {
+    const usage = { inputTokens: 1_000_000, outputTokens: 0 };
+    expect(textCost(DEFAULT_PRICING, "gpt-5.4-mini-2026-03-17", usage)).toBe(textCost(DEFAULT_PRICING, "gpt-5.4-mini", usage));
+    expect(textCost(DEFAULT_PRICING, "gpt-5.4-mini", usage)).toBeLessThan(textCost(DEFAULT_PRICING, "gpt-5.5", usage));
+  });
 });
 
 describe("buildEpisodeProps", () => {

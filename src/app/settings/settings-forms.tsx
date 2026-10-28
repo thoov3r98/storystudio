@@ -7,13 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Section } from "@/components/studio";
 import { useAction } from "@/components/client-helpers";
 import { ILLUSTRATION_STYLES, QUALITY_PRESETS, TARGET_DURATIONS } from "@/lib/constants";
 import type { AudioMix, Defaults, Voice, VoiceSettings } from "@/lib/settings";
-import { addAudioAsset, importElevenLabsVoices, saveAudioMix, saveDefaults, savePricing, saveVoices, saveVoiceSettings } from "@/app/actions";
+import { addAudioAsset, importElevenLabsVoices, saveAudioMix, saveDefaults, saveVoices, saveVoiceSettings } from "@/app/actions";
 
 type AudioAssetRow = { id: string; name: string; kind: string; license: string; source: string; attribution: string | null; url: string };
 
@@ -38,7 +37,6 @@ export function SettingsForms(props: {
   voiceSettings: VoiceSettings;
   audioMix: AudioMix;
   defaults: Defaults;
-  pricingJson: string;
   audioAssets: AudioAssetRow[];
 }) {
   const [voices, setVoices] = useState<Voice[]>(props.voices);
@@ -46,7 +44,6 @@ export function SettingsForms(props: {
   const [vs, setVs] = useState(props.voiceSettings);
   const [mix, setMix] = useState(props.audioMix);
   const [defaults, setDefaults] = useState(props.defaults);
-  const [pricing, setPricing] = useState(props.pricingJson);
   const [asset, setAsset] = useState({ name: "", kind: "MUSIC" as "MUSIC" | "SFX", url: "", license: "", source: "", attribution: "" });
   const a = useAction();
 
@@ -251,15 +248,6 @@ export function SettingsForms(props: {
           </div>
           <Button size="sm" disabled={a.pending} onClick={() => a.run(() => saveDefaults(defaults), { success: "Defaults saved" })}>
             Save
-          </Button>
-        </Card>
-      </Section>
-
-      <Section title="Provider pricing" description="USD rates used for estimates and recorded costs. Defaults are placeholders — check each provider’s current pricing and your plan.">
-        <Card>
-          <Textarea value={pricing} onChange={(e) => setPricing(e.target.value)} className="h-80 font-mono text-xs" spellCheck={false} />
-          <Button size="sm" disabled={a.pending} onClick={() => a.run(() => savePricing(pricing), { success: "Pricing saved" })}>
-            Save pricing
           </Button>
         </Card>
       </Section>

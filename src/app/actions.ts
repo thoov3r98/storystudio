@@ -12,7 +12,8 @@ import {
   AudioMixSchema,
   DefaultsSchema,
   getPricing,
-  modelNames,
+  getModels,
+  ModelsSchema,
   VoiceSchema,
   VoiceSettingsSchema,
   writeSetting,
@@ -59,7 +60,7 @@ export async function createBatch(input: GenerateInput): Promise<ActionResult<{ 
   const result = await attempt(async () => {
     const data = GenerateSchema.parse(input);
     if (data.category === "custom" && !data.customDirection.trim()) throw new Error("Describe what the videos should be about.");
-    const estimate = estimateBatchCost(await getPricing(), modelNames(), {
+    const estimate = estimateBatchCost(await getPricing(), await getModels(), {
       requested: data.count,
       durationSec: data.durationSec,
       quality: data.quality,
@@ -306,8 +307,13 @@ export async function retryJobAction(jobId: string) {
 
 // ───────────────────────────── Settings ─────────────────────────────
 
-export async function savePricing(json: string) {
-  return attempt(async () => writeSetting("pricing", PricingSchema.parse(JSON.parse(json))));
+export async function saveModelsAndPricing(models: unknown, pricing: unknown) {
+  return attempt(async () => {
+    const m = ModelsSchema.parse(models);
+    const p = PricingSchema.parse(pricing);
+    await writeSetting("models", m);
+    await writeSetting("pricing", p);
+  });
 }
 
 export async function saveVoices(voices: unknown) {

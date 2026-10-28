@@ -4,7 +4,7 @@ import { buildImagePrompt, reviewImage } from "@/lib/providers/images";
 import { fetchAsset, paths, uploadAsset } from "@/lib/storage";
 import { imageCost, textCost } from "@/lib/costs/pricing";
 import { assertWithinBudget, recordCost, type CostContext } from "@/lib/costs/record";
-import { getDefaults, getPricing, modelNames } from "@/lib/settings";
+import { getDefaults, getPricing, getModels } from "@/lib/settings";
 import { QUALITY_PRESETS } from "@/lib/constants";
 import { assertNotCanceled, setJobStage } from "@/lib/jobs";
 import { loadCanonicalBible } from "./context";
@@ -109,7 +109,7 @@ export async function generateSceneImages(input: {
 
       let review = null;
       if (defaults.imageReview) {
-        const r = await reviewImage(result.png, `${scene.imagePrompt}. ${scene.composition}`, modelNames().fast);
+        const r = await reviewImage(result.png, `${scene.imagePrompt}. ${scene.composition}`, (await getModels()).fast);
         if (r) {
           review = r.review;
           await recordCost(input.cost, { provider: "OPENAI_TEXT", model: r.model, operation: "image-review", usage: r.usage, costUsd: textCost(pricing, r.model, r.usage), estimated: false });

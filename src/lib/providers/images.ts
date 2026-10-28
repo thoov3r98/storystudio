@@ -4,6 +4,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { openai } from "@/lib/ai/openai";
 import { imageReviewPrompt } from "@/lib/ai/prompts";
 import { env } from "@/lib/env";
+import { getModels } from "@/lib/settings";
 import { SAFE_AREA_RULE, styleSpec } from "@/lib/constants";
 
 export type ImageUsage = { textInputTokens: number; imageInputTokens: number; outputTokens: number };
@@ -57,7 +58,8 @@ function readUsage(usage: unknown): ImageUsage | null {
 
 export const openAIImageProvider: ImageProvider = {
   async generate({ prompt, quality, references, signal }) {
-    const { OPENAI_IMAGE_MODEL: model, OPENAI_IMAGE_SIZE: size } = env();
+    const model = (await getModels()).image;
+    const size = env().OPENAI_IMAGE_SIZE;
     const common = { model, prompt, size, quality, n: 1 } as const;
 
     const response =

@@ -15,7 +15,7 @@ import { CANDIDATE_MULTIPLIER, QUALITY_PRESETS } from "@/lib/constants";
 import { normalizeTitle } from "@/lib/text";
 import { dedupeCandidates } from "@/lib/similarity";
 import { chunk, mapSettled } from "@/lib/async";
-import { getPricing, modelNames } from "@/lib/settings";
+import { getPricing, getModels } from "@/lib/settings";
 import { assertWithinBudget, type CostContext } from "@/lib/costs/record";
 import { setJobStage, assertNotCanceled } from "@/lib/jobs";
 import { generateHooks } from "./writing";
@@ -37,7 +37,7 @@ export function rankConcepts<T extends { total: number; evaluation: ConceptEvalu
 export async function runIdeation(input: { batchId: string; jobId: string; deps: PipelineDeps }) {
   const batch = await db.batch.findUniqueOrThrow({ where: { id: input.batchId } });
   const pricing = await getPricing();
-  const models = modelNames();
+  const models = await getModels();
   const preset = QUALITY_PRESETS[batch.quality];
   const writerModel = preset.writerModel === "main" ? models.main : models.fast;
   const reviewerModel = preset.reviewerModel === "main" ? models.main : models.fast;

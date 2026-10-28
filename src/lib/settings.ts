@@ -72,9 +72,20 @@ export async function getDefaults(): Promise<Defaults> {
   return readSetting("defaults", DefaultsSchema, DefaultsSchema.parse({}));
 }
 
-export function modelNames() {
+export const ModelsSchema = z.object({
+  /** Writes concepts, hooks and scripts. */
+  main: z.string().trim().min(1),
+  /** Reviews facts and continuity; Draft quality writes with it too. */
+  fast: z.string().trim().min(1),
+  image: z.string().trim().min(1),
+  speech: z.string().trim().min(1),
+});
+export type Models = z.infer<typeof ModelsSchema>;
+
+/** Models chosen on the Settings page; the environment variables are the defaults. Applies to new jobs. */
+export async function getModels(): Promise<Models> {
   const e = env();
-  return { main: e.OPENAI_TEXT_MODEL, fast: e.OPENAI_TEXT_MODEL_FAST };
+  return readSetting("models", ModelsSchema, { main: e.OPENAI_TEXT_MODEL, fast: e.OPENAI_TEXT_MODEL_FAST, image: e.OPENAI_IMAGE_MODEL, speech: e.ELEVENLABS_MODEL_ID });
 }
 
 /** Measured narration rate for a voice, from previously generated voiceovers. */

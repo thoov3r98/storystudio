@@ -6,7 +6,7 @@ import { alignmentToWords, buildEpisodeTiming, type CharAlignment } from "@/lib/
 import { paths, uploadAsset } from "@/lib/storage";
 import { speechCost } from "@/lib/costs/pricing";
 import { assertWithinBudget, recordCost, type CostContext } from "@/lib/costs/record";
-import { getPricing, getVoiceSettings } from "@/lib/settings";
+import { getModels, getPricing, getVoiceSettings } from "@/lib/settings";
 import { env } from "@/lib/env";
 import { VIDEO } from "@/lib/constants";
 import { joinNarration } from "@/lib/text";
@@ -32,7 +32,7 @@ export async function generateVoiceover(input: { versionId: string; cost: CostCo
       version: (last._max.version ?? 0) + 1,
       status: "GENERATING",
       voiceId,
-      modelId: env().ELEVENLABS_MODEL_ID,
+      modelId: (await getModels()).speech,
       settings,
       text,
       characterCount: text.length,
