@@ -58,7 +58,7 @@ export const sandboxRenderClient: RenderClient = {
   async render({ props, blobPath, onProgress, onStarted }) {
     const started = Date.now();
     await onProgress({ progress: 0.02, stage: "Creating render sandbox" });
-    const { sandboxId, cmdId } = StartResponse.parse(await callInternal("/api/internal/render/start", { inputProps: props, blobPath }, 14 * 60_000));
+    const { sandboxId, cmdId } = StartResponse.parse(await callInternal("/api/internal/render/start", { inputProps: props, blobPath }, 6 * 60_000));
     await onStarted?.({ sandboxId, commandId: cmdId });
 
     const deadline = Date.now() + 40 * 60_000;

@@ -8,7 +8,8 @@ import { EpisodePropsSchema } from "@/remotion/schema";
 
 // Creating the sandbox (system deps + Chromium) takes a minute or two. The render itself runs
 // detached inside the sandbox; this handler returns as soon as it has started.
-export const maxDuration = 800;
+// 300s is the Hobby-plan ceiling.
+export const maxDuration = 300;
 
 const Body = z.object({ inputProps: EpisodePropsSchema, blobPath: z.string().min(1).max(500) });
 
