@@ -5,12 +5,13 @@ import { openai } from "@/lib/ai/openai";
 import { imageReviewPrompt } from "@/lib/ai/prompts";
 import { env } from "@/lib/env";
 import { getModels } from "@/lib/settings";
-import { SAFE_AREA_RULE, styleSpec } from "@/lib/constants";
+import { styleSpec, VIDEO_FORMATS, type VideoFormat } from "@/lib/constants";
 
 export type ImageUsage = { textInputTokens: number; imageInputTokens: number; outputTokens: number };
 
 export interface ImageProvider {
-  generate(args: { prompt: string; quality: "low" | "medium" | "high"; references: Buffer[]; signal?: AbortSignal }): Promise<{
+  /** `size` defaults to OPENAI_IMAGE_SIZE. */
+  generate(args: { prompt: string; quality: "low" | "medium" | "high"; references: Buffer[]; size?: string; signal?: AbortSignal }): Promise<{
     png: Buffer;
     model: string;
     usage: ImageUsage | null;
@@ -25,6 +26,9 @@ export function buildImagePrompt(input: {
   characterSheet: { name: string; visualDescription: string }[];
   visualNotes?: string;
   hasReference: boolean;
+  format?: VideoFormat;
+  /** The series' recurring character; the first reference image is their character sheet. */
+  hero?: { name: string; visualDescription: string } | null;
 }): string {
   const chars = input.scene.characters
     .map((name) => input.characterSheet.find((c) => c.name.toLowerCase() === name.toLowerCase()))
@@ -32,10 +36,14 @@ export function buildImagePrompt(input: {
     .map((c) => `${c.name}: ${c.visualDescription}`);
   return [
     `STYLE: ${styleSpec(input.styleKey)}`,
-    input.hasReference ? "Match the line weight, figure proportions and overall drawing style of the reference image(s) exactly; do not copy their content." : "",
+    input.hero && input.hasReference
+      ? `The first reference image is the character sheet for ${input.hero.name}. Whenever ${input.hero.name} appears, draw them exactly as on that sheet: same build, clothing, colours and props. Match the drawing style of all reference images; do not copy their layout or poses.`
+      : input.hasReference
+        ? "Match the line weight, figure proportions and overall drawing style of the reference image(s) exactly; do not copy their content."
+        : "",
     input.visualNotes ? `SERIES VISUAL NOTES: ${input.visualNotes}` : "",
     `SCENE: ${input.scene.imagePrompt}`,
-    `COMPOSITION: ${input.scene.composition}. ${SAFE_AREA_RULE}`,
+    `COMPOSITION: ${input.scene.composition}. ${VIDEO_FORMATS[input.format ?? "full"].safeArea}`,
     chars.length ? `CHARACTERS (draw consistently): ${chars.join(" | ")}` : "",
     input.scene.objects.length ? `KEY OBJECTS: ${input.scene.objects.join(", ")}` : "",
     "Absolutely no text, words, letters, numbers, signage, logos or watermarks.",
@@ -57,9 +65,9 @@ function readUsage(usage: unknown): ImageUsage | null {
 }
 
 export const openAIImageProvider: ImageProvider = {
-  async generate({ prompt, quality, references, signal }) {
+  async generate({ prompt, quality, references, size: requestedSize, signal }) {
     const model = (await getModels()).image;
-    const size = env().OPENAI_IMAGE_SIZE;
+    const size = (requestedSize ?? env().OPENAI_IMAGE_SIZE) as "1024x1536";
     const common = { model, prompt, size, quality, n: 1 } as const;
 
     const response =

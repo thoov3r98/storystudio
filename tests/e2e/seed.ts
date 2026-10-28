@@ -24,6 +24,19 @@ async function main() {
   await db.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(", ")} CASCADE`);
 
   await db.setting.create({ data: { key: "voices", value: [{ id: "test-voice", name: "Test Narrator", description: "" }] } });
+  await db.character.create({
+    data: {
+      name: "Test Dave",
+      tagline: "An ex-trucker who keeps ending up stranded",
+      brief: "A friendly ex-trucker",
+      personality: "Calm and stubborn.",
+      backstory: "Drove long-haul for twenty years.",
+      speakingStyle: "Slow and dry.",
+      visualDescription: "Big stick figure with a red cap.",
+      signatureColor: "#C62828",
+      voiceId: "test-voice",
+    },
+  });
 
   const hook = "You land after ten hours.";
   const draft = makeDraft(hook, 1);

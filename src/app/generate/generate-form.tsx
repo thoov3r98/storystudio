@@ -31,15 +31,30 @@ function Field({ label, hint, children, htmlFor }: { label: string; hint?: strin
   );
 }
 
-export function GenerateForm({ voices, defaults, pricing, models }: { voices: Voice[]; defaults: Defaults; pricing: Pricing; models: ModelNames }) {
+export type StarringCharacter = { id: string; name: string; tagline: string; sheetUrl: string | null; signatureColor: string; voiceId: string | null };
+
+export function GenerateForm({
+  voices,
+  defaults,
+  pricing,
+  models,
+  character,
+}: {
+  voices: Voice[];
+  defaults: Defaults;
+  pricing: Pricing;
+  models: ModelNames;
+  character?: StarringCharacter | null;
+}) {
   const [mode, setMode] = useState<Mode>("CONCEPT");
-  const [category, setCategory] = useState<string>("custom");
+  // Character series default to everyday survival situations, the format they're built for.
+  const [category, setCategory] = useState<string>(character ? "survival-scenarios" : "custom");
   const [direction, setDirection] = useState("");
   const selectedCategory = CATEGORIES.find((c) => c.value === category) ?? CATEGORIES[0];
   const [count, setCount] = useState(10);
   const [durationSec, setDuration] = useState<number>(defaults.durationSec);
   const [styleKey, setStyle] = useState(defaults.styleKey);
-  const [voiceId, setVoice] = useState(voices[0]?.id ?? "");
+  const [voiceId, setVoice] = useState((character?.voiceId && voices.some((v) => v.id === character.voiceId) ? character.voiceId : voices[0]?.id) ?? "");
   const [quality, setQuality] = useState<QualityKey>(defaults.quality);
   const [budget, setBudget] = useState(String(defaults.maxBatchBudgetUsd));
   const [autoSelect, setAutoSelect] = useState(false);
@@ -66,6 +81,7 @@ export function GenerateForm({ voices, defaults, pricing, models }: { voices: Vo
         quality,
         maxBudgetUsd: budgetNum,
         autoSelect: mode === "FULL_PRODUCTION" && autoSelect,
+        characterId: character?.id ?? null,
       });
       // Success redirects to the batch page; only failures return here.
       if (result && !result.ok) toast.error(result.error);
@@ -74,6 +90,25 @@ export function GenerateForm({ voices, defaults, pricing, models }: { voices: Vo
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-8">
+        {character ? (
+          <div className="flex items-center gap-4 rounded-xl border bg-card p-3" style={{ borderLeft: `6px solid ${character.signatureColor}` }}>
+            {character.sheetUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={character.sheetUrl} alt="" className="aspect-[3/2] w-24 shrink-0 rounded-md border object-cover" />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Starring</p>
+              <p className="font-medium">{character.name}</p>
+              <p className="truncate text-sm text-muted-foreground">{character.tagline}</p>
+              {!character.sheetUrl ? (
+                <p className="mt-1 text-xs text-warning">Not drawn yet: scenes won’t have a reference sheet to stay on-model.</p>
+              ) : null}
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/generate">Remove</Link>
+            </Button>
+          </div>
+        ) : null}
         <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Generation mode">
           {(
             [

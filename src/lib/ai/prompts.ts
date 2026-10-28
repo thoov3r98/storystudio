@@ -1,6 +1,6 @@
 import { CRITERIA } from "@/lib/schemas/concept";
 import type { StoryBible } from "@/lib/schemas/story-bible";
-import { CATEGORIES, categoryLabel, sceneCountRange, targetWordRange } from "@/lib/constants";
+import { CATEGORIES, categoryLabel, sceneCountRange, styleSpec as styleSpecFor, targetWordRange } from "@/lib/constants";
 import { CONCEPT_DEVELOPER } from "@/lib/ai/concept-prompt";
 
 const PRESET_CATEGORIES = CATEGORIES.filter((c) => c.value !== "custom" && c.value !== "mixed");
@@ -18,10 +18,12 @@ const TRUTHFULNESS = `Truthfulness:
 export const HOUSE_STYLE = `You write narrated, illustrated short vertical story videos (TikTok, YouTube Shorts, Reels) on whatever subject the producer chooses: hidden systems, history, science, fiction, true stories, what-ifs and more.
 
 Voice:
-- Conversational and easy to say aloud, in short natural sentences. Default to second person ("you") in the present tense, unless the producer's direction or the story calls for another narrator voice.
-- Open inside a relatable situation. No greetings, no "Have you ever wondered", no "In this video", no channel plugs.
-- Progressive reveals, rising tension, clear cause and effect. Each beat earns the next.
-- Surprising but believable. Specific where it is true; honest about uncertainty where it is not.
+- Tell it as a story, read aloud by one narrator: flowing spoken sentences joined by cause and time ("so", "because", "until", "which meant", "by the time"). Mix short and medium sentences; never a string of fragments.
+- Write for the ear: no colons, semicolons, parentheses or lists; no one-word sentences for effect more than once per episode.
+- Narrator perspective is set per story. With no narrator character, use second person ("you") in the present tense.
+- Open inside the situation. No greetings, no "Have you ever wondered", no "In this video", no channel plugs.
+- Clear cause and effect: every moment follows from the one before. Concrete actions and details over mood.
+- Believable and grounded. Specific where it is true; honest about uncertainty where it is not.
 - Avoid AI clichés: "little did you know", "buckle up", "let's dive in", "here's the thing", "spoiler alert", "mind-blowing", "but here's where it gets interesting", "the answer may surprise you", rhetorical question chains, "game-changer", "delve", and forced-twist formulas such as "the real danger isn't X, it's Y", "what nobody realizes is", "the surprising part is", "but the real problem is".
 - No engagement bait. Never ask viewers to like, follow, comment or subscribe.
 - Endings deliver a real payoff AND open a genuine new question. Never a cheap cliffhanger that withholds the point of the episode.
@@ -32,8 +34,12 @@ export function criteriaGuide(): string {
   return CRITERIA.map((c) => `- ${c.key}: ${c.label}`).join("\n");
 }
 
-export function ideationPrompt(input: { category: string; customDirection?: string | null; count: number; avoidTitles: string[] }) {
+export function ideationPrompt(input: { category: string; customDirection?: string | null; count: number; avoidTitles: string[]; character?: NarratorProfile | null }) {
   const ownTopic = input.category === "custom";
+  const c = input.character;
+  const starring = c
+    ? `\n## Series character\n${narratorBlock(c)}\n\nEvery concept is the opening situation of a series starring ${c.name}. Pitch situations an ordinary person like ${c.name} could realistically land in, where their personality and choices matter. Titles name the situation plainly, with or without their name (e.g. "${c.name} Breaks Down in the Middle of Nowhere", "Three Days Snowed In at a Truck Stop"). Write premise, logline and openingSituation about ${c.name}, not "you".\n`
+    : "";
   const brief = ownTopic
     ? `The producer's brief. Every concept must be about this, in its subject, genre and tone:\n${input.customDirection}\n\nSet each concept's category to a short label for its subject.`
     : input.category === "mixed"
@@ -46,7 +52,7 @@ ${TRUTHFULNESS}`,
     user: `Pitch exactly ${input.count} concepts.
 
 ${brief}
-${!ownTopic && input.customDirection ? `\nCreative direction from the producer: ${input.customDirection}\n` : ""}
+${!ownTopic && input.customDirection ? `\nCreative direction from the producer: ${input.customDirection}\n` : ""}${starring}
 Each concept must have a different central situation.
 Do not repeat the central situation of any existing story (reusing a familiar setting is fine):
 ${input.avoidTitles.length ? input.avoidTitles.map((t) => `- ${t}`).join("\n") : "- (none yet)"}`,
@@ -84,7 +90,7 @@ Series potential: ${c.seriesPotential}`,
   };
 }
 
-export function hooksPrompt(input: { title: string; premise: string; openingSituation: string; factMode: string; partNumber: number; previously?: string; count?: number }) {
+export function hooksPrompt(input: { title: string; premise: string; openingSituation: string; factMode: string; partNumber: number; previously?: string; count?: number; narrator?: NarratorProfile | null }) {
   return {
     system: `${HOUSE_STYLE}
 
@@ -97,7 +103,7 @@ Premise: ${input.premise}
 Opening situation: ${input.openingSituation}
 Fact mode: ${input.factMode}
 Part: ${input.partNumber}
-${input.previously ? `Previously: ${input.previously}\n` : ""}
+${input.previously ? `Previously: ${input.previously}\n` : ""}${input.narrator ? `\n${narratorBlock(input.narrator)}\nWrite every hook in ${input.narrator.name}'s narrating voice.\n` : ""}
 Write ${input.count ?? 4} distinct hooks.`,
   };
 }
@@ -138,53 +144,92 @@ export type WriterInput = {
   partNumber: number;
   durationSec: number;
   wordsPerSecond: number;
-  hook: string;
+  /** Candidate openings to draw on; the writer picks and adapts one. */
+  hookIdeas: string[];
+  /** When set, the episode must open with exactly this line. */
+  requiredHook?: string | null;
+  narrator?: NarratorProfile | null;
   bible: StoryBible;
   previousEpisodes: { partNumber: number; title: string; summary: string }[];
   latestEpisode: { partNumber: number; title: string; narration: string; keyReveals: string[]; unresolvedQuestions: string[] } | null;
   direction?: string | null;
 };
 
+export type NarratorProfile = {
+  name: string;
+  perspective: "FIRST_PERSON" | "THIRD_PERSON";
+  tagline: string;
+  personality: string;
+  backstory: string;
+  speakingStyle: string;
+};
+
+export function narratorBlock(n: NarratorProfile): string {
+  const pov =
+    n.perspective === "FIRST_PERSON"
+      ? `${n.name} narrates in the first person ("I"), past tense, like telling a friend what happened. Viewers experience everything through ${n.name}'s eyes and decisions.`
+      : `Narrate in close third person, past tense, following ${n.name}. Viewers experience everything through ${n.name}'s eyes and decisions.`;
+  return `NARRATOR AND HERO: ${n.name} — ${n.tagline}
+${pov}
+Personality: ${n.personality}
+Background: ${n.backstory}
+How ${n.name} talks: ${n.speakingStyle}
+${n.name} is the same person in every episode: keep their voice, habits and knowledge consistent, and let their personality drive their choices.`;
+}
+
 export function writerPrompt(input: WriterInput) {
   const [minWords, maxWords] = targetWordRange(input.durationSec, input.wordsPerSecond);
   const [minScenes, maxScenes] = sceneCountRange(input.durationSec);
   const isContinuation = input.partNumber > 1;
-  const structure =
-    input.durationSec === 60
-      ? "0–5s hook · 5–15s escalation · 15–30s first reveal · 30–45s deeper complication · 45–60s payoff + new mystery"
-      : input.durationSec === 90
-        ? "0–5s hook · 5–25s escalation · 25–50s first reveal · 50–72s deeper complication · 72–90s payoff + new mystery"
-        : "0–5s hook · 5–20s escalation · 20–40s first reveal · 40–60s deeper complication · 60–75s payoff + new mystery";
+  const hero = input.narrator?.name ?? "the main character";
 
   return {
     system: `${HOUSE_STYLE}
 
-You are the head writer. Write one complete episode as a sequence of illustrated scenes.
+You are the head writer. You write one episode in two steps, in this order.
 
-Format rules:
-- ${minScenes}–${maxScenes} scenes. Each scene is one illustration held while its narration is spoken (typically 4–8 seconds).
-- The narration of all scenes, joined in order, is the entire voiceover. ${minWords}–${maxWords} spoken words total (target ${input.durationSec}s at ~${input.wordsPerSecond.toFixed(2)} words/second for this narrator).
-- Scene 1's narration must begin with the selected hook, verbatim.
-- Structure: ${structure}.
-- Write for the ear: no parentheses, no lists, no abbreviations that read awkwardly, numbers written as they should be spoken.
-- imagePrompt describes only the subject (who, what, where, pose, key objects) for a minimal stick-figure illustration. No art-style words, no text/labels/signs with words, no brand names.
-- Characters must use the exact names from the bible when they recur, and new characters need a stable visual description.
-- Choose motionPreset per scene to support the beat (slow-zoom-in for tension, pan for movement, still for punchlines).
+STEP 1 — storyNarration: write the whole episode as one continuous story told aloud, ${minWords}–${maxWords} words (about ${input.durationSec}s at ~${input.wordsPerSecond.toFixed(2)} words/second for this narrator). Write it as a story, not as captions.
+Story spine (adapt the proportions; every step must cause the next):
+1. Situation: within the first sentence or two, the viewer knows who, where and what is at stake. Start at the moment things go wrong or are about to.
+2. Problem: what ${hero} needs to do or get out of, and why it matters now.
+3. Attempt: ${hero} tries something, and we see the concrete actions.
+4. Setback: it doesn't fully work, or a new complication appears because of what they did.
+5. Smart move: ${hero} does something genuinely useful, one real, practical idea the viewer could use themselves, explained naturally through the action.
+6. Result: what that changes, with a real payoff in this episode.
+7. Next: end on the next concrete problem or decision, so Part ${input.partNumber + 1} has somewhere to go. Not a vague mystery; a situation.
+Rules for storyNarration:
+- Tell it in time order. No flash-forwards, no "one second ago", no rewinding after the opening.
+- The opening line is the hook: it drops the viewer straight into the situation and flows directly into the next sentence. Use the hook ideas below as inspiration; pick the best and adapt it so it fits the story you are telling.
+- Put any real-world caution ("usually", "in most places") once, where the advice is given, not throughout the drama.
+- Numbers written as they are spoken; no abbreviations that read awkwardly.
+
+STEP 2 — scenes: cut storyNarration into ${minScenes}–${maxScenes} shots, in order. Each shot's narration is an exact, contiguous excerpt of storyNarration (usually one or two sentences, 4–8 seconds). Joined in order, the shots must reproduce storyNarration word for word: do not rewrite, add or drop anything.
+- Each shot shows ONE clear action or moment from its narration. imagePrompt names who is doing what, where, and the key object. At most three figures; ${hero} is in most shots.
+- imagePrompt describes only the subject; no art-style words, no text/labels/signs with words, no brand names.
+- Characters use the exact names from the bible; new characters need a stable visual description.
+- motionPreset supports the beat: slow-zoom-in for tension, pan for movement, still for a reaction or punchline.
+
+selectedHook is the opening line(s) of storyNarration, copied exactly.
 
 Truthfulness:
 - List in "claims" every real-world factual claim the narration makes, with its scene and classification:
   ESTABLISHED_FACT (widely documented), PLAUSIBLE_EXAMPLE (illustrative, framed as typical/possible), FICTIONAL (story-world), NEEDS_VERIFICATION (you are not certain).
-- Prefer general truthful phrasing over invented precision.
+- Prefer general truthful phrasing over invented precision. Survival and safety advice must be sound.
 
 Continuity:
 - "bibleUpdate" lists only what THIS episode adds or changes. Thread ids must be short stable slugs; resolve threads by their existing ids.
 - arcSummary in bibleUpdate replaces the series summary; keep it under 150 words and include this episode.`,
     user: `Story ID: ${input.storyId}
-Title: ${input.title}
+Series title: ${input.title}
 Premise: ${input.premise}
 Fact mode: ${input.factMode}
 Part: ${input.partNumber}
-Selected hook: "${input.hook}"
+${input.narrator ? `\n${narratorBlock(input.narrator)}\n` : ""}
+${
+  input.requiredHook
+    ? `Opening line (required, verbatim): "${input.requiredHook}"`
+    : `Hook ideas (inspiration, best first):\n${input.hookIdeas.map((h) => `- ${h}`).join("\n") || "- (none; write your own)"}`
+}
 ${input.direction ? `Producer direction: ${input.direction}\n` : ""}
 ${bibleContextBlock(input.bible)}
 ${
@@ -199,12 +244,12 @@ Key reveals: ${input.latestEpisode?.keyReveals.join("; ")}
 It left these questions open: ${input.latestEpisode?.unresolvedQuestions.join("; ")}
 
 Write Part ${input.partNumber}. It must:
-- Pick up causally from where Part ${input.partNumber - 1} ended, with a one-line re-orientation inside the hook, not a recap.
-- Advance at least one open thread and establish at least one meaningful new development.
+- Pick up directly from where Part ${input.partNumber - 1} ended, with a one-line re-orientation inside the opening, not a recap.
+- Move the situation forward with a new concrete problem and a real result.
 - Not repeat already-revealed information as if new.
-- End with a payoff plus a new or deepened open question.`
+- End on the next concrete problem or decision.`
     : `
-Write Part 1, the opening episode. It must stand alone as satisfying while setting up threads that could carry Parts 2, 3, 4 and beyond.`
+Write Part 1, the opening episode. It must stand alone as a satisfying story while leaving ${hero} facing a clear next problem.`
 }`,
   };
 }
@@ -214,6 +259,7 @@ export function revisionPrompt(input: { draftJson: string; factIssues: string[];
     system: `${HOUSE_STYLE}
 
 You are revising an episode draft to fix specific problems while keeping everything else as close to the original as possible. Return the complete revised episode in the same structure.
+Keep storyNarration and the scenes in sync: change the story in storyNarration first, then make the scenes' narration the exact contiguous excerpts of it again. Keep the story flowing; fixes must read naturally aloud.
 For unsupported factual claims: remove the unsupported specificity, reframe as clearly illustrative, or move it into the story world. Do not replace one unverified specific with another.`,
     user: `Problems to fix:
 ${[...input.factIssues, ...input.continuityIssues, ...input.lengthIssues].map((i) => `- ${i}`).join("\n")}
@@ -283,4 +329,33 @@ export function imageReviewPrompt(sceneDescription: string) {
   return `You are reviewing an illustration for a minimalist stick-figure explainer video.
 Intended scene: ${sceneDescription}
 Answer strictly in JSON matching the schema. Fail the image if it contains any readable text, letters, numbers or logos; photorealism or 3D shading; gradients; or if it clearly does not depict the intended scene.`;
+}
+
+export function characterPrompt(input: { brief: string; existingNames: string[] }) {
+  return {
+    system: `You design recurring narrator-heroes for a short-form animated story account (TikTok, Reels, Shorts) in the style of stick-figure survival and everyday-disaster series.
+
+A great series character:
+- Is an ordinary, likeable person viewers could know: a specific job, habits and a way of talking, not a superhero or an expert in everything.
+- Has a clear personality that drives choices and gives small moments of humour, so viewers come back for them, not just the situation.
+- Is practical enough to make smart moves, and flawed enough to make mistakes that create story.
+- Can carry many different everyday situations (stranded, stuck, lost, things going wrong at home, work or on the road).
+- Is instantly recognisable as a simple stick figure: one distinctive silhouette detail (hat, beard, build), one signature colour item, one prop.
+
+Keep everything grounded, warm and family-friendly. No real people, brands or copyrighted characters.`,
+    user: `Producer's brief: ${input.brief}
+
+Design one character from this brief.${input.existingNames.length ? ` Make them clearly different from the existing characters: ${input.existingNames.join(", ")}.` : ""}`,
+  };
+}
+
+export function characterSheetPrompt(input: { name: string; visualDescription: string; signatureColor: string; styleKey: string }) {
+  return [
+    `STYLE: ${styleSpecFor(input.styleKey)}`,
+    `CHARACTER REFERENCE SHEET for ${input.name}: ${input.visualDescription}`,
+    `Their signature colour is ${input.signatureColor}; use it on their signature item.`,
+    "Show the same character three times side by side on a plain off-white background: front view standing, three-quarter view mid-stride, and one expressive action pose using their prop. Full body, evenly spaced, same scale, nothing else in the frame.",
+    "Landscape 3:2 frame.",
+    "Absolutely no text, words, letters, numbers, labels, logos or watermarks.",
+  ].join("\n");
 }

@@ -25,11 +25,12 @@ import { getAudioMix, getPricing, getModels, voiceWordsPerSecond } from "@/lib/s
 import { assertWithinBudget, type CostContext } from "@/lib/costs/record";
 import { approvedHistory, loadCanonicalBible, selectContinuationContext } from "./context";
 import type { PipelineDeps } from "./deps";
+import { toNarrator } from "./characters";
 import type { ClaimClassification, ClaimStatus, FactCheckStatus } from "@/generated/prisma/enums";
 
 const MAX_REVISION_ROUNDS = 2;
 
-export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; wordsPerSecond: number; hook: string }): string[] {
+export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; wordsPerSecond: number; requiredHook?: string | null }): string[] {
   const issues: string[] = [];
   const [minScenes, maxScenes] = sceneCountRange(opts.durationSec);
   if (draft.scenes.length < minScenes || draft.scenes.length > maxScenes) {
@@ -41,14 +42,26 @@ export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; 
     if (!MOTION_PRESETS.includes(s.motionPreset)) issues.push(`Scene ${i + 1} has an invalid motionPreset.`);
   });
   const [minWords, maxWords] = targetWordRange(opts.durationSec, opts.wordsPerSecond);
-  const words = countWords(joinNarration(draft.scenes));
+  const words = countWords(draft.storyNarration);
   if (words < Math.floor(minWords * 0.9) || words > Math.ceil(maxWords * 1.1)) {
-    issues.push(`Total narration must be ${minWords}–${maxWords} words; it is ${words}. ${words > maxWords ? "Tighten it." : "Develop the beats more."}`);
+    issues.push(`storyNarration must be ${minWords}–${maxWords} words; it is ${words}. ${words > maxWords ? "Tighten it." : "Develop the story more."}`);
   }
-  const hookTokens = tokenize(opts.hook).slice(0, 8);
-  const hookStart = hookTokens.join(" ");
-  const sceneStart = tokenize(draft.scenes[0]?.narration ?? "").slice(0, hookTokens.length).join(" ");
-  if (hookStart && sceneStart !== hookStart) issues.push("Scene 1 narration must begin with the selected hook verbatim.");
+  // The shots must be a pure cut of the story: same words, same order (punctuation and spacing aside).
+  const story = tokenize(draft.storyNarration);
+  const cut = tokenize(joinNarration(draft.scenes));
+  const at = story.findIndex((w, i) => cut[i] !== w);
+  if (at >= 0 || cut.length !== story.length) {
+    const where = at >= 0 ? at : Math.min(story.length, cut.length);
+    issues.push(
+      `The scenes' narration, joined in order, must reproduce storyNarration word for word. They diverge at word ${where + 1}: story has "${story.slice(where, where + 8).join(" ")}", scenes have "${cut.slice(where, where + 8).join(" ")}".`,
+    );
+  }
+  const startsWith = (text: string, prefix: string) => {
+    const p = tokenize(prefix).slice(0, 12);
+    return p.length > 0 && tokenize(text).slice(0, p.length).join(" ") === p.join(" ");
+  };
+  if (!startsWith(draft.storyNarration, draft.selectedHook)) issues.push("selectedHook must be the opening line(s) of storyNarration, copied exactly.");
+  if (opts.requiredHook && !startsWith(draft.storyNarration, opts.requiredHook)) issues.push("storyNarration must begin with the required opening line verbatim.");
   return issues;
 }
 
@@ -59,7 +72,7 @@ type WriteContext = {
 };
 
 async function loadEpisodeSetup(episodeId: string) {
-  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { story: true } });
+  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { story: { include: { character: true } } } });
   const story = episode.story;
   const bible = await loadCanonicalBible(story.id);
   const preset = QUALITY_PRESETS[story.quality];
@@ -92,6 +105,7 @@ export async function generateHooks(ctx: WriteContext & { count?: number }) {
     partNumber: episode.partNumber,
     previously: episode.partNumber > 1 ? `${bible.data.arcSummary}\nLast episode: ${history.at(-1)?.summary ?? ""}` : undefined,
     count: ctx.count,
+    narrator: story.character ? toNarrator(story.character) : null,
   });
   await assertWithinBudget(ctx.cost, 0.05);
   const result = await generateStructured({
@@ -177,12 +191,11 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
   const setup = await loadEpisodeSetup(ctx.episodeId);
   const { episode, story, bible, pricing, wps, writerModel, reviewerModel } = setup;
 
-  let hook = ctx.hookText ?? (await primaryHook(episode.id));
-  if (!hook) {
-    await generateHooks(ctx);
-    hook = await primaryHook(episode.id);
-  }
-  if (!hook) throw new Error("No opening hook available for this episode.");
+  // Hooks are inspiration; the writer adapts one so the opening flows into the story.
+  // An explicitly chosen hook (ctx.hookText) is the exception and is used verbatim.
+  if (!ctx.hookText && !(await primaryHook(episode.id))) await generateHooks(ctx);
+  const hookRows = await db.hook.findMany({ where: { episodeId: episode.id }, orderBy: [{ isPrimary: "desc" }, { totalScore: "desc" }] });
+  const hookIdeas = hookRows.map((h) => h.text).slice(0, 5);
 
   const history = episode.partNumber > 1 ? await approvedHistory(story.id, episode.partNumber) : [];
   const selected = selectContinuationContext(history);
@@ -195,14 +208,16 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
     partNumber: episode.partNumber,
     durationSec: story.targetDurationSec,
     wordsPerSecond: wps,
-    hook,
+    hookIdeas,
+    requiredHook: ctx.hookText ?? null,
+    narrator: story.character ? toNarrator(story.character) : null,
     bible: bible.data,
     previousEpisodes: selected.previousEpisodes,
     latestEpisode: selected.latestEpisode,
     direction: ctx.direction,
   });
 
-  const validate = (d: EpisodeDraft) => validateDraft(d, { durationSec: story.targetDurationSec, wordsPerSecond: wps, hook: hook! });
+  const validate = (d: EpisodeDraft) => validateDraft(d, { durationSec: story.targetDurationSec, wordsPerSecond: wps, requiredHook: ctx.hookText });
 
   await assertWithinBudget(ctx.cost, 0.25);
   let draft = await generateStructured({
@@ -276,9 +291,8 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; hookTex
   const unresolvedFacts = factReview.claims.filter((c) => c.assessment !== "widely-documented" && c.assessment !== "fictional-framed");
   const factCheckStatus: FactCheckStatus = unresolvedFacts.length === 0 ? "PASSED" : "NEEDS_REVIEW";
 
-  const alternativeHooks = (await db.hook.findMany({ where: { episodeId: episode.id }, orderBy: { totalScore: "desc" } }))
-    .map((h) => h.text)
-    .filter((t) => t !== hook);
+  const hook = draft.selectedHook.trim();
+  const alternativeHooks = hookRows.map((h) => h.text).filter((t) => t !== hook);
 
   const versionId = await persistVersion({
     episodeId: episode.id,

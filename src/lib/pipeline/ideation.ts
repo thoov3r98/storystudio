@@ -12,6 +12,7 @@ import {
 } from "@/lib/schemas/concept";
 import { emptyBible } from "@/lib/schemas/story-bible";
 import { CANDIDATE_MULTIPLIER, QUALITY_PRESETS } from "@/lib/constants";
+import { toNarrator, withCharacter } from "./characters";
 import { normalizeTitle } from "@/lib/text";
 import { dedupeCandidates } from "@/lib/similarity";
 import { chunk, mapSettled } from "@/lib/async";
@@ -35,7 +36,8 @@ export function rankConcepts<T extends { total: number; evaluation: ConceptEvalu
 }
 
 export async function runIdeation(input: { batchId: string; jobId: string; deps: PipelineDeps }) {
-  const batch = await db.batch.findUniqueOrThrow({ where: { id: input.batchId } });
+  const batch = await db.batch.findUniqueOrThrow({ where: { id: input.batchId }, include: { character: true } });
+  const character = batch.character;
   const pricing = await getPricing();
   const models = await getModels();
   const preset = QUALITY_PRESETS[batch.quality];
@@ -68,7 +70,7 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
       client: input.deps.text,
       pricing,
       model: writerModel,
-      ...ideationPrompt({ category: batch.category, customDirection: batch.customDirection, count, avoidTitles }),
+      ...ideationPrompt({ category: batch.category, customDirection: batch.customDirection, count, avoidTitles, character: character ? toNarrator(character) : null }),
       schema: ConceptBatchSchema,
       schemaName: "concept_batch",
       validate: (v) => (v.concepts.length < Math.ceil(count * 0.8) ? [`Return ${count} concepts (got ${v.concepts.length}).`] : []),
@@ -174,7 +176,8 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
         keywords: c.keywords,
         factMode: c.factMode,
         styleKey: batch.styleKey,
-        voiceId: batch.voiceId,
+        voiceId: character?.voiceId ?? batch.voiceId,
+        characterId: character?.id ?? null,
         targetDurationSec: batch.targetDurationSec,
         quality: batch.quality,
         conceptId: c.id,
@@ -182,10 +185,10 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
           create: {
             version: 1,
             source: "concept",
-            data: {
-              ...emptyBible({ premise: c.premise, styleKey: batch.styleKey }),
-              mysteries: source?.seriesPotential ? [source.seriesPotential] : [],
-            },
+            data: (() => {
+              const bible = { ...emptyBible({ premise: c.premise, styleKey: batch.styleKey }), mysteries: source?.seriesPotential ? [source.seriesPotential] : [] };
+              return character ? withCharacter(bible, character) : bible;
+            })(),
           },
         },
         episodes: { create: { partNumber: 1, title: c.title } },

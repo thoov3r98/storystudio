@@ -154,6 +154,41 @@ enum AudioAssetKind {
   SFX
 }
 
+enum NarrationPerspective {
+  FIRST_PERSON
+  THIRD_PERSON
+}
+
+// ───────────────────────────── Characters ──────────────────────────
+
+/// A recurring narrator/hero that series are built around.
+model Character {
+  id                String               @id @default(cuid())
+  name              String
+  tagline           String
+  /// The producer's original one-line description.
+  brief             String
+  personality       String
+  backstory         String
+  /// How the character talks when narrating.
+  speakingStyle     String
+  /// How to draw them: stick-figure build, clothing, props, signature colour item.
+  visualDescription String
+  /// Hex colour used for the character's clothing accent and the video's title/caption bands.
+  signatureColor    String               @default("#E0362C")
+  perspective       NarrationPerspective @default(FIRST_PERSON)
+  voiceId           String?
+  /// Character reference sheet, passed to every scene illustration.
+  sheetUrl          String?
+  archivedAt        DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  stories Story[]
+  batches Batch[]
+  costs   CostEntry[]
+}
+
 // ───────────────────────────── Stories ─────────────────────────────
 
 model Story {
@@ -171,6 +206,10 @@ model Story {
   targetDurationSec    Int         @default(75)
   quality              Quality     @default(STANDARD)
   thumbnailUrl         String?
+  /// "bands": 3:2 landscape art between coloured title/caption bands. "full": legacy full-frame portrait art.
+  videoFormat          String      @default("bands")
+  characterId          String?
+  character            Character?  @relation(fields: [characterId], references: [id], onDelete: SetNull)
   hasUnresolvedThreads Boolean     @default(true)
   archivedAt           DateTime?
   lastActivityAt       DateTime    @default(now())
@@ -195,16 +234,16 @@ model Story {
 
 /// Versioned story bible. `data` is validated by StoryBibleSchema (src/lib/schemas/story-bible.ts).
 model StoryBible {
-  id          String   @id @default(cuid())
-  storyId     String
-  story       Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
-  version     Int
-  data        Json
+  id              String   @id @default(cuid())
+  storyId         String
+  story           Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  version         Int
+  data            Json
   /// Where this version came from: "concept", "episode-approval", "manual-edit".
-  source      String
+  source          String
   sourceEpisodeId String?
-  note        String?
-  createdAt   DateTime @default(now())
+  note            String?
+  createdAt       DateTime @default(now())
 
   @@unique([storyId, version])
 }
@@ -241,22 +280,22 @@ model VisualReference {
 // ───────────────────────────── Episodes ─────────────────────────────
 
 model Episode {
-  id               String        @id @default(cuid())
-  storyId          String
-  story            Story         @relation(fields: [storyId], references: [id], onDelete: Cascade)
-  partNumber       Int
-  title            String
-  status           EpisodeStatus @default(DRAFT)
-  currentVersionId String?       @unique
-  currentVersion   EpisodeVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
-  approvedAt       DateTime?
-  publishedAt      DateTime?
-  publishedUrl     String?
+  id                String          @id @default(cuid())
+  storyId           String
+  story             Story           @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  partNumber        Int
+  title             String
+  status            EpisodeStatus   @default(DRAFT)
+  currentVersionId  String?         @unique
+  currentVersion    EpisodeVersion? @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  approvedAt        DateTime?
+  publishedAt       DateTime?
+  publishedUrl      String?
   publishedPlatform String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
-  versions EpisodeVersion[] @relation("EpisodeVersions")
+  versions EpisodeVersion[]    @relation("EpisodeVersions")
   hooks    Hook[]
   metrics  PerformanceMetric[]
   jobs     Job[]
@@ -267,34 +306,34 @@ model Episode {
 
 /// An immutable-once-approved script version with its scenes and generated media.
 model EpisodeVersion {
-  id               String          @id @default(cuid())
-  episodeId        String
-  episode          Episode         @relation("EpisodeVersions", fields: [episodeId], references: [id], onDelete: Cascade)
-  currentOf        Episode?        @relation("CurrentVersion")
-  version          Int
-  status           VersionStatus   @default(DRAFT)
-  parentVersionId  String?
+  id                   String          @id @default(cuid())
+  episodeId            String
+  episode              Episode         @relation("EpisodeVersions", fields: [episodeId], references: [id], onDelete: Cascade)
+  currentOf            Episode?        @relation("CurrentVersion")
+  version              Int
+  status               VersionStatus   @default(DRAFT)
+  parentVersionId      String?
   /// Why this version exists: "initial", "regenerate-script", "regenerate-hook", "edit-scene", "fork-locked".
-  reason           String
+  reason               String
   /// EpisodeSpecSchema payload as written (excluding scenes, which are rows).
-  spec             Json
-  narration        String
-  wordCount        Int
+  spec                 Json
+  narration            String
+  wordCount            Int
   estimatedDurationSec Float
-  summary          String
-  factCheckStatus  FactCheckStatus @default(PENDING)
-  factReview       Json?
-  continuityReview Json?
+  summary              String
+  factCheckStatus      FactCheckStatus @default(PENDING)
+  factReview           Json?
+  continuityReview     Json?
   /// Global style + per-story visual notes used to build image prompts.
-  styleKey         String
-  voiceoverId      String?
-  voiceover        Voiceover?      @relation("CurrentVoiceover", fields: [voiceoverId], references: [id], onDelete: SetNull)
+  styleKey             String
+  voiceoverId          String?
+  voiceover            Voiceover?      @relation("CurrentVoiceover", fields: [voiceoverId], references: [id], onDelete: SetNull)
   /// Scene timing derived from the current voiceover alignment; null when stale.
-  timing           Json?
-  createdAt        DateTime        @default(now())
+  timing               Json?
+  createdAt            DateTime        @default(now())
 
   scenes     Scene[]
-  voiceovers Voiceover[]  @relation("VersionVoiceovers")
+  voiceovers Voiceover[]          @relation("VersionVoiceovers")
   renders    Render[]
   claims     FactClaim[]
   proposal   BibleUpdateProposal?
@@ -343,33 +382,33 @@ model Scene {
 /// Image history for a scene. When a version is forked, unchanged scenes point at the
 /// same image row through `currentImageId`, so `sceneId` is the scene that first produced it.
 model SceneImage {
-  id          String      @id @default(cuid())
-  sceneId     String
-  scene       Scene       @relation("SceneImages", fields: [sceneId], references: [id], onDelete: Cascade)
-  currentOf   Scene[]     @relation("CurrentImage")
-  version     Int
-  status      AssetStatus @default(PENDING)
-  url         String?
-  blobPath    String?
-  prompt      String
-  model       String
-  quality     String
-  usedReference Boolean   @default(false)
-  review      Json?
-  error       String?
-  costUsd     Decimal     @default(0) @db.Decimal(12, 6)
-  createdAt   DateTime    @default(now())
+  id            String      @id @default(cuid())
+  sceneId       String
+  scene         Scene       @relation("SceneImages", fields: [sceneId], references: [id], onDelete: Cascade)
+  currentOf     Scene[]     @relation("CurrentImage")
+  version       Int
+  status        AssetStatus @default(PENDING)
+  url           String?
+  blobPath      String?
+  prompt        String
+  model         String
+  quality       String
+  usedReference Boolean     @default(false)
+  review        Json?
+  error         String?
+  costUsd       Decimal     @default(0) @db.Decimal(12, 6)
+  createdAt     DateTime    @default(now())
 
   @@index([sceneId])
 }
 
 model Voiceover {
-  id               String         @id @default(cuid())
+  id               String           @id @default(cuid())
   episodeVersionId String
-  episodeVersion   EpisodeVersion @relation("VersionVoiceovers", fields: [episodeVersionId], references: [id], onDelete: Cascade)
+  episodeVersion   EpisodeVersion   @relation("VersionVoiceovers", fields: [episodeVersionId], references: [id], onDelete: Cascade)
   currentOf        EpisodeVersion[] @relation("CurrentVoiceover")
   version          Int
-  status           AssetStatus    @default(PENDING)
+  status           AssetStatus      @default(PENDING)
   voiceId          String
   modelId          String
   settings         Json
@@ -381,10 +420,10 @@ model Voiceover {
   alignment        Json?
   /// Word timings derived from alignment: [{ text, startMs, endMs }].
   words            Json?
-  characterCount   Int            @default(0)
+  characterCount   Int              @default(0)
   error            String?
-  costUsd          Decimal        @default(0) @db.Decimal(12, 6)
-  createdAt        DateTime       @default(now())
+  costUsd          Decimal          @default(0) @db.Decimal(12, 6)
+  createdAt        DateTime         @default(now())
 }
 
 model Render {
@@ -460,6 +499,8 @@ model Batch {
   maxBudgetUsd      Decimal    @db.Decimal(12, 6)
   autoSelect        Boolean    @default(false)
   estimatedCostUsd  Decimal    @default(0) @db.Decimal(12, 6)
+  characterId       String?
+  character         Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
   createdAt         DateTime   @default(now())
 
   concepts Concept[]
@@ -467,24 +508,24 @@ model Batch {
 }
 
 model Concept {
-  id              String        @id @default(cuid())
-  batchId         String
-  batch           Batch         @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  title           String
-  normalizedTitle String
-  premise         String
-  logline         String
-  category        String
-  keywords        String[]
-  factMode        FactMode
-  seriesPotential String
-  scores          Json?
-  totalScore      Float?
-  rank            Int?
-  status          ConceptStatus @default(CANDIDATE)
+  id               String        @id @default(cuid())
+  batchId          String
+  batch            Batch         @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  title            String
+  normalizedTitle  String
+  premise          String
+  logline          String
+  category         String
+  keywords         String[]
+  factMode         FactMode
+  seriesPotential  String
+  scores           Json?
+  totalScore       Float?
+  rank             Int?
+  status           ConceptStatus @default(CANDIDATE)
   duplicateOfTitle String?
-  similarity      Float?
-  createdAt       DateTime      @default(now())
+  similarity       Float?
+  createdAt        DateTime      @default(now())
 
   story Story?
 
@@ -522,23 +563,25 @@ model Job {
 }
 
 model CostEntry {
-  id         String   @id @default(cuid())
-  provider   Provider
-  model      String
-  operation  String
+  id          String     @id @default(cuid())
+  provider    Provider
+  model       String
+  operation   String
   /// Provider usage units (tokens, characters, seconds, images).
-  usage      Json
-  costUsd    Decimal  @db.Decimal(12, 6)
+  usage       Json
+  costUsd     Decimal    @db.Decimal(12, 6)
   /// True when cost was computed from configured pricing rather than reported by the provider.
-  estimated  Boolean  @default(true)
-  jobId      String?
-  job        Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  storyId    String?
-  story      Story?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
-  episodeId  String?
-  episode    Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
-  batchId    String?
-  createdAt  DateTime @default(now())
+  estimated   Boolean    @default(true)
+  jobId       String?
+  job         Job?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  storyId     String?
+  story       Story?     @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  episodeId   String?
+  episode     Episode?   @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  batchId     String?
+  characterId String?
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
 
   @@index([batchId])
   @@index([storyId])

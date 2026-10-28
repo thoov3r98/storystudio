@@ -88,6 +88,17 @@ export function sceneCountRange(durationSec: number): [number, number] {
  * one of these, so the look stays consistent across scenes and episodes.
  */
 export const ILLUSTRATION_STYLES = {
+  "stick-figure-color": {
+    label: "Stick figures + colour highlights",
+    description: "Bold stick figures with flat colour on the hero and the key objects.",
+    spec: [
+      "Bold, clean stick-figure cartoon illustration in the style of animated story channels.",
+      "Thick, consistent black ink outlines, round heads, simple expressive poses and clear facial expressions.",
+      "Flat colour highlights only on what matters: the main character's signature clothing colour and the scene's key objects (fire, water, vehicles, danger, the item being used); everything else stays black line on an off-white (#FAFAF7) background.",
+      "Simple readable settings with a few key props; at most three figures; one clear action.",
+      "No gradients, no shading, no photorealism, no 3D, no logos, no text, letters, numbers or captions anywhere in the image.",
+    ].join(" "),
+  },
   "stick-figure": {
     label: "Minimal stick figures",
     description: "Black-and-white stick figures on off-white, flat, diagram-like.",
@@ -121,15 +132,42 @@ export const ILLUSTRATION_STYLES = {
 } as const;
 
 export type StyleKey = keyof typeof ILLUSTRATION_STYLES;
-export const DEFAULT_STYLE: StyleKey = "stick-figure";
+export const DEFAULT_STYLE: StyleKey = "stick-figure-color";
 
 export function styleSpec(key: string): string {
   return (ILLUSTRATION_STYLES[key as StyleKey] ?? ILLUSTRATION_STYLES[DEFAULT_STYLE]).spec;
 }
 
-/** Composition rule appended to every image prompt: keeps captions and platform UI clear. */
-export const SAFE_AREA_RULE =
-  "Vertical 2:3 frame. Keep the main subject in the upper two-thirds; leave the bottom quarter mostly empty background for captions. Keep important details away from the right edge.";
+/**
+ * Video layouts. "bands": a 3:2 landscape illustration between a coloured title band
+ * (series name + part) and a coloured caption band. "full": legacy full-frame portrait art.
+ */
+export const VIDEO_FORMATS = {
+  bands: {
+    imageSize: "1536x1024",
+    safeArea:
+      "Landscape 3:2 frame, shown in full. Keep the main subject and action near the centre with breathing room on every side; no empty space reserved for captions.",
+  },
+  full: {
+    imageSize: "1024x1536",
+    safeArea:
+      "Vertical 2:3 frame. Keep the main subject in the upper two-thirds; leave the bottom quarter mostly empty background for captions. Keep important details away from the right edge.",
+  },
+} as const;
+export type VideoFormat = keyof typeof VIDEO_FORMATS;
+
+export function videoFormat(value: string | null | undefined): VideoFormat {
+  return value === "full" ? "full" : "bands";
+}
+
+/** Band colours for series without a character; picked stably from the story id. */
+export const BAND_PALETTE = ["#E0362C", "#1F6FEB", "#F59E0B", "#16A34A", "#7C3AED", "#DB2777", "#0891B2"] as const;
+
+export function bandColorFor(storyId: string): string {
+  let h = 0;
+  for (const ch of storyId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return BAND_PALETTE[h % BAND_PALETTE.length];
+}
 
 export const MOTION_PRESETS = ["slow-zoom-in", "slow-zoom-out", "pan-left", "pan-right", "pan-up", "still"] as const;
 export type MotionPreset = (typeof MOTION_PRESETS)[number];

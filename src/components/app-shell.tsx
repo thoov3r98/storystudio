@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useState } from "react";
-import { BookOpen, Cog, LayoutDashboard, ListChecks, Menu, Sparkles } from "lucide-react";
+import { BookOpen, Cog, LayoutDashboard, ListChecks, Menu, Sparkles, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/characters", label: "Characters", icon: UsersRound },
   { href: "/generate", label: "Generate", icon: Sparkles },
   { href: "/stories", label: "Story Library", icon: BookOpen },
   { href: "/jobs", label: "Generation Jobs", icon: ListChecks },

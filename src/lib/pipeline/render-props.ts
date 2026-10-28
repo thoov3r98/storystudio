@@ -12,6 +12,8 @@ export function buildEpisodeProps(input: {
   showCaptions?: boolean;
   /** Narration playback rate; stored timing is for 1×, so it is compressed to match. */
   narrationSpeed?: number;
+  /** Bands layout: series title, part label and band colour. Omitted → legacy full-frame layout. */
+  bands?: { seriesTitle: string; partLabel: string; accentColor: string } | null;
 }): EpisodeProps {
   const fps = VIDEO.fps;
   const speed = input.narrationSpeed ?? 1;
@@ -43,5 +45,9 @@ export function buildEpisodeProps(input: {
       words: c.words.map((w) => ({ ...w, startMs: at(w.startMs), endMs: at(w.endMs) })),
     })),
     showCaptions: input.showCaptions ?? true,
+    layout: input.bands ? "bands" : "full",
+    seriesTitle: input.bands?.seriesTitle ?? "",
+    partLabel: input.bands?.partLabel ?? "",
+    accentColor: input.bands?.accentColor ?? "#E0362C",
   };
 }

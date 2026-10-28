@@ -31,6 +31,7 @@ const { approveEpisode, approvalBlockers } = await import("@/lib/pipeline/versio
 const { continuationBlockers } = await import("@/lib/pipeline/context");
 const { BudgetExceededError } = await import("@/lib/costs/record");
 const { fakeDeps, fakeImages } = await import("./fakes");
+const { createCharacterFromBrief, drawCharacterSheet } = await import("@/lib/pipeline/characters");
 
 async function reset() {
   const tables = await db.$queryRawUnsafe<{ tablename: string }[]>(`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> '_prisma_migrations'`);
@@ -250,5 +251,36 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const batch = await createBatch(3, 0.0001);
     const f = fakeDeps();
     await expect(runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps })).rejects.toBeInstanceOf(BudgetExceededError);
+  });
+
+  it("builds series around a character: pitches, narrator, reference sheet and bands layout", async () => {
+    const f = fakeDeps();
+    const dave = await createCharacterFromBrief({ brief: "A big friendly ex-trucker who keeps getting stranded", deps: f.deps });
+    expect(dave).toMatchObject({ name: "Big Dave", brief: "A big friendly ex-trucker who keeps getting stranded" });
+    await db.character.update({ where: { id: dave.id }, data: { voiceId: "voice-dave" } });
+    await drawCharacterSheet({ characterId: dave.id, deps: f.deps });
+    expect(f.images.calls[0].size).toBe("1536x1024");
+    expect((await db.character.findUniqueOrThrow({ where: { id: dave.id } })).sheetUrl).toMatch(/characters\//);
+    expect(await db.costEntry.count({ where: { characterId: dave.id } })).toBe(2);
+
+    const batch = await db.batch.create({
+      data: { mode: "CONCEPT", category: "survival-scenarios", requestedCount: 1, targetDurationSec: 75, styleKey: "stick-figure-color", voiceId: "voice-1", quality: "STANDARD", maxBudgetUsd: 100, characterId: dave.id },
+    });
+    await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    expect(f.text.prompts.concept_batch[0]).toContain("Series character");
+    const story = await db.story.findFirstOrThrow({ where: { characterId: dave.id }, include: { bibles: true, episodes: true } });
+    expect(story).toMatchObject({ voiceId: "voice-dave", videoFormat: "bands" });
+    expect((story.bibles[0].data as { characters: { name: string }[] }).characters[0].name).toBe("Big Dave");
+
+    const episodeId = story.episodes[0].id;
+    const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId });
+    const imagesBefore = f.images.calls.length;
+    await runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+
+    expect(f.text.prompts.episode_draft[0]).toContain("NARRATOR AND HERO: Big Dave");
+    const sceneCalls = f.images.calls.slice(imagesBefore);
+    expect(sceneCalls.length).toBeGreaterThan(0);
+    expect(sceneCalls.every((c) => c.size === "1536x1024" && c.references >= 1 && c.prompt.includes("character sheet for Big Dave"))).toBe(true);
+    expect(f.render.renders.at(-1)).toMatchObject({ layout: "bands", seriesTitle: story.title, partLabel: "Part 1", accentColor: "#C62828" });
   });
 });

@@ -36,13 +36,15 @@ describe("scoring", () => {
 
 function draft(sceneWords: number, scenes: number, hook = "You land after ten hours."): EpisodeDraft {
   const filler = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(" ");
+  const narrations = Array.from({ length: scenes }, (_, i) => (i === 0 ? `${hook} ${filler(sceneWords - 5)}` : `${filler(sceneWords)}.`));
   return {
     title: "T",
+    storyNarration: narrations.join(" "),
     selectedHook: hook,
     summary: "s",
     scenes: Array.from({ length: scenes }, (_, i) => ({
       sceneNumber: i + 1,
-      narration: i === 0 ? `${hook} ${filler(sceneWords - 5)}` : `${filler(sceneWords)}.`,
+      narration: narrations[i],
       visualDescription: "v",
       imagePrompt: "p",
       composition: "c",
@@ -75,7 +77,7 @@ function draft(sceneWords: number, scenes: number, hook = "You land after ten ho
 }
 
 describe("validateDraft", () => {
-  const opts = { durationSec: 75, wordsPerSecond: 2.3, hook: "You land after ten hours." };
+  const opts = { durationSec: 75, wordsPerSecond: 2.3 };
 
   it("accepts a well-formed 75s draft", () => {
     expect(validateDraft(draft(14, 12), opts)).toEqual([]);
@@ -87,10 +89,21 @@ describe("validateDraft", () => {
     expect(issues.join(" ")).toMatch(/words/);
   });
 
-  it("requires scene 1 to open with the hook", () => {
+  it("requires the scenes to be an exact cut of the story narration", () => {
     const d = draft(14, 12);
-    d.scenes[0].narration = "Something else entirely starts this episode and keeps going for a while longer.";
-    expect(validateDraft(d, opts).join(" ")).toMatch(/hook verbatim/);
+    d.scenes[3].narration = "A rewritten line that is not in the story.";
+    expect(validateDraft(d, opts).join(" ")).toMatch(/word for word.*diverge/);
+  });
+
+  it("requires selectedHook to be the story's opening", () => {
+    const d = draft(14, 12);
+    d.selectedHook = "A different opening line entirely.";
+    expect(validateDraft(d, opts).join(" ")).toMatch(/opening line/);
+  });
+
+  it("enforces an explicitly required opening line", () => {
+    expect(validateDraft(draft(14, 12), { ...opts, requiredHook: "You land after ten hours." })).toEqual([]);
+    expect(validateDraft(draft(14, 12), { ...opts, requiredHook: "Your bag is gone." }).join(" ")).toMatch(/required opening line/);
   });
 });
 

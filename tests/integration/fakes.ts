@@ -42,13 +42,15 @@ function emptyUpdate(part: number) {
 
 export function makeDraft(hook: string, part: number, sceneCount = 12): EpisodeDraft {
   const words = (n: number, seed: number) => Array.from({ length: n }, (_, i) => `beat${seed}w${i}`).join(" ");
+  const narrations = Array.from({ length: sceneCount }, (_, i) => (i === 0 ? `${hook} ${words(10, i)}.` : `${words(14, i)}.`));
   return {
     title: `Episode part ${part}`,
+    storyNarration: narrations.join(" "),
     selectedHook: hook,
     summary: `Part ${part} summary.`,
     scenes: Array.from({ length: sceneCount }, (_, i) => ({
       sceneNumber: i + 1,
-      narration: i === 0 ? `${hook} ${words(10, i)}.` : `${words(14, i)}.`,
+      narration: narrations[i],
       visualDescription: `visual ${i + 1}`,
       imagePrompt: `A stick figure in scene ${i + 1}`,
       composition: "wide shot",
@@ -80,6 +82,16 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
       const out = (parsed: unknown) => ({ parsed, usage, model: "fake-model" });
 
       switch (schemaName) {
+        case "character_profile":
+          return out({
+            name: "Big Dave",
+            tagline: "An ex-trucker who keeps ending up stranded",
+            personality: "Calm, stubborn and funny under pressure.",
+            backstory: "Drove long-haul for twenty years and fixes most things with duct tape.",
+            speakingStyle: "Slow, dry, plain-spoken.",
+            visualDescription: "Big round stick figure with a beard, red flannel shirt and a trucker cap.",
+            signatureColor: "#C62828",
+          });
         case "concept_batch": {
           const n = Number(/Pitch exactly (\d+)/.exec(user)?.[1] ?? 4);
           return out({
@@ -118,9 +130,12 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
             const json = user.slice(user.indexOf("Current draft (JSON):") + "Current draft (JSON):".length).trim();
             const draft = JSON.parse(json) as EpisodeDraft;
             draft.scenes[1].narration = draft.scenes[1].narration.replace(/\.$/, " revised.");
+            draft.storyNarration = draft.scenes.map((s) => s.narration).join(" ");
             return out(draft);
           }
-          const hook = /Selected hook: "([^"]+)"/.exec(user)?.[1] ?? "You land after ten hours.";
+          // A required opening is used verbatim; otherwise the fake adopts the first hook idea.
+          const hook =
+            /Opening line \(required, verbatim\): "([^"]+)"/.exec(user)?.[1] ?? /Hook ideas[^\n]*\n- (.+)/.exec(user)?.[1] ?? "You land after ten hours.";
           const part = Number(/^Part: (\d+)/m.exec(user)?.[1] ?? 1);
           return out(makeDraft(hook, part));
         }
@@ -159,11 +174,13 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
   };
 }
 
-export function fakeImages(failScenes: Set<string> = new Set()): ImageProvider & { count: number } {
+export function fakeImages(failScenes: Set<string> = new Set()): ImageProvider & { count: number; calls: { prompt: string; size?: string; references: number }[] } {
   const provider = {
     count: 0,
-    async generate({ prompt }: { prompt: string }) {
+    calls: [] as { prompt: string; size?: string; references: number }[],
+    async generate({ prompt, size, references }: { prompt: string; size?: string; references: Buffer[] }) {
       provider.count++;
+      provider.calls.push({ prompt, size, references: references.length });
       const scene = /scene (\d+)/.exec(prompt)?.[1];
       if (scene && failScenes.has(scene)) throw new Error(`content_policy_violation for scene ${scene}`);
       return { png: Buffer.from(`png:${prompt.length}`), model: "fake-image", usage: { textInputTokens: 100, imageInputTokens: 0, outputTokens: 1000 }, usedReference: false };
@@ -206,12 +223,15 @@ export function fakeSpeech(): SpeechProvider & { count: number } {
   return provider;
 }
 
-export function fakeRender(): RenderClient & { renders: { durationInFrames: number; scenes: number }[] } {
+type RenderCall = { durationInFrames: number; scenes: number; layout: string; seriesTitle: string; partLabel: string; accentColor: string };
+
+export function fakeRender(): RenderClient & { renders: RenderCall[] } {
   const client = {
-    renders: [] as { durationInFrames: number; scenes: number }[],
+    renders: [] as RenderCall[],
     async render({ props, onProgress }: Parameters<RenderClient["render"]>[0]) {
       await onProgress({ progress: 0.5, stage: "Rendering frames" });
-      client.renders.push({ durationInFrames: props.durationInFrames, scenes: props.scenes.length });
+      const { durationInFrames, layout, seriesTitle, partLabel, accentColor } = props;
+      client.renders.push({ durationInFrames, scenes: props.scenes.length, layout, seriesTitle, partLabel, accentColor });
       return { url: `https://blob.test/render-${client.renders.length}.mp4?download=1`, sizeBytes: 1234, renderSeconds: 10 };
     },
   };

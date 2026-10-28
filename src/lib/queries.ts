@@ -78,6 +78,7 @@ export async function getStory(storyId: string) {
   const story = await db.story.findUnique({
     where: { id: storyId },
     include: {
+      character: { select: { id: true, name: true, signatureColor: true } },
       bibles: { orderBy: { version: "desc" } },
       episodes: {
         orderBy: { partNumber: "asc" },
@@ -178,4 +179,29 @@ export async function storyStatusCounts() {
   await connection();
   const rows = await db.story.groupBy({ by: ["status"], _count: true });
   return Object.fromEntries(rows.map((r) => [r.status, r._count])) as Partial<Record<StoryStatus, number>>;
+}
+
+export async function listCharacters(params: { archived?: boolean } = {}) {
+  await connection();
+  return db.character.findMany({
+    where: { archivedAt: params.archived ? { not: null } : null },
+    orderBy: { updatedAt: "desc" },
+    include: { _count: { select: { stories: true } } },
+  });
+}
+
+export async function getCharacter(characterId: string) {
+  await connection();
+  const character = await db.character.findUnique({
+    where: { id: characterId },
+    include: {
+      stories: {
+        orderBy: { lastActivityAt: "desc" },
+        include: { _count: { select: { episodes: true } } },
+      },
+    },
+  });
+  if (!character) return null;
+  const spend = await db.costEntry.aggregate({ where: { OR: [{ characterId }, { story: { characterId } }] }, _sum: { costUsd: true } });
+  return { character, spentUsd: Number(spend._sum.costUsd ?? 0) };
 }

@@ -6,9 +6,9 @@ export const ClaimClassificationSchema = z.enum(["ESTABLISHED_FACT", "PLAUSIBLE_
 
 export const SceneSpecSchema = z.object({
   sceneNumber: z.number().int(),
-  narration: z.string().describe("Exactly the words spoken during this scene. All scenes joined in order form the full narration."),
+  narration: z.string().describe("An exact, contiguous excerpt of storyNarration (usually one or two sentences). All scenes joined in order must reproduce storyNarration word for word."),
   visualDescription: z.string().describe("What the viewer sees, in plain language."),
-  imagePrompt: z.string().describe("Subject-only image prompt: who, what, where, pose, objects. Do not describe art style or mention text."),
+  imagePrompt: z.string().describe("Subject-only image prompt for ONE clear action: who is doing what, where, with which key objects. At most three figures. Do not describe art style or mention text."),
   composition: z.string().describe("Framing and layout, e.g. 'wide shot, figure small at left, conveyor belt diagonal'."),
   characters: z.array(z.string()).describe("Character names from the story bible appearing in this scene."),
   objects: z.array(z.string()),
@@ -21,7 +21,9 @@ export type SceneSpec = z.infer<typeof SceneSpecSchema>;
 /** What the writer model returns. Narration, word count and duration are derived by code from the scenes. */
 export const EpisodeDraftSchema = z.object({
   title: z.string(),
-  selectedHook: z.string().describe("The opening line(s); must be the start of scene 1's narration."),
+  // Written first so the story is told as one continuous piece before it is cut into shots.
+  storyNarration: z.string().describe("The complete voiceover as one continuous, flowing story, written to be read aloud."),
+  selectedHook: z.string().describe("The opening line(s), copied exactly from the start of storyNarration."),
   summary: z.string().describe("3–5 sentence summary of what happens and what is revealed."),
   scenes: z.array(SceneSpecSchema),
   keyReveals: z.array(z.string()),
@@ -95,6 +97,8 @@ export const SceneNarrationRewriteSchema = z.object({
 
 /** The full episode specification stored on each EpisodeVersion. */
 export const EpisodeSpecRecordSchema = EpisodeDraftSchema.omit({ scenes: true }).extend({
+  /** Absent on versions written before story-first drafting. */
+  storyNarration: z.string().optional(),
   storyId: z.string(),
   partNumber: z.number().int(),
   alternativeHooks: z.array(z.string()),

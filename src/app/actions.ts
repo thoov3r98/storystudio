@@ -24,6 +24,9 @@ import { continuationBlockers, loadCanonicalBible } from "@/lib/pipeline/context
 import { approveEpisode as approve, ensureEditableVersion, forkVersion, refreshStoryStatus } from "@/lib/pipeline/versions";
 import { listElevenLabsVoices } from "@/lib/providers/speech";
 import { normalizeTitle } from "@/lib/text";
+import { CharacterEditSchema } from "@/lib/schemas/character";
+import { createCharacterFromBrief, drawCharacterSheet } from "@/lib/pipeline/characters";
+import { productionDeps } from "@/lib/pipeline/deps";
 
 export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -36,6 +39,40 @@ async function attempt<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
     if (err instanceof z.ZodError) return { ok: false, error: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+// ───────────────────────────── Characters ───────────────────────────
+
+/** Designs a character from a brief, then opens it so the producer can edit and draw it. */
+export async function createCharacter(brief: string): Promise<ActionResult<{ characterId: string }>> {
+  let characterId = "";
+  const result = await attempt(async () => {
+    const text = z.string().trim().min(3, "Describe the character in a sentence or two.").max(1000).parse(brief);
+    const character = await createCharacterFromBrief({ brief: text, deps: productionDeps });
+    characterId = character.id;
+    return { characterId };
+  });
+  if (result.ok) redirect(`/characters/${characterId}`);
+  return result;
+}
+
+export async function updateCharacter(characterId: string, input: unknown) {
+  return attempt(async () => {
+    const data = CharacterEditSchema.parse(input);
+    await db.character.update({ where: { id: characterId }, data });
+  });
+}
+
+export async function drawCharacter(characterId: string) {
+  return attempt(async () => {
+    await drawCharacterSheet({ characterId, deps: productionDeps });
+  });
+}
+
+export async function setCharacterArchived(characterId: string, archived: boolean) {
+  return attempt(async () => {
+    await db.character.update({ where: { id: characterId }, data: { archivedAt: archived ? new Date() : null } });
+  });
 }
 
 // ───────────────────────────── Generate ─────────────────────────────
@@ -51,6 +88,7 @@ const GenerateSchema = z.object({
   quality: z.enum(["DRAFT", "STANDARD", "PREMIUM"]),
   maxBudgetUsd: z.coerce.number().positive().max(10_000),
   autoSelect: z.boolean().default(false),
+  characterId: z.string().nullable().optional(),
 });
 
 export type GenerateInput = z.input<typeof GenerateSchema>;
@@ -82,6 +120,7 @@ export async function createBatch(input: GenerateInput): Promise<ActionResult<{ 
         maxBudgetUsd: data.maxBudgetUsd.toFixed(2),
         autoSelect: data.mode === "FULL_PRODUCTION" && data.autoSelect,
         estimatedCostUsd: estimate.total.toFixed(6),
+        characterId: data.characterId || null,
       },
     });
     batchId = batch.id;

@@ -81,4 +81,19 @@ test.describe("studio pages", () => {
     await expect(page.locator('input[value="Test Narrator"]')).toBeVisible();
     await expect(page.getByRole("heading", { name: "Models & pricing" })).toBeVisible();
   });
+
+  test("characters: list, edit page and making videos starring them", async ({ page }) => {
+    await page.goto("/characters");
+    await expect(page.getByRole("heading", { name: "Characters", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Design character" })).toBeDisabled();
+    await page.getByRole("link", { name: /Test Dave/ }).click();
+    await expect(page.getByRole("heading", { name: "Test Dave" })).toBeVisible();
+    await expect(page.getByLabel("Name")).toHaveValue("Test Dave");
+    await expect(page.getByRole("button", { name: "Draw character" })).toBeVisible();
+    await page.getByRole("link", { name: "Make videos with Test Dave" }).click();
+    await expect(page).toHaveURL(/\/generate\?character=/);
+    // Client navigation can leave a hidden copy of the previous render in the DOM; match the visible one.
+    await expect(page.getByText("Starring", { exact: true }).filter({ visible: true })).toBeVisible();
+    await expect(page.getByText("Test Dave", { exact: true }).filter({ visible: true })).toBeVisible();
+  });
 });

@@ -218,6 +218,15 @@ async function StoryContent({ params }: { params: PageProps<"/stories/[storyId]"
               Story Library
             </Link>
             <span>/</span> {categoryLabel(story.category)}
+            {story.character ? (
+              <>
+                <span>·</span>
+                <Link href={`/characters/${story.character.id}`} className="inline-flex items-center gap-1.5 hover:underline">
+                  <span className="size-2.5 rounded-full" style={{ backgroundColor: story.character.signatureColor }} aria-hidden />
+                  Starring {story.character.name}
+                </Link>
+              </>
+            ) : null}
           </span>
         }
         title={story.title}
