@@ -89,7 +89,7 @@ export function NextEpisodeButton({ storyId, blockers, nextPart }: { storyId: st
           <DialogTitle>Generate Part {nextPart}</DialogTitle>
           <DialogDescription>
             The writer receives the canonical story bible, summaries of every approved episode, and the latest episode in full. It must continue causally, avoid
-            repeating reveals, and introduce at least one meaningful development. Continuity is checked before any images are made.
+            repeating reveals, and introduce at least one meaningful development. Continuity is checked, then the script stops for your review before any images or narration are made.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
@@ -109,7 +109,7 @@ export function NextEpisodeButton({ storyId, blockers, nextPart }: { storyId: st
               })
             }
           >
-            {pending ? <Loader2 className="animate-spin" /> : null} Write and produce Part {nextPart}
+            {pending ? <Loader2 className="animate-spin" /> : null} Write Part {nextPart} script
           </Button>
         </DialogFooter>
       </DialogContent>

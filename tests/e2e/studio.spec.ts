@@ -10,6 +10,23 @@ test.describe("studio pages", () => {
     await expect(page.getByText("Where Does Your Lost Luggage Actually Go?").first()).toBeVisible();
   });
 
+  test("a new script waits for review before any media is made", async ({ page }) => {
+    const { scriptedEpisodeId } = seedIds();
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Scripts to review (1)" })).toBeVisible();
+    await page.getByText("The chairlift stops with Ridge on it", { exact: false }).click();
+    await expect(page).toHaveURL(new RegExp(`/episodes/${scriptedEpisodeId}`));
+    await expect(page.getByText("Script ready for your review")).toBeVisible();
+    await expect(page.getByText("Script to review")).toBeVisible();
+    await page.getByRole("button", { name: "Approve script & make video" }).first().click();
+    await expect(page.getByRole("alertdialog")).toContainText(/illustrations, narration, captions and edit.*Estimated \$/);
+    await page.getByRole("button", { name: "Cancel" }).click();
+    // Rewrites stop at the script too: there is no "make a new MP4" switch yet.
+    await page.getByRole("button", { name: "Rewrite opening" }).click();
+    await expect(page.getByRole("dialog")).toContainText("Nothing is spent on media until you approve the script.");
+    await expect(page.getByRole("switch")).toHaveCount(0);
+  });
+
   test("generate form updates the cost estimate", async ({ page }) => {
     await page.goto("/generate");
     await expect(page.getByRole("heading", { name: "Generate opening episodes" })).toBeVisible();

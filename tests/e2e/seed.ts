@@ -90,6 +90,38 @@ async function main() {
   }
   await db.bibleUpdateProposal.create({ data: { storyId: story.id, episodeVersionId: version.id, baseBibleVersion: 1, update: draft.bibleUpdate } });
   await db.episode.update({ where: { id: episode.id }, data: { currentVersionId: version.id } });
+  // A script waiting at the gate: written, nothing produced yet.
+  const chairDraft = makeDraft("The lift stopped halfway up.", 1);
+  const chairStory = await db.story.create({
+    data: {
+      title: "Stuck on the Last Chairlift",
+      normalizedTitle: "stuck on the last chairlift",
+      category: "survival-scenarios",
+      premise: "The lift stops with one rider left on the mountain.",
+      keywords: ["ski"],
+      status: "CONCEPT",
+      bibles: { create: { version: 1, source: "concept", data: emptyBible({ premise: "The lift stops.", styleKey: "stick-figure" }) } },
+    },
+  });
+  const scripted = await db.episode.create({ data: { storyId: chairStory.id, partNumber: 1, title: chairDraft.title, status: "SCRIPTED" } });
+  const chairNarration = chairDraft.scenes.map((s) => s.narration).join(" ");
+  const chairVersion = await db.episodeVersion.create({
+    data: {
+      episodeId: scripted.id,
+      version: 1,
+      reason: "initial",
+      spec: { ...chairDraft, scenes: undefined, storyId: chairStory.id, partNumber: 1, narration: chairNarration, wordCount: 169, estimatedDurationSec: 72, factCheckStatus: "PASSED" },
+      narration: chairNarration,
+      wordCount: 169,
+      estimatedDurationSec: 72,
+      summary: "The chairlift stops with Ridge on it as the hill closes.",
+      factCheckStatus: "PASSED",
+      styleKey: "stick-figure",
+      scenes: { create: chairDraft.scenes.map((s) => ({ ...s, intendedDurationSec: 6 })) },
+    },
+  });
+  await db.episode.update({ where: { id: scripted.id }, data: { currentVersionId: chairVersion.id } });
+
   // Pre-compute what approval would produce so the bible view has content to show.
   void applyBibleUpdate;
 
@@ -99,7 +131,7 @@ async function main() {
   await db.job.create({ data: { type: "BATCH_IDEATION", batchId: batch.id, status: "FAILED", input: { batchId: batch.id }, error: { name: "MissingConfigError", message: "TRIGGER_SECRET_KEY is not configured." }, completedAt: new Date() } });
   await db.costEntry.create({ data: { provider: "OPENAI_TEXT", model: "seed", operation: "seed", usage: {}, costUsd: "0.42", storyId: story.id, episodeId: episode.id } });
 
-  console.log(JSON.stringify({ storyId: story.id, episodeId: episode.id, batchId: batch.id }));
+  console.log(JSON.stringify({ storyId: story.id, episodeId: episode.id, batchId: batch.id, scriptedEpisodeId: scripted.id }));
 }
 
 main()

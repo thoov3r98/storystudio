@@ -112,7 +112,7 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
   const { jobId } = payload;
 
   const writeAndCheck = async (reason: string, direction: string | null | undefined, allowConflicts: boolean) => {
-    await setJobStage(jobId, "WRITING_STORY", "Writing script, reviewing facts and continuity", 0.05);
+    await setJobStage(jobId, "WRITING_STORY", "Outlining, writing and reviewing the script", 0.05);
     const result = await writeEpisode({ ...ctx, reason, direction });
     if (result.materialConflicts.length && !allowConflicts) throw new ContinuityConflictError(result.materialConflicts);
     return result;
@@ -120,8 +120,12 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
 
   switch (req.action) {
     case "produce": {
-      const needsScript = !episode.currentVersionId;
-      if (needsScript) await writeAndCheck("initial", req.direction, req.allowContinuityConflicts);
+      // Script gate: a new script always stops for review before anything is spent on images,
+      // narration or rendering. Approving it ("render") makes the video.
+      if (!episode.currentVersionId) {
+        await writeAndCheck("initial", req.direction, req.allowContinuityConflicts);
+        return { scripted: true };
+      }
       return produceDownstream(episode.id, jobId, cost, deps);
     }
     case "regenerate-script": {

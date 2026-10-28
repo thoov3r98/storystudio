@@ -13,7 +13,7 @@ import { computeStaleness, type RenderInputs } from "@/lib/invalidation";
 
 export async function getDashboard() {
   await connection();
-  const [stories, openingEpisodes, completedVideos, activeJobs, failedJobs, spend, recentStories, recentRenders] = await Promise.all([
+  const [stories, openingEpisodes, completedVideos, activeJobs, failedJobs, spend, recentStories, recentRenders, scriptsToReview] = await Promise.all([
     db.story.count(),
     db.episode.count({ where: { partNumber: 1 } }),
     db.render.count({ where: { status: "SUCCEEDED" } }),
@@ -27,11 +27,19 @@ export async function getDashboard() {
       take: 6,
       include: { episodeVersion: { include: { episode: { include: { story: { select: { id: true, title: true, thumbnailUrl: true } } } } } } },
     }),
+    // Scripts waiting at the gate, so nothing sits unreviewed.
+    db.episode.findMany({
+      where: { status: "SCRIPTED", currentVersionId: { not: null }, story: { status: { not: "ARCHIVED" } } },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+      select: { id: true, title: true, partNumber: true, updatedAt: true, story: { select: { title: true } }, currentVersion: { select: { summary: true } } },
+    }),
   ]);
   return {
     stats: { stories, openingEpisodes, completedVideos, activeJobs, failedJobs, spendUsd: Number(spend._sum.costUsd ?? 0) },
     recentStories,
     recentRenders,
+    scriptsToReview,
   };
 }
 

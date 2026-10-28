@@ -44,10 +44,11 @@ export const ideateBatchTask = schemaTask({
         const result = await runIdeation({ batchId, jobId, deps: productionDeps });
         const batch = await db.batch.findUniqueOrThrow({ where: { id: batchId } });
 
-        // Full production with automatic selection: queue episodes the remaining budget can cover.
+        // Full production with automatic selection: write scripts for the episodes the remaining budget can cover.
+        // Each one stops at the script gate; media is made only once the producer approves it.
         const queued: string[] = [];
         if (batch.mode === "FULL_PRODUCTION" && batch.autoSelect) {
-          const perEpisode = estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: batch.targetDurationSec, quality: batch.quality }).total;
+          const perEpisode = estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: batch.targetDurationSec, quality: batch.quality }).text;
           let remaining = Number(batch.maxBudgetUsd) - (await spentFor({ batchId, budgetScope: "batch" }));
           for (const episodeId of result.episodeIds) {
             if (remaining < perEpisode) break;

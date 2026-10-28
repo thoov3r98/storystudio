@@ -113,7 +113,7 @@ export function GenerateForm({
           {(
             [
               { value: "CONCEPT", title: "Concept mode", icon: Lightbulb, body: "Generate, evaluate and save concepts. No images, narration or rendering." },
-              { value: "FULL_PRODUCTION", title: "Full production", icon: Clapperboard, body: "Concepts first, then produce MP4s for the ones you approve — or select automatically." },
+              { value: "FULL_PRODUCTION", title: "Full production", icon: Clapperboard, body: "Concepts, then scripts for the ones you pick. You approve each script before any images, narration or rendering." },
             ] as const
           ).map((m) => (
             <button
@@ -266,10 +266,10 @@ export function GenerateForm({
           {mode === "FULL_PRODUCTION" ? (
             <div className="flex items-start justify-between gap-4 rounded-xl border bg-card p-4 sm:col-span-2">
               <div>
-                <Label htmlFor="auto">Automatically produce the top-ranked concepts</Label>
+                <Label htmlFor="auto">Automatically write scripts for the top-ranked concepts</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Off: you review ranked concepts and approve which to produce. On: production starts for the top {count} as soon as concepts are scored,
-                  within the budget.
+                  Off: you review ranked concepts and pick which get scripts. On: scripts are written for the top {count} as soon as concepts are scored.
+                  Either way, each script waits for your approval before media is made.
                 </p>
               </div>
               <Switch id="auto" checked={autoSelect} onCheckedChange={setAutoSelect} />

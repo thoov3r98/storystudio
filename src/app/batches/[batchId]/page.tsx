@@ -27,7 +27,8 @@ async function BatchContent({ params }: { params: PageProps<"/batches/[batchId]"
   const { batch, spentUsd } = data;
   const ideationJob = batch.jobs.find((j) => j.type === "BATCH_IDEATION");
   const active = batch.jobs.some((j) => ACTIVE_JOB_STATUSES.includes(j.status));
-  const perEpisode = estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: batch.targetDurationSec, quality: batch.quality }).total;
+  // Only scripts are written from here; media is made per episode once its script is approved.
+  const perEpisode = estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: batch.targetDurationSec, quality: batch.quality }).text;
 
   return (
     <>

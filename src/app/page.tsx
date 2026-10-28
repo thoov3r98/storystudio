@@ -31,7 +31,7 @@ export default function DashboardPage() {
 }
 
 async function DashboardContent() {
-  const { stats, recentStories, recentRenders } = await getDashboard();
+  const { stats, recentStories, recentRenders, scriptsToReview } = await getDashboard();
   return (
     <div className="space-y-10">
       <AutoRefresh active={stats.activeJobs > 0} intervalMs={8000} />
@@ -44,6 +44,26 @@ async function DashboardContent() {
         <StatCard label="Failed jobs" value={stats.failedJobs} icon={AlertTriangle} tone={stats.failedJobs ? "danger" : "default"} />
         <StatCard label="Spend (est.)" value={<Money value={stats.spendUsd} />} icon={CircleDollarSign} hint="From configured pricing" />
       </div>
+
+      {scriptsToReview.length ? (
+        <Section title={`Scripts to review (${scriptsToReview.length})`} description="Each one is written and waiting. Nothing is spent on images, narration or rendering until you approve it.">
+          <ul className="divide-y rounded-xl border bg-card">
+            {scriptsToReview.map((e) => (
+              <li key={e.id}>
+                <Link href={`/episodes/${e.id}`} className="flex flex-col gap-1 p-4 hover:bg-muted/50 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{e.story.title}</div>
+                    <p className="line-clamp-2 text-sm text-muted-foreground">
+                      Part {e.partNumber} · {e.currentVersion?.summary}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">{relativeTime(e.updatedAt)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
 
       <Section
         title="Recent stories"

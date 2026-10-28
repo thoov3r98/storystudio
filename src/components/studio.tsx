@@ -91,7 +91,7 @@ export function StoryStatusBadge({ status }: { status: StoryStatus }) {
 
 const episodeLabels: Record<EpisodeStatus, string> = {
   DRAFT: "Concept",
-  SCRIPTED: "Scripted",
+  SCRIPTED: "Script to review",
   IN_PRODUCTION: "In production",
   READY: "Ready for review",
   APPROVED: "Approved",

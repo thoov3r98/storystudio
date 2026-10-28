@@ -43,6 +43,12 @@ async function newJob(data: { type: "BATCH_IDEATION" | "EPISODE_PRODUCTION" | "C
   return db.job.create({ data: { ...data, input: {} } });
 }
 
+/** Approves an episode's script at the gate, which makes the images, narration and video. */
+async function approveScript(episodeId: string, deps: Parameters<typeof runEpisodeJob>[1]) {
+  const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId });
+  await runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "render" } }, deps);
+}
+
 async function createBatch(requested = 3, budget = 100) {
   return db.batch.create({
     data: { mode: "CONCEPT", category: "hidden-infrastructure", requestedCount: requested, targetDurationSec: 75, styleKey: "stick-figure", voiceId: "voice-1", quality: "STANDARD", maxBudgetUsd: budget },
@@ -99,6 +105,15 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId });
     await runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
 
+    // Script gate: the script is written, then everything stops for review. No media spend yet.
+    expect((await db.episode.findUniqueOrThrow({ where: { id: episodeId } })).status).toBe("SCRIPTED");
+    expect(f.images.count).toBe(0);
+    expect(f.speech.count).toBe(0);
+    expect(f.render.renders).toHaveLength(0);
+    expect(await db.costEntry.count({ where: { episodeId, provider: { in: ["OPENAI_IMAGE", "ELEVENLABS"] } } })).toBe(0);
+
+    await approveScript(episodeId, f.deps);
+
     const ep = await db.episode.findUniqueOrThrow({
       where: { id: episodeId },
       include: { currentVersion: { include: { scenes: { include: { currentImage: true } }, voiceover: true, renders: true, proposal: true } } },
@@ -134,6 +149,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const part2 = await db.episode.create({ data: { storyId: ep.storyId, partNumber: 2, title: "Part 2" } });
     const job2 = await newJob({ type: "CONTINUATION", episodeId: part2.id });
     await runEpisodeJob({ jobId: job2.id, episodeId: part2.id, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    await approveScript(part2.id, f.deps);
     const writerPrompt = f.text.prompts.episode_draft.find((p) => p.includes("Part: 2"))!;
     expect(writerPrompt).toContain("MOST RECENT EPISODE IN FULL");
     expect(writerPrompt).toContain("thread-1");
@@ -149,6 +165,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    await approveScript(episodeId, f.deps);
     const before = await db.episodeVersion.findFirstOrThrow({ where: { episodeId }, include: { scenes: true } });
     const imagesBefore = f.images.count;
     const speechBefore = f.speech.count;
@@ -173,6 +190,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    await approveScript(episodeId, f.deps);
     expect(await approvalBlockers(episodeId)).toEqual([]);
     await approveEpisode(episodeId, { applyProposal: true });
     const approved = await db.episodeVersion.findFirstOrThrow({ where: { episodeId, status: "APPROVED" }, include: { scenes: true } });
@@ -195,6 +213,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    await approveScript(episodeId, f.deps);
     const imagesBefore = f.images.count;
 
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "rewrite-scene", sceneNumber: 1, instruction: "Funnier" } }, f.deps);
@@ -218,9 +237,8 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const failing = { ...f.deps, images: fakeImages(new Set(["5"])) };
     const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId });
 
-    await expect(
-      runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, failing),
-    ).rejects.toThrow(/scene\(s\) 5/);
+    await runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    await expect(approveScript(episodeId, failing)).rejects.toThrow(/scene\(s\) 5/);
     const v = await db.episodeVersion.findFirstOrThrow({ where: { episodeId }, include: { scenes: true } });
     expect(v.scenes.filter((s) => s.currentImageId)).toHaveLength(11);
 
@@ -237,6 +255,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    await approveScript(episodeId, f.deps);
     await approveEpisode(episodeId, { applyProposal: true });
     const story = await db.episode.findUniqueOrThrow({ where: { id: episodeId } });
     const part2 = await db.episode.create({ data: { storyId: story.storyId, partNumber: 2, title: "Part 2" } });
@@ -278,6 +297,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId });
     const imagesBefore = f.images.calls.length;
     await runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    await approveScript(episodeId, f.deps);
 
     expect(f.text.prompts.episode_draft[0]).toContain("NARRATOR AND HERO: Big Dave");
     const sceneCalls = f.images.calls.slice(imagesBefore);
@@ -319,6 +339,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const f = fakeDeps({}, { rejectOnce: new Set(["3"]) });
     const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId: episodeIds[0] })).id, episodeId: episodeIds[0], continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    await approveScript(episodeIds[0], f.deps);
     expect(f.images.count).toBe(13); // 12 scenes + 1 redraw
     expect(f.images.reviews).toBe(13);
     const redraw = f.images.calls.find((c) => c.prompt.includes("A previous attempt was rejected"));

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { AlertTriangle, Download } from "lucide-react";
+import { AlertTriangle, Download, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -11,6 +11,8 @@ import { AutoRefresh } from "@/components/client-helpers";
 import { getEpisode } from "@/lib/queries";
 import { reconcileStaleJobs } from "@/lib/enqueue";
 import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
+import { estimateEpisodeCost, formatUsd } from "@/lib/costs/estimate";
+import { getModels, getPricing } from "@/lib/settings";
 import type { ContinuityReview, EpisodeSpecRecord } from "@/lib/schemas/episode";
 import type { EpisodeTiming } from "@/lib/timing";
 import { downloadUrl, previewUrl } from "@/lib/urls";
@@ -46,6 +48,23 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
   const locked = v?.status === "APPROVED";
   const continuity = (v?.continuityReview ?? null) as ContinuityReview | null;
   const busy = Boolean(activeJob);
+  // Script gate: what approving the script will spend on images, narration and rendering.
+  const awaitingReview = Boolean(v) && episode.status === "SCRIPTED";
+  const produced = Boolean(v) && episode.status !== "SCRIPTED" && episode.status !== "DRAFT";
+  const media = awaitingReview
+    ? estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: episode.story.targetDurationSec, quality: episode.story.quality })
+    : null;
+  const mediaCost = media ? formatUsd(media.images + media.speech + media.render) : "";
+  const approveScript = (
+    <EpisodeActionButton
+      episodeId={episode.id}
+      request={{ action: "render" }}
+      disabled={busy}
+      label="Approve script & make video"
+      primary
+      confirm={`Generates the illustrations, narration, captions and edit, then renders the MP4. Estimated ${mediaCost}.`}
+    />
+  );
 
   return (
     <>
@@ -77,11 +96,9 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         actions={
           <>
             {!v || episode.status === "DRAFT" ? (
-              <EpisodeActionButton episodeId={episode.id} request={{ action: "produce", allowContinuityConflicts: false }} disabled={busy} label="Write & produce" primary />
+              <EpisodeActionButton episodeId={episode.id} request={{ action: "produce", allowContinuityConflicts: false }} disabled={busy} label="Write script" primary />
             ) : null}
-            {v && episode.status === "SCRIPTED" ? (
-              <EpisodeActionButton episodeId={episode.id} request={{ action: "render" }} disabled={busy} label="Produce video" primary />
-            ) : null}
+            {awaitingReview ? approveScript : null}
             {v && episode.status === "FAILED" ? (
               <>
                 <EpisodeActionButton episodeId={episode.id} request={{ action: "render" }} disabled={busy} label="Resume production" primary />
@@ -90,8 +107,9 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                     episodeId={episode.id}
                     request={{ action: "regenerate-script", allowContinuityConflicts: true }}
                     disabled={busy}
-                    label="Rewrite & produce anyway"
-                    confirm="Continuity conflicts remain. This rewrites the script and continues production even if material conflicts persist."
+                    label="Rewrite anyway"
+                    continueProduction={false}
+                    confirm="Continuity conflicts remain. This rewrites the script and keeps it even if material conflicts persist, so you can review it."
                   />
                 ) : null}
               </>
@@ -133,13 +151,29 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         </div>
       ) : null}
 
+      {awaitingReview && !busy ? (
+        <div className="mb-8 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-2">
+            <FileText className="mt-0.5 size-4 shrink-0 text-amber-700" />
+            <div>
+              <div className="font-medium">Script ready for your review</div>
+              <p className="text-muted-foreground">
+                Read it below. Rewrite a line, the opening or the whole script, or approve it to make the video ({mediaCost} for images, narration and render).
+              </p>
+            </div>
+          </div>
+          <div className="shrink-0">{approveScript}</div>
+        </div>
+      ) : null}
+
       {latestRenderAttempt?.status === "FAILED" && !busy ? (
         <div className="mb-8 rounded-xl border border-red-200 bg-red-50/60 p-4 text-sm text-red-800">Last render failed: {latestRenderAttempt.error}</div>
       ) : null}
 
       {!v ? (
         <div className="rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
-          No script yet. <span className="font-medium text-foreground">Write &amp; produce</span> outlines the episode, writes the script and makes the video.
+          No script yet. <span className="font-medium text-foreground">Write script</span> outlines the episode and writes the script. Nothing is spent on images,
+          narration or rendering until you approve it.
         </div>
       ) : (
         <div className="grid gap-10 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -227,7 +261,8 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                   label="Regenerate script"
                   size="sm"
                   variant="outline"
-                  confirm="Writes a new script version. Its scenes get new images, a new voiceover and a new render. The current version is kept in history."
+                  continueProduction={false}
+                  confirm="Writes a new script version and stops for your review; nothing is spent on media until you approve it. The current version is kept in history."
                 />
               }
             >
@@ -235,7 +270,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Opening</div>
-                    <RewriteSceneDialog episodeId={episode.id} sceneNumber={1} disabled={busy} opening />
+                    <RewriteSceneDialog episodeId={episode.id} sceneNumber={1} disabled={busy} opening produced={produced} />
                   </div>
                   <p className="mt-1 text-lg font-medium text-balance">{spec?.selectedHook}</p>
                 </div>
@@ -326,7 +361,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                             variant="outline"
                             confirm={`Replaces scene ${s.sceneNumber}'s image (the old one stays in history) and re-renders the video.${locked ? " This version is approved, so a new draft version is created first." : ""}`}
                           />
-                          <RewriteSceneDialog episodeId={episode.id} sceneNumber={s.sceneNumber} disabled={busy} />
+                          <RewriteSceneDialog episodeId={episode.id} sceneNumber={s.sceneNumber} disabled={busy} produced={produced} />
                         </div>
                       </div>
                     </div>

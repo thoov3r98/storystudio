@@ -48,10 +48,23 @@ export function EpisodeActionButton({
   );
 }
 
-export function RewriteSceneDialog({ episodeId, sceneNumber, disabled, opening }: { episodeId: string; sceneNumber: number; disabled?: boolean; opening?: boolean }) {
+export function RewriteSceneDialog({
+  episodeId,
+  sceneNumber,
+  disabled,
+  opening,
+  produced,
+}: {
+  episodeId: string;
+  sceneNumber: number;
+  disabled?: boolean;
+  opening?: boolean;
+  /** The video has been made before; otherwise the script is still under review and the rewrite stops there. */
+  produced?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
-  const [cont, setCont] = useState(true);
+  const [cont, setCont] = useState(Boolean(produced));
   const { pending, run } = useAction();
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -64,19 +77,23 @@ export function RewriteSceneDialog({ episodeId, sceneNumber, disabled, opening }
         <DialogHeader>
           <DialogTitle>{opening ? "Rewrite the opening" : `Rewrite scene ${sceneNumber}`}</DialogTitle>
           <DialogDescription>
-            Creates a new script version. The voiceover, timing and captions are regenerated; this scene’s image is regenerated only if its visual changes.
+            {produced
+              ? "Creates a new script version. The voiceover, timing and captions are regenerated; this scene’s image is regenerated only if its visual changes."
+              : "Creates a new script version for you to review. Nothing is spent on media until you approve the script."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
           <Label htmlFor={`ins-${sceneNumber}`}>Instruction (optional)</Label>
           <Textarea id={`ins-${sceneNumber}`} rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder={opening ? "e.g. Start in the moment the chair stops, and make it funnier" : "e.g. Make this beat more tense and remove the statistic"} />
         </div>
-        <div className="flex items-center justify-between rounded-lg border p-3">
-          <Label htmlFor={`cont-${sceneNumber}`} className="text-sm font-normal">
-            Continue to a new MP4 afterwards
-          </Label>
-          <Switch id={`cont-${sceneNumber}`} checked={cont} onCheckedChange={setCont} />
-        </div>
+        {produced ? (
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <Label htmlFor={`cont-${sceneNumber}`} className="text-sm font-normal">
+              Also make a new MP4 afterwards
+            </Label>
+            <Switch id={`cont-${sceneNumber}`} checked={cont} onCheckedChange={setCont} />
+          </div>
+        ) : null}
         <DialogFooter>
           <Button
             disabled={pending}
