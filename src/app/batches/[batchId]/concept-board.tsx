@@ -6,7 +6,6 @@ import { ChevronDown, Clapperboard, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActionButton } from "@/components/client-helpers";
 import { EmptyState } from "@/components/studio";
 import { CRITERIA } from "@/lib/schemas/concept";
@@ -121,13 +120,13 @@ function ConceptCard({ c, selectable, checked, onCheck }: { c: Concept; selectab
 }
 
 export function ConceptBoard({ batchId, concepts, perEpisodeEstimate }: { batchId: string; concepts: Concept[]; perEpisodeEstimate: number }) {
-  const [tab, setTab] = useState<"selected" | "rejected" | "duplicates">("selected");
+  // Only the chosen concepts are shown; the other pitches stay behind a link as backups.
+  const [showBackups, setShowBackups] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const groups = useMemo(
     () => ({
       selected: concepts.filter((c) => c.status === "SELECTED"),
-      rejected: concepts.filter((c) => c.status === "REJECTED"),
-      duplicates: concepts.filter((c) => c.status === "DUPLICATE"),
+      backups: concepts.filter((c) => c.status === "REJECTED" || c.status === "DUPLICATE"),
     }),
     [concepts],
   );
@@ -139,14 +138,8 @@ export function ConceptBoard({ batchId, concepts, perEpisodeEstimate }: { batchI
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList>
-            <TabsTrigger value="selected">Selected ({groups.selected.length})</TabsTrigger>
-            <TabsTrigger value="rejected">Lower ranked ({groups.rejected.length})</TabsTrigger>
-            <TabsTrigger value="duplicates">Duplicates ({groups.duplicates.length})</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        {tab === "selected" && producible.length > 0 ? (
+        <h2 className="text-base font-semibold tracking-tight">Your stories ({groups.selected.length})</h2>
+        {producible.length > 0 ? (
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => setPicked(new Set(picked.size === producible.length ? [] : producible.map((c) => c.id)))}>
               {picked.size === producible.length ? "Clear" : "Select all"}
@@ -168,8 +161,8 @@ export function ConceptBoard({ batchId, concepts, perEpisodeEstimate }: { batchI
         ) : null}
       </div>
       <div className="grid gap-3">
-        {groups[tab].map((c) => {
-          const selectable = tab === "selected" && producible.includes(c);
+        {groups.selected.map((c) => {
+          const selectable = producible.includes(c);
           return (
             <ConceptCard
               key={c.id}
@@ -187,8 +180,23 @@ export function ConceptBoard({ batchId, concepts, perEpisodeEstimate }: { batchI
             />
           );
         })}
-        {groups[tab].length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Nothing here.</p> : null}
+        {groups.selected.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">No stories were selected.</p> : null}
       </div>
+      {groups.backups.length > 0 ? (
+        <div className="space-y-3">
+          <button type="button" onClick={() => setShowBackups(!showBackups)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ChevronDown className={cn("size-4 transition-transform", showBackups && "rotate-180")} />
+            {showBackups ? "Hide" : "Show"} {groups.backups.length} backup idea{groups.backups.length === 1 ? "" : "s"} that scored lower
+          </button>
+          {showBackups ? (
+            <div className="grid gap-3">
+              {groups.backups.map((c) => (
+                <ConceptCard key={c.id} c={c} selectable={false} checked={false} onCheck={() => {}} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

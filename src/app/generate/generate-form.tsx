@@ -159,7 +159,7 @@ export function GenerateForm({
             </div>
           </div>
 
-          <Field label={`Opening episodes: ${count}`} hint={`About ${count * CANDIDATE_MULTIPLIER} candidates will be pitched and scored; the best ${count} are kept.`}>
+          <Field label={`Opening episodes: ${count}`} hint={`You get ${count} ${count === 1 ? "story" : "stories"}. Behind the scenes ${count * CANDIDATE_MULTIPLIER} ideas are pitched and the best ${count} kept.`}>
             <div className="flex items-center gap-3 pt-1">
               <Slider value={[count]} min={1} max={MAX_BATCH_SIZE} step={1} onValueChange={(v) => setCount(v[0])} className="flex-1" aria-label="Number of episodes" />
               <Input
