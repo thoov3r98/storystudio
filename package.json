@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && remotion bundle src/remotion/index.ts --out-dir=remotion-bundle && next build",
+    "vercel-build": "prisma migrate deploy && pnpm run build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
