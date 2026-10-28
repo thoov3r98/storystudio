@@ -8,6 +8,7 @@ import { EmptyState, PageHeader, PageSkeleton, StoryStatusBadge, Thumb, relative
 import { listStories, STORY_FILTERS } from "@/lib/queries";
 import { CATEGORIES, categoryLabel } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { LibrarySelection, SelectableStory } from "./library-selection";
 
 export const metadata: Metadata = { title: "Story Library" };
 
@@ -91,9 +92,11 @@ async function StoriesContent({ searchParams }: { searchParams: PageProps<"/stor
           description={q ? "Try a different search or filter." : "Generate a batch to create your first storylines."}
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <LibrarySelection ids={stories.map((s) => s.id)} archivedView={filter === "archived"}>
+        <div className="grid gap-4 pb-20 sm:grid-cols-2 xl:grid-cols-3">
           {stories.map((s) => (
-            <Link key={s.id} href={`/stories/${s.id}`} className="group flex gap-4 rounded-xl border bg-card p-4 transition-colors hover:border-foreground/20">
+            <SelectableStory key={s.id} id={s.id} title={s.title}>
+            <Link href={`/stories/${s.id}`} className="group flex h-full gap-4 rounded-xl border bg-card p-4 pr-10 transition-colors hover:border-foreground/20">
               <Thumb src={s.thumbnailUrl} alt="" className="aspect-[9/16] w-20 shrink-0 self-start" />
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="flex items-start justify-between gap-2">
@@ -113,8 +116,10 @@ async function StoriesContent({ searchParams }: { searchParams: PageProps<"/stor
                 </div>
               </div>
             </Link>
+            </SelectableStory>
           ))}
         </div>
+        </LibrarySelection>
       )}
     </div>
   );

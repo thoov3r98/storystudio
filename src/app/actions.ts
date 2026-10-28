@@ -243,6 +243,18 @@ export async function setArchived(storyId: string, archived: boolean) {
   });
 }
 
+export async function setArchivedMany(storyIds: string[], archived: boolean) {
+  return attempt(async () => {
+    const ids = z.array(z.string().min(1)).min(1).max(500).parse(storyIds);
+    if (archived) {
+      await db.story.updateMany({ where: { id: { in: ids } }, data: { status: "ARCHIVED", archivedAt: new Date() } });
+    } else {
+      await db.story.updateMany({ where: { id: { in: ids } }, data: { status: "CONCEPT", archivedAt: null } });
+      for (const id of ids) await refreshStoryStatus(id);
+    }
+  });
+}
+
 // ───────────────────────────── Episodes ─────────────────────────────
 
 export async function approveEpisodeAction(episodeId: string, applyProposal: boolean) {

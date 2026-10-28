@@ -37,6 +37,28 @@ test.describe("studio pages", () => {
     await expect(page.getByText("What Happens If Every Traffic Light Turns Green?")).toHaveCount(0);
   });
 
+  test("story library archives several stories at once, and restores them", async ({ page }) => {
+    const traffic = "What Happens If Every Traffic Light Turns Green?";
+    await page.goto("/stories");
+    await page.getByRole("checkbox", { name: `Select ${traffic}` }).click();
+    // While selecting, clicking a card selects it instead of opening it.
+    await page.getByText("Where Does Your Lost Luggage Actually Go?").click();
+    await expect(page).toHaveURL(/\/stories$/);
+    await expect(page.getByText("2 selected")).toBeVisible();
+    await page.getByRole("button", { name: "Clear" }).click();
+    await page.getByRole("checkbox", { name: `Select ${traffic}` }).click();
+    await page.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(page.getByText("Archived 1 story")).toBeVisible();
+    await expect(page.getByText(traffic)).toHaveCount(0);
+
+    await page.goto("/stories?filter=archived");
+    await page.getByRole("checkbox", { name: `Select ${traffic}` }).click();
+    await page.getByRole("button", { name: "Unarchive" }).click();
+    await expect(page.getByText(traffic)).toHaveCount(0);
+    await page.goto("/stories");
+    await expect(page.getByText(traffic)).toBeVisible();
+  });
+
   test("story details shows bible, episodes and blocks continuation until approval", async ({ page }) => {
     const { storyId } = seedIds();
     await page.goto(`/stories/${storyId}`);
