@@ -1,0 +1,108 @@
+import { z } from "zod";
+
+export const CRITERIA = [
+  { key: "relatability", label: "Relatability", weight: 1.2 },
+  { key: "curiosity", label: "Immediate curiosity", weight: 1.3 },
+  { key: "hookStrength", label: "Opening hook strength", weight: 1.3 },
+  { key: "storytellingPotential", label: "Storytelling potential", weight: 1.1 },
+  { key: "seriesPotential", label: "Future episode capacity", weight: 1.2 },
+  { key: "visualSimplicity", label: "Visual simplicity", weight: 0.8 },
+  { key: "originality", label: "Originality vs. existing stories", weight: 1.0 },
+  // Scored so that 10 = easy to get right. High research complexity lowers the score.
+  { key: "researchFeasibility", label: "Research feasibility (inverse of factual complexity)", weight: 0.7 },
+  { key: "audienceAppeal", label: "Potential audience appeal", weight: 1.0 },
+] as const;
+
+export type CriterionKey = (typeof CRITERIA)[number]["key"];
+
+const CriterionScore = z.object({
+  score: z.number().describe("Integer 1–10."),
+  rationale: z.string().describe("One sentence."),
+});
+
+export const CriteriaScoresSchema = z.object(
+  Object.fromEntries(CRITERIA.map((c) => [c.key, CriterionScore])) as Record<CriterionKey, typeof CriterionScore>,
+);
+
+export type CriteriaScores = z.infer<typeof CriteriaScoresSchema>;
+
+export const FactModeSchema = z.enum(["FACTUAL", "HYPOTHETICAL", "FICTIONAL", "MIXED"]);
+
+export const ConceptCandidateSchema = z.object({
+  title: z.string().describe("Short, curiosity-driven title, e.g. 'Where Does Your Lost Luggage Actually Go?'"),
+  premise: z.string().describe("Two or three sentences describing the story and why it is surprising."),
+  logline: z.string().describe("One sentence hook-style summary."),
+  category: z.string(),
+  keywords: z.array(z.string()).describe("4–8 lowercase topical keywords."),
+  factMode: FactModeSchema.describe(
+    "FACTUAL: real-world explanation. HYPOTHETICAL: clearly framed what-if. FICTIONAL: invented narrative. MIXED: real systems with fictional connective storytelling.",
+  ),
+  openingSituation: z.string().describe("The relatable second-person situation the first episode opens on."),
+  seriesPotential: z.string().describe("How the story could continue across Part 2, 3, 4 and beyond."),
+});
+
+export type ConceptCandidate = z.infer<typeof ConceptCandidateSchema>;
+
+export const ConceptBatchSchema = z.object({
+  concepts: z.array(ConceptCandidateSchema),
+});
+
+export const ConceptEvaluationSchema = z.object({
+  evaluations: z.array(
+    z.object({
+      conceptIndex: z.number().int().describe("Index of the concept in the list you were given."),
+      scores: CriteriaScoresSchema,
+      summary: z.string().describe("Two-sentence editorial verdict."),
+    }),
+  ),
+});
+
+export type ConceptEvaluation = z.infer<typeof ConceptEvaluationSchema>["evaluations"][number];
+
+export const HookTypeSchema = z.enum(["RELATABLE", "SURPRISING_FACT", "IMMEDIATE_DANGER", "QUESTION", "OTHER"]);
+
+export const HookCandidatesSchema = z.object({
+  hooks: z.array(
+    z.object({
+      type: HookTypeSchema,
+      text: z.string().describe("The spoken opening, 1–3 short sentences, under 5 seconds to say."),
+      scores: CriteriaScoresSchema,
+      rationale: z.string(),
+    }),
+  ),
+});
+
+export type HookCandidate = z.infer<typeof HookCandidatesSchema>["hooks"][number];
+
+export function clampScore(n: number): number {
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(10, Math.max(1, Math.round(n)));
+}
+
+export function normalizeScores(scores: CriteriaScores): CriteriaScores {
+  return Object.fromEntries(
+    Object.entries(scores).map(([k, v]) => [k, { score: clampScore(v.score), rationale: v.rationale }]),
+  ) as CriteriaScores;
+}
+
+/** Weighted mean on the 1–10 scale. */
+export function totalScore(scores: CriteriaScores): number {
+  let sum = 0;
+  let weights = 0;
+  for (const c of CRITERIA) {
+    const s = scores[c.key]?.score;
+    if (typeof s !== "number") continue;
+    sum += clampScore(s) * c.weight;
+    weights += c.weight;
+  }
+  return weights === 0 ? 0 : Math.round((sum / weights) * 100) / 100;
+}
+
+export function validateScores(scores: CriteriaScores): string[] {
+  const issues: string[] = [];
+  for (const c of CRITERIA) {
+    const s = scores[c.key]?.score;
+    if (typeof s !== "number" || s < 1 || s > 10) issues.push(`${c.key} score must be between 1 and 10 (got ${s}).`);
+  }
+  return issues;
+}

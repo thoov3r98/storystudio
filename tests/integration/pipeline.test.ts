@@ -1,0 +1,254 @@
+/*
+ * End-to-end pipeline test against a real Postgres database with fake
+ * providers. Requires TEST_DATABASE_URL (migrated). Skipped otherwise.
+ *
+ *   pnpm prisma dev -d --name iws-test     # prints a postgres:// URL
+ *   DATABASE_URL=<url> pnpm prisma migrate deploy
+ *   TEST_DATABASE_URL=<url> pnpm test
+ */
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+const url = process.env.TEST_DATABASE_URL;
+if (url) process.env.DATABASE_URL = url;
+
+vi.mock("@/lib/storage", () => {
+  let n = 0;
+  return {
+    uploadAsset: vi.fn(async (pathname: string) => ({ url: `https://blob.test/${pathname}?n=${++n}`, pathname, downloadUrl: `https://blob.test/${pathname}?download=1` })),
+    fetchAsset: vi.fn(async () => Buffer.from("ref")),
+    paths: {
+      sceneImage: (s: string, e: string, n: number, v: number) => `stories/${s}/episodes/${e}/scenes/${n}-v${v}.png`,
+      voiceover: (s: string, e: string, v: number) => `stories/${s}/episodes/${e}/voiceover-v${v}.mp3`,
+      render: (s: string, e: string, v: number) => `stories/${s}/episodes/${e}/render-v${v}.mp4`,
+    },
+  };
+});
+
+const { db } = await import("@/lib/db");
+const { runIdeation } = await import("@/lib/pipeline/ideation");
+const { runEpisodeJob, ContinuityConflictError } = await import("@/lib/pipeline/produce");
+const { approveEpisode, approvalBlockers } = await import("@/lib/pipeline/versions");
+const { continuationBlockers } = await import("@/lib/pipeline/context");
+const { BudgetExceededError } = await import("@/lib/costs/record");
+const { fakeDeps, fakeImages } = await import("./fakes");
+
+async function reset() {
+  const tables = await db.$queryRawUnsafe<{ tablename: string }[]>(`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename <> '_prisma_migrations'`);
+  await db.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(", ")} CASCADE`);
+}
+
+async function newJob(data: { type: "BATCH_IDEATION" | "EPISODE_PRODUCTION" | "CONTINUATION" | "REGENERATE_IMAGE" | "REGENERATE_HOOKS"; batchId?: string; episodeId?: string }) {
+  return db.job.create({ data: { ...data, input: {} } });
+}
+
+async function createBatch(requested = 3, budget = 100) {
+  return db.batch.create({
+    data: { mode: "CONCEPT", category: "hidden-infrastructure", requestedCount: requested, targetDurationSec: 75, styleKey: "stick-figure", voiceId: "voice-1", quality: "STANDARD", maxBudgetUsd: budget },
+  });
+}
+
+describe.skipIf(!url)("production pipeline (integration)", () => {
+  beforeAll(async () => {
+    await db.$queryRawUnsafe("SELECT 1");
+  });
+  beforeEach(reset);
+
+  it("ideates, dedupes, ranks, selects and writes hooks", async () => {
+    await db.story.create({
+      data: { title: "Where Does Your Lost Luggage Actually Go?", normalizedTitle: "lost luggage", category: "travel-transportation", premise: "Your lost suitcase travels through hidden baggage systems.", keywords: ["luggage"] },
+    });
+    const batch = await createBatch(3);
+    const job = await newJob({ type: "BATCH_IDEATION", batchId: batch.id });
+    const { deps, text } = fakeDeps();
+
+    const result = await runIdeation({ batchId: batch.id, jobId: job.id, deps });
+
+    expect(result.candidates).toBe(6); // 2× requested
+    expect(result.duplicates).toBe(1);
+    expect(result.selected).toBe(3);
+    const concepts = await db.concept.findMany({ where: { batchId: batch.id } });
+    expect(concepts.filter((c) => c.status === "DUPLICATE")[0].duplicateOfTitle).toContain("Lost Luggage");
+    expect(concepts.filter((c) => c.status === "SELECTED")).toHaveLength(3);
+    const ranked = concepts.filter((c) => c.rank !== null).sort((a, b) => a.rank! - b.rank!);
+    expect(ranked[0].totalScore!).toBeGreaterThanOrEqual(ranked.at(-1)!.totalScore!);
+    const stories = await db.story.findMany({ where: { conceptId: { not: null } }, include: { episodes: { include: { hooks: true } }, bibles: true } });
+    expect(stories).toHaveLength(3);
+    for (const s of stories) {
+      expect(s.status).toBe("CONCEPT");
+      expect(s.bibles).toHaveLength(1);
+      expect(s.episodes[0].hooks.length).toBeGreaterThanOrEqual(3);
+      expect(s.episodes[0].hooks.filter((h) => h.isPrimary)).toHaveLength(1);
+    }
+    expect(text.calls.hook_candidates).toBe(3);
+    const costs = await db.costEntry.count({ where: { batchId: batch.id } });
+    expect(costs).toBeGreaterThan(0);
+
+    // Retrying a finished ideation job must not duplicate concepts.
+    const again = await runIdeation({ batchId: batch.id, jobId: job.id, deps });
+    expect(again.resumed).toBe(true);
+    expect(await db.concept.count({ where: { batchId: batch.id } })).toBe(concepts.length);
+  });
+
+  it("produces Part 1, approves it into the bible, and continues to Part 2 with context", async () => {
+    const batch = await createBatch(1);
+    const ideJob = await newJob({ type: "BATCH_IDEATION", batchId: batch.id });
+    const f = fakeDeps({ firstFactReviewFails: true });
+    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: ideJob.id, deps: f.deps });
+    const episodeId = episodeIds[0];
+
+    const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId });
+    await runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+
+    const ep = await db.episode.findUniqueOrThrow({
+      where: { id: episodeId },
+      include: { currentVersion: { include: { scenes: { include: { currentImage: true } }, voiceover: true, renders: true, claims: true, proposal: true } } },
+    });
+    const v = ep.currentVersion!;
+    expect(ep.status).toBe("READY");
+    expect(v.scenes).toHaveLength(12);
+    expect(v.scenes.every((s) => s.currentImage?.status === "SUCCEEDED")).toBe(true);
+    expect(v.voiceover?.status).toBe("SUCCEEDED");
+    expect(v.voiceover?.durationMs).toBeGreaterThan(0);
+    expect(v.renders.filter((r) => r.status === "SUCCEEDED")).toHaveLength(1);
+    expect(v.narration.startsWith("You land after ten hours.")).toBe(true);
+    // Bounded correction ran once (first fact review failed) and the final claims pass.
+    expect(f.text.calls.episode_draft).toBe(2);
+    expect(v.factCheckStatus).toBe("PASSED");
+    expect(v.proposal?.status).toBe("PENDING");
+    const timing = v.timing as { scenes: { startMs: number }[]; totalDurationMs: number };
+    expect(timing.scenes).toHaveLength(12);
+    expect(f.render.renders[0].durationInFrames).toBe(Math.round((timing.totalDurationMs / 1000) * 30));
+
+    // Unapproved drafts never touch the canonical bible.
+    expect(await db.storyBible.count({ where: { storyId: ep.storyId } })).toBe(1);
+    expect(await continuationBlockers(ep.storyId)).not.toHaveLength(0);
+
+    await approveEpisode(episodeId, { applyProposal: true });
+    const bibles = await db.storyBible.findMany({ where: { storyId: ep.storyId }, orderBy: { version: "desc" } });
+    expect(bibles[0]).toMatchObject({ version: 2, source: "episode-approval" });
+    expect((bibles[0].data as { unresolvedThreads: { id: string }[] }).unresolvedThreads[0].id).toBe("thread-1");
+    expect(await continuationBlockers(ep.storyId)).toEqual([]);
+
+    // Part 2
+    const part2 = await db.episode.create({ data: { storyId: ep.storyId, partNumber: 2, title: "Part 2" } });
+    const job2 = await newJob({ type: "CONTINUATION", episodeId: part2.id });
+    await runEpisodeJob({ jobId: job2.id, episodeId: part2.id, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    const writerPrompt = f.text.prompts.episode_draft.find((p) => p.includes("Part: 2"))!;
+    expect(writerPrompt).toContain("MOST RECENT EPISODE IN FULL");
+    expect(writerPrompt).toContain("thread-1");
+    expect(writerPrompt).toContain(v.narration.slice(0, 40));
+    expect(f.text.calls.continuity_review).toBeGreaterThanOrEqual(1);
+    const p2 = await db.episode.findUniqueOrThrow({ where: { id: part2.id } });
+    expect(p2.status).toBe("READY");
+  });
+
+  it("regenerating one image keeps every other asset and only re-renders", async () => {
+    const batch = await createBatch(1);
+    const f = fakeDeps();
+    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const episodeId = episodeIds[0];
+    await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    const before = await db.episodeVersion.findFirstOrThrow({ where: { episodeId }, include: { scenes: true } });
+    const imagesBefore = f.images.count;
+    const speechBefore = f.speech.count;
+
+    await runEpisodeJob({ jobId: (await newJob({ type: "REGENERATE_IMAGE", episodeId })).id, episodeId, continueProduction: true, request: { action: "regenerate-image", sceneNumbers: [3] } }, f.deps);
+
+    const after = await db.episodeVersion.findFirstOrThrow({ where: { id: before.id }, include: { scenes: { include: { images: true } } } });
+    expect(f.images.count).toBe(imagesBefore + 1);
+    expect(f.speech.count).toBe(speechBefore);
+    const s3 = after.scenes.find((s) => s.sceneNumber === 3)!;
+    expect(s3.images).toHaveLength(2); // history kept
+    expect(s3.currentImageId).not.toBe(before.scenes.find((s) => s.sceneNumber === 3)!.currentImageId);
+    for (const s of after.scenes.filter((x) => x.sceneNumber !== 3)) {
+      expect(s.currentImageId).toBe(before.scenes.find((b) => b.sceneNumber === s.sceneNumber)!.currentImageId);
+    }
+    expect(f.render.renders).toHaveLength(2);
+  });
+
+  it("forks a new version instead of editing an approved one", async () => {
+    const batch = await createBatch(1);
+    const f = fakeDeps();
+    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const episodeId = episodeIds[0];
+    await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    expect(await approvalBlockers(episodeId)).toEqual([]);
+    await approveEpisode(episodeId, { applyProposal: true });
+    const approved = await db.episodeVersion.findFirstOrThrow({ where: { episodeId, status: "APPROVED" }, include: { scenes: true } });
+
+    await runEpisodeJob({ jobId: (await newJob({ type: "REGENERATE_IMAGE", episodeId })).id, episodeId, continueProduction: false, request: { action: "regenerate-image", sceneNumbers: [1] } }, f.deps);
+
+    const ep = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: { include: { scenes: true } } } });
+    expect(ep.currentVersionId).not.toBe(approved.id);
+    expect(ep.currentVersion!.parentVersionId).toBe(approved.id);
+    const untouched = await db.episodeVersion.findUniqueOrThrow({ where: { id: approved.id }, include: { scenes: true } });
+    expect(untouched.status).toBe("APPROVED");
+    expect(untouched.scenes.map((s) => s.currentImageId)).toEqual(approved.scenes.map((s) => s.currentImageId));
+    // Narration unchanged, so the voiceover carries over to the fork.
+    expect(ep.currentVersion!.voiceoverId).toBe(untouched.voiceoverId);
+  });
+
+  it("swaps a hook into a new version without redrawing images", async () => {
+    const batch = await createBatch(1);
+    const f = fakeDeps();
+    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const episodeId = episodeIds[0];
+    await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    const alt = await db.hook.findFirstOrThrow({ where: { episodeId, isPrimary: false } });
+    const imagesBefore = f.images.count;
+
+    await runEpisodeJob({ jobId: (await newJob({ type: "REGENERATE_HOOKS", episodeId })).id, episodeId, continueProduction: true, request: { action: "swap-hook", hookId: alt.id } }, f.deps);
+
+    const ep = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: true } });
+    expect(ep.currentVersion!.narration.startsWith(alt.text)).toBe(true);
+    expect(ep.currentVersion!.version).toBe(2);
+    expect(f.images.count).toBe(imagesBefore);
+    expect(f.speech.count).toBe(2);
+    expect(ep.status).toBe("READY");
+  });
+
+  it("keeps successful images when one scene fails, then resumes on retry", async () => {
+    const batch = await createBatch(1);
+    const f = fakeDeps();
+    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const episodeId = episodeIds[0];
+    const failing = { ...f.deps, images: fakeImages(new Set(["5"])) };
+    const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId });
+
+    await expect(
+      runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, failing),
+    ).rejects.toThrow(/scene\(s\) 5/);
+    const v = await db.episodeVersion.findFirstOrThrow({ where: { episodeId }, include: { scenes: true } });
+    expect(v.scenes.filter((s) => s.currentImageId)).toHaveLength(11);
+
+    const writesBefore = f.text.calls.episode_draft;
+    await runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    expect(f.text.calls.episode_draft).toBe(writesBefore); // script not rewritten
+    expect(f.images.count).toBe(1); // only the missing scene
+    expect((await db.episode.findUniqueOrThrow({ where: { id: episodeId } })).status).toBe("READY");
+  });
+
+  it("stops before media spend when continuity conflicts remain", async () => {
+    const batch = await createBatch(1);
+    const f = fakeDeps();
+    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const episodeId = episodeIds[0];
+    await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, f.deps);
+    await approveEpisode(episodeId, { applyProposal: true });
+    const story = await db.episode.findUniqueOrThrow({ where: { id: episodeId } });
+    const part2 = await db.episode.create({ data: { storyId: story.storyId, partNumber: 2, title: "Part 2" } });
+    const conflicted = fakeDeps({ continuity: "material-conflicts" });
+
+    await expect(
+      runEpisodeJob({ jobId: (await newJob({ type: "CONTINUATION", episodeId: part2.id })).id, episodeId: part2.id, continueProduction: true, request: { action: "produce", allowContinuityConflicts: false } }, conflicted.deps),
+    ).rejects.toBeInstanceOf(ContinuityConflictError);
+    expect(conflicted.text.calls.episode_draft).toBe(3); // initial + 2 bounded corrections
+    expect(conflicted.images.count).toBe(0);
+  });
+
+  it("enforces the budget before paid steps", async () => {
+    const batch = await createBatch(3, 0.0001);
+    const f = fakeDeps();
+    await expect(runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps })).rejects.toBeInstanceOf(BudgetExceededError);
+  });
+});
