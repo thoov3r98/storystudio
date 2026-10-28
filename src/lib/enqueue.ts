@@ -1,6 +1,9 @@
 import { runs, tasks } from "@trigger.dev/sdk";
 import { db } from "@/lib/db";
 import { MissingConfigError, env } from "@/lib/env";
+import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
+import { failJob } from "@/lib/jobs";
+import { refreshStoryStatus } from "@/lib/pipeline/versions";
 import type { JobType } from "@/generated/prisma/enums";
 import type { EpisodeJobPayload } from "@/lib/pipeline/produce";
 import type { episodeJobTask, ideateBatchTask } from "@/trigger/tasks";
@@ -88,6 +91,34 @@ export async function cancelJob(jobId: string) {
       await db.episode.update({ where: { id: episode.id }, data: { status: episode.currentVersionId ? "SCRIPTED" : "DRAFT" } });
     }
   }
+}
+
+/**
+ * A run that dies without running our error handling (out of memory, a platform crash) leaves its
+ * Job row "active" forever. Checks quiet active jobs against Trigger.dev and fails the dead ones
+ * so they can be retried. Best effort: Trigger.dev being unreachable must not break page loads.
+ */
+export async function reconcileStaleJobs() {
+  if (!env().TRIGGER_SECRET_KEY) return;
+  const quietSince = new Date(Date.now() - 2 * 60_000);
+  const stale = await db.job.findMany({
+    where: { status: { in: ACTIVE_JOB_STATUSES }, triggerRunId: { not: null }, updatedAt: { lt: quietSince } },
+    take: 20,
+  });
+  await Promise.all(
+    stale.map(async (job) => {
+      const run = await runs.retrieve(job.triggerRunId!).catch(() => null);
+      if (!run || !(run.isFailed || run.isCancelled)) return;
+      await failJob(job.id, new Error(`The background run ended unexpectedly (${run.status}${run.error?.message ? `: ${run.error.message}` : ""}).`));
+      if (job.episodeId) {
+        const episode = await db.episode.findUnique({ where: { id: job.episodeId } });
+        if (episode?.status === "IN_PRODUCTION") {
+          await db.episode.update({ where: { id: episode.id }, data: { status: episode.currentVersionId ? "FAILED" : "DRAFT" } });
+          await refreshStoryStatus(episode.storyId);
+        }
+      }
+    }),
+  ).catch(() => {});
 }
 
 /** Re-runs a failed or canceled job with its original input. Completed stages are skipped. */

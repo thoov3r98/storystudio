@@ -87,7 +87,9 @@ export const episodeJobTask = schemaTask({
   id: "episode-job",
   schema: EpisodeJobPayloadSchema,
   maxDuration: 3600,
-  retry: { maxAttempts: 3, minTimeoutInMs: 5_000, maxTimeoutInMs: 60_000, factor: 2 },
+  // Image and audio buffers outgrow the 0.5 GB default; an out-of-memory crash retries on a larger machine.
+  machine: "small-2x",
+  retry: { maxAttempts: 3, minTimeoutInMs: 5_000, maxTimeoutInMs: 60_000, factor: 2, outOfMemory: { machine: "medium-1x" } },
   run: async (payload, { ctx }) => {
     try {
       return await runTrackedJob(payload.jobId, ctx.run.id, () => runEpisodeJob(payload, productionDeps));

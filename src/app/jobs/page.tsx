@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { EmptyState, JobStatusBadge, Money, PageHeader, PageSkeleton } from "@/components/studio";
 import { AutoRefresh } from "@/components/client-helpers";
 import { listJobs } from "@/lib/queries";
+import { reconcileStaleJobs } from "@/lib/enqueue";
 import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { JobControls } from "./job-controls";
@@ -37,6 +38,7 @@ function duration(start: Date | null, end: Date | null) {
 async function JobsContent({ searchParams }: { searchParams: PageProps<"/jobs">["searchParams"] }) {
   const sp = await searchParams;
   const status = typeof sp.status === "string" ? sp.status : "all";
+  await reconcileStaleJobs();
   const jobs = await listJobs({ status });
   const anyActive = jobs.some((j) => ACTIVE_JOB_STATUSES.includes(j.status));
 

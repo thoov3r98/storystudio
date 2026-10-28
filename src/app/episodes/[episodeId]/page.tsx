@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { EpisodeStatusBadge, FactBadge, JobStatusBadge, Money, PageHeader, PageSkeleton, Section, relativeTime } from "@/components/studio";
 import { AutoRefresh } from "@/components/client-helpers";
 import { getEpisode } from "@/lib/queries";
+import { reconcileStaleJobs } from "@/lib/enqueue";
 import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
 import { CRITERIA } from "@/lib/schemas/concept";
 import type { ContinuityReview, EpisodeSpecRecord } from "@/lib/schemas/episode";
@@ -34,6 +35,7 @@ function fmtMs(ms: number) {
 
 async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episodeId]">["params"] }) {
   const { episodeId } = await params;
+  await reconcileStaleJobs();
   const data = await getEpisode(episodeId);
   if (!data) notFound();
   const { episode, latestRender, staleness, costUsd } = data;

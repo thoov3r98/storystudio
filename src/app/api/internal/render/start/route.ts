@@ -22,6 +22,9 @@ export async function POST(request: Request) {
 
   const sandbox = await createSandbox({ resources: { vcpus: env().RENDER_SANDBOX_VCPUS } });
   try {
+    // addBundleToSandbox creates remotion-bundle/<subdirs> but not remotion-bundle itself, and
+    // @vercel/sandbox 1.x mkDir is not recursive.
+    await sandbox.mkDir("remotion-bundle");
     await addBundleToSandbox({ sandbox, bundleDir: path.join(process.cwd(), "remotion-bundle") });
     const { sandboxId, cmdId } = await renderMediaOnVercel({
       sandbox,
