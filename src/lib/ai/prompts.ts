@@ -1,9 +1,6 @@
-import { CRITERIA } from "@/lib/schemas/concept";
 import type { StoryBible } from "@/lib/schemas/story-bible";
-import { CATEGORIES, categoryLabel, styleSpec as styleSpecFor } from "@/lib/constants";
-import { CONCEPT_DEVELOPER } from "@/lib/ai/concept-prompt";
-
-const PRESET_CATEGORIES = CATEGORIES.filter((c) => c.value !== "custom" && c.value !== "mixed");
+import { channelBlock, type ChannelGuide } from "@/lib/schemas/channel";
+import { styleSpec as styleSpecFor } from "@/lib/constants";
 
 /*
  * Prompt library. System prompts carry stable rules; user prompts carry the
@@ -17,7 +14,8 @@ const TRUTHFULNESS = `Grounding:
 export const HOUSE_STYLE = `You write narrated, illustrated short vertical story videos (TikTok, YouTube Shorts, Reels) on whatever subject the producer chooses: hidden systems, history, science, fiction, true stories, what-ifs and more.
 
 Voice:
-- Tell it as a story, read aloud by one narrator: mostly flowing spoken sentences joined by cause and time ("so", "because", "until", "which meant", "by the time"). Short punchy lines are welcome for panic, inner thoughts and jokes, but never a staccato run of fragments.
+- Tell it as a story, read aloud by one narrator: mostly flowing spoken sentences joined by cause and time ("so", "because", "until", "which meant", "by the time"). A short line is welcome for an inner thought or a joke, but never a staccato run of fragments.
+- Engaging, not suspenseful by default. What keeps a viewer watching is a clear situation, concrete details and wanting to know what happens next. Tell events plainly and descriptively, in the tone the events themselves have: many stories are curious, warm, practical or funny. Build tension only when the situation really is tense, and even then let the events carry it. No ominous foreshadowing, dramatic pauses, fragments for effect, or a tone darker than what happens.
 - Write for the ear: no colons, semicolons, parentheses or lists.
 - Narrator perspective is set per story. With no narrator character, use second person ("you") in the present tense.
 - Open inside the situation. No greetings, no "Have you ever wondered", no "In this video", no channel plugs.
@@ -28,93 +26,6 @@ Voice:
 - Endings pay off what the episode set up. A cliffhanger is fine when it is earned, never one that withholds the point of the episode.
 
 ${TRUTHFULNESS}`;
-
-export function criteriaGuide(): string {
-  return CRITERIA.map((c) => `- ${c.key}: ${c.label}`).join("\n");
-}
-
-export function ideationPrompt(input: { category: string; customDirection?: string | null; count: number; avoidTitles: string[]; character?: NarratorProfile | null; parts?: number }) {
-  const parts = input.parts ?? 1;
-  const ownTopic = input.category === "custom";
-  const c = input.character;
-  const starring = c
-    ? `\n## Series character\n${narratorBlock(c)}\n\nEvery concept is the opening situation of a series starring ${c.name}. Pitch situations where ${c.name}'s personality and choices matter, from everyday trouble to the end of the world, whatever the category calls for. Titles name the situation plainly, with or without their name (e.g. "${c.name} Breaks Down in the Middle of Nowhere", "Three Days Snowed In at a Truck Stop"). Write premise, logline and openingSituation about ${c.name}, not "you".\n`
-    : "";
-  const direction = input.customDirection?.trim();
-  // The producer's direction is the premise itself, never a loose theme: it outranks the category and the realism defaults.
-  const premise = direction
-    ? `## The producer's premise (follow it exactly)
-${direction}
-
-- Keep its central situation exactly as given, even if it is impossible, apocalyptic or supernatural. Never swap it for a smaller, realistic or explainable version (e.g. "everyone in the world vanished" must not become "the building was evacuated").
-- Every concept is a different way into THIS premise: a different first moment, angle or first problem. Not a different premise.
-- Don't explain how or why it happened unless the producer does; the mystery can stay open.
-`
-    : "";
-  const brief = ownTopic
-    ? `Set each concept's category to a short label for its subject.`
-    : input.category === "mixed"
-      ? `Category: any mix of these.\n${PRESET_CATEGORIES.map((c) => `- ${c.label}: ${c.description}`).join("\n")}`
-      : `Category: ${categoryLabel(input.category)}. ${CATEGORIES.find((c) => c.value === input.category)?.description ?? ""}${
-          direction ? "\nThe category sets the tone only; the producer's premise decides the situation." : "\nFind everyday situations within this category; it is a source of situations, not a reason to get technical or extreme."
-        }`;
-  return {
-    system: `${CONCEPT_DEVELOPER}
-
-${TRUTHFULNESS}`,
-    user: `Pitch exactly ${input.count} concepts.
-
-${premise}${brief}
-${starring}
-${
-      parts > 1
-        ? `Each story will be told across ${parts} short videos (about a minute each), so it needs enough story for ${parts} parts, each ending on a real turn. For each concept, sketch the arc (beatSketch): how it starts, how it escalates across the parts, and how it ends. A strong idea becomes a complete story with believable cause and effect and a satisfying ending, not just an exciting first line.`
-        : "For each concept, also sketch how one episode would actually go (beatSketch): a strong idea is one that becomes a complete story with believable cause and effect and a satisfying payoff in about a minute, not just an exciting first line."
-    }
-Write each premise the way you'd say it out loud in one breath ("Kenny wakes up and everyone in the world is gone"). Big and simple beats detailed: no clock times, deadlines, notices, routes or official procedures.
-Each premise is the broad, classic version of a scenario ("the power grid goes down", "a zombie outbreak starts"), never a niche predicament in one room or building ("locked in the office stairwell"). Where the episode opens is decided later.
-${direction ? "Each concept must open differently (a different first moment or first problem)." : "Each concept must have a different central situation."}
-Do not repeat ${direction ? "the opening" : "the central situation"} of any existing story (reusing a familiar setting is fine):
-${input.avoidTitles.length ? input.avoidTitles.map((t) => `- ${t}`).join("\n") : "- (none yet)"}`,
-  };
-}
-
-export function evaluationPrompt(input: { concepts: { title: string; premise: string; logline: string; seriesPotential: string; dramaticQuestion?: string; beatSketch?: string }[]; existingTitles: string[]; premise?: string | null; parts?: number }) {
-  const length = (input.parts ?? 1) > 1 ? `story told across ${input.parts} videos of about a minute each (enough story for every part, each ending on a real turn)` : "45–90 second episode";
-  return {
-    system: `You are a demanding story editor for short-form vertical video. You score concepts consistently on a 1–10 integer scale per criterion, where 5 is an average pitch and 9–10 is rare.
-These are editorial heuristics, not predictions of view counts.
-
-Criteria:
-${criteriaGuide()}
-
-The audience is everyday adults scrolling short-form video, not experts. Favor clear, familiar, relatable situations over clever, unusual or technical ones.
-- relatability, curiosity, hookStrength and audienceAppeal: high only if an ordinary person would understand the idea within two seconds, could picture themselves in it, and would want to know what happens next.
-- A concept that cannot be explained to a friend in one plain sentence, needs world-building or specialist knowledge, has manufactured stakes, or rests on a forced twist ("the real danger isn't X, it's Y") scores at most 4 on curiosity, hookStrength and audienceAppeal.
-- A big, simple premise ("everyone in the world vanished overnight") is easy to understand in one sentence; it is not world-building. Penalise detail and logistics (deadlines, notices, procedures), not scale.
-- A narrow, small-stakes predicament (locked in a stairwell, stuck in a lift, a hotel mix-up) scores at most 5 on curiosity, hookStrength and audienceAppeal, however relatable. Broad, famous what-ifs (blackout, zombies, an empty world) score well on those.
-- episodeFeasibility: can this become a coherent, satisfying ${length}? Judge the episode sketch: a clear dramatic question, a believable chain of cause and effect, character choices that make sense, a payoff that doesn't rely on luck or conveniences, and a plot small enough for the length. A thrilling premise with no workable episode scores at most 4; a slightly quieter idea that makes a great episode beats it.
-- seriesPotential: a credible natural continuation scores well; two strong episodes beat six stretched ones. Do not reward convoluted plots.
-For originality, compare against the producer's existing stories only: penalise repeating one of THEIR stories, never a premise for being famous or familiar in general (zombies and blackouts are fine; lost luggage and a missed connection are different stories).
-Give one honest sentence of rationale per score. Evaluate every concept, using its index.`,
-    user: `${
-      input.premise
-        ? `The producer's premise, which every concept must keep exactly:\n${input.premise}\nA concept that shrinks it into something smaller, realistic or explained away (e.g. an evacuation instead of an empty world) scores at most 3 on every criterion.\n\n`
-        : ""
-    }Existing stories:
-${input.existingTitles.length ? input.existingTitles.map((t) => `- ${t}`).join("\n") : "- (none)"}
-
-Concepts to evaluate:
-${input.concepts
-  .map(
-    (c, i) => `[${i}] ${c.title}
-Premise: ${c.premise}
-Logline: ${c.logline}${c.dramaticQuestion ? `\nDramatic question: ${c.dramaticQuestion}` : ""}${c.beatSketch ? `\nEpisode sketch: ${c.beatSketch}` : ""}
-Series potential: ${c.seriesPotential}`,
-  )
-  .join("\n\n")}`,
-  };
-}
 
 export function bibleContextBlock(bible: StoryBible): string {
   const open = bible.unresolvedThreads.filter((t) => t.status === "open");
@@ -157,6 +68,8 @@ export type WriterInput = {
   direction?: string | null;
   /** One story told across this many videos; set when planning or writing its parts. */
   parts?: number;
+  /** The channel the story belongs to; its rules steer every prompt. */
+  channel?: ChannelGuide | null;
 };
 
 export type NarratorProfile = {
@@ -185,7 +98,9 @@ ${n.name} is the same person in every episode: keep their voice, habits and know
 export function episodeContext(input: WriterInput): string {
   const hero = input.narrator?.name ?? "the main character";
   const isContinuation = input.partNumber > 1;
-  return `Story ID: ${input.storyId}
+  return `${input.channel ? `${channelBlock(input.channel)}
+
+` : ""}Story ID: ${input.storyId}
 Series title: ${input.title}
 Premise: ${input.premise}
 Part: ${input.partNumber}
@@ -194,7 +109,7 @@ ${bibleContextBlock(input.bible)}
 ${
   (input.parts ?? 1) > 1
     ? `
-This story is told across ${input.parts} videos (Part 1–${input.parts}), planned together. What the video being written must do is described below.`
+This story is told across several videos (Part 1, Part 2 and so on), planned together. What the video being written must do is described below.`
     : isContinuation
     ? `
 EARLIER EPISODES (approved)

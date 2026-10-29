@@ -2,7 +2,8 @@ import type { StoryBible } from "@/lib/schemas/story-bible";
 import type { Archetype, HookPick, Plot } from "@/lib/schemas/story-plan";
 import { ARCHETYPES, HOOK_STYLES, NARRATIVE_CRITERIA, RETENTION_CRITERIA } from "@/lib/schemas/story-plan";
 import { sceneCountRange, targetWordRange } from "@/lib/constants";
-import { partBeatRange, plotBeatRange, plotText } from "@/lib/story/plot";
+import { partBeatRange, partBounds, type PartCount, partsLabel, plotBeatRange, plotText } from "@/lib/story/plot";
+import { channelBlock, type ChannelGuide } from "@/lib/schemas/channel";
 import { GENERIC_HOOK_PHRASES } from "@/lib/story/review";
 import { referenceBlock, type ReferenceStory } from "@/lib/story/references";
 import { bibleContextBlock, episodeContext, HOUSE_STYLE, type WriterInput } from "./prompts";
@@ -15,7 +16,8 @@ import { bibleContextBlock, episodeContext, HOUSE_STYLE, type WriterInput } from
 
 /** Craft principles shared by planning, writing and editing. Guidance, not a formula. */
 export const STORY_PRINCIPLES = `What makes a short story work:
-- One clear situation and one dramatic question the viewer wants answered.
+- One clear situation and one question the viewer wants answered.
+- Engaging is not the same as suspenseful. Interest comes from a situation worth following, things changing, and concrete details; danger and dread only when the story is actually about them.
 - Cause and effect. Each major development happens BECAUSE of what came before (therefore) or gets in the way of it (but). Never a string of "and then".
 - Earned outcomes. Anything that solves a problem (an object, a skill, a fact, a person) is set up before it is needed. Surprises are welcome; conveniences are not.
 - Characters act on what they know and want at that moment, and react like real people would, even when the situation is impossible.
@@ -29,12 +31,12 @@ export const ARCHETYPE_GUIDES: Record<Archetype, string> = {
   mystery:
     "Mystery: an intriguing observation; a clear central question; investigation through clues the viewer also sees; each discovery changes what the hero thinks; a reveal that explains the clues (a bigger mystery may remain).",
   speculative:
-    "Apocalypse / speculative: a compelling break from ordinary reality; a few clear world rules that never change without reason; natural human reactions; consequences that come from those rules; stakes and discoveries that escalate. The cause can stay a mystery.",
+    "Apocalypse / speculative: a compelling break from ordinary reality; a few clear world rules that never change without reason; natural human reactions; consequences that come from those rules; discoveries that build on each other. Often more curious than frightening. The cause can stay a mystery.",
   comedy:
     "Comedy: a relatable goal or situation; a believable mistake or misunderstanding; each attempt to fix it makes it worse; humour from character and situation, not inserted jokes; a payoff that lands (often reframing what came before).",
   suspense:
     "Suspense / unsettling: an unusual but understandable setup; tension that rises gradually; information revealed in a controlled way; a threat that makes sense; a payoff or a deliberately unresolved, fair central mystery.",
-  everyday: "Everyday drama: an ordinary situation with something real at stake; a goal; choices and their consequences; an ending that changes something for the hero.",
+  everyday: "Everyday: an ordinary situation that matters to the hero; a goal; choices and their consequences; an ending that changes something for the hero. Told plainly, with no manufactured tension.",
 };
 
 function archetypeMenu(): string {
@@ -60,7 +62,7 @@ export function partBrief(plot: Plot, partNo: number, earlier: string[]): string
   return `THIS IS PART ${partNo} OF ${parts.length} of one story, each part its own video.
 It tells beats ${p.beats.join(", ")} only; later beats belong to later parts and are deliberately not here.
 It must satisfy on its own by paying off: ${p.smallPayoff}
-${p.cliffhanger ? `It ends on this cliffhanger, the real turn the next part picks up: ${p.cliffhanger}` : "It is the final part: it delivers the story's ending."}
+${p.cliffhanger ? `It ends on this turn, which the next part picks up (state it plainly; it need not be ominous): ${p.cliffhanger}` : "It is the final part: it delivers the story's ending."}
 ${partNo > 1 ? `Many viewers start here, so the opening orients them in one spoken line (${p.newViewerLine}) without recapping, then hooks.
 
 EARLIER PARTS, AS NARRATED (the viewer of the whole series has heard these):
@@ -69,14 +71,16 @@ ${earlier.map((t, i) => `Part ${i + 1}: ${t}`).join("\n\n")}` : ""}`;
 
 // ── 1. Plot candidates ────────────────────────────────────────────────
 
-export function plotCandidatesPrompt(input: WriterInput & { seed?: StorySeed | null; references: ReferenceStory[]; parts: number }, count = 2) {
+export function plotCandidatesPrompt(input: Omit<WriterInput, "parts"> & { seed?: StorySeed | null; references: ReferenceStory[]; parts: PartCount }, count = 2) {
   const [minBeats, maxBeats] = plotBeatRange(input.durationSec);
-  const [partMin, partMax] = partBeatRange(input.durationSec, input.parts);
+  const [fewest, most] = partBounds(input.parts);
+  const [partMin, partMax] = partBeatRange(input.durationSec, Math.max(2, fewest));
+  const videos = partsLabel(input.parts);
   const split =
-    input.parts > 1
-      ? `- This is ONE story told across ${input.parts} videos of about ${input.durationSec} seconds each, released as Part 1–${input.parts}. Plan ${input.parts * partMin}–${input.parts * partMax} beats in total, ${partMin}–${partMax} per part, so every video has room to breathe: reactions, atmosphere and a pause before each turn.
-- parts: split the beats into ${input.parts} consecutive runs. Each part answers one small question of its own (smallPayoff) so it satisfies alone, and every part but the last ends on a cliffhanger that is a real turn in the plot, never an invented one. Parts 2+ get a newViewerLine that orients someone who starts there. The final part delivers the story's ending.
-- Escalate across the whole story: the stakes in Part ${input.parts} are bigger than in Part 1.`
+    most > 1
+      ? `- This is ONE story told across ${videos} videos of about ${input.durationSec} seconds each, released as Part 1, Part 2 and so on.${fewest !== most ? ` Choose the number of parts the story really needs: another part only when there is another real development to tell.` : ""} Plan ${partMin}–${partMax} beats per part, so every video has room to breathe: reactions and concrete detail.
+- parts: split the beats into consecutive runs, one per video. Each part answers one small question of its own (smallPayoff) so it satisfies alone, and every part but the last ends on a real turn in the plot that makes the viewer want the next part (a new problem, question, decision or discovery; it need not be a threat), never an invented one. Parts 2+ get a newViewerLine that orients someone who starts there. The final part delivers the story's ending.
+- The story builds across the parts: what happens in the final part matters more than what happens in Part 1.`
       : `- ${minBeats}–${maxBeats} major beats for about ${input.durationSec} seconds of narration. A beat is a change in the situation, not a camera shot.
 - parts: one part covering every beat, with an empty cliffhanger and newViewerLine.`;
   const hero = input.narrator?.name ?? "the main character";
@@ -97,21 +101,21 @@ ${split}
 - worldRules: the rules of this world, including any impossible premise, stated so they can be checked. They never change without a cause in the plot.
 - deliberateMysteries: what is intentionally left unexplained. Leaving the cause of an impossible premise open is fine.
 - The resolution says what makes it possible. Never resolve with something introduced only when needed.`,
-    user: `${episodeContext(input)}
+    user: `${episodeContext({ ...input, parts: most })}
 ${seedBlock(input.seed)}
 ${input.references.length ? `Examples of how other stories in a similar mode are shaped (do not reuse their situations):\n${input.references.map((r) => `- ${r.title}: ${r.structure}`).join("\n")}\n` : ""}
-Plan ${count} genuinely different plots for this ${input.parts > 1 ? `${input.parts}-part story` : "episode"} starring ${hero}: different chains of events or endings, not variations of one plan. Keep the premise exactly as given.`,
+Plan ${count} genuinely different plots for this ${most > 1 ? `${videos}-part story` : "episode"} starring ${hero}: different chains of events or endings, not variations of one plan. Keep the premise exactly as given.`,
   };
 }
 
 // ── 2. Plot pick (narrative editor) ───────────────────────────────────
 
-export function plotPickPrompt(input: { plots: Plot[]; premise: string; partNumber: number; durationSec: number; parts: number }) {
+export function plotPickPrompt(input: { plots: Plot[]; premise: string; partNumber: number; durationSec: number; parts: PartCount; channel?: ChannelGuide | null }) {
   return {
     system: `You are a demanding story editor for short narrated videos. Choose the plot a viewer is most likely to follow, care about and find satisfying${
-      input.parts > 1 ? ` across ${input.parts} videos of about ${input.durationSec} seconds, each of which must hold a viewer on its own and make them want the next` : ` in about ${input.durationSec} seconds`
+      partBounds(input.parts)[1] > 1 ? ` across ${partsLabel(input.parts)} videos of about ${input.durationSec} seconds, each of which must hold a viewer on its own and make them want the next` : ` in about ${input.durationSec} seconds`
     }.
-
+${input.channel ? `\n${channelBlock(input.channel)}\n` : ""}
 ${STORY_PRINCIPLES}
 
 Prefer a clear, coherent plot with an earned ending over a busier or more sensational one. Note real weaknesses honestly.`,
@@ -139,6 +143,7 @@ Look for:
 10. missing-connection: a moment doesn't follow from the one before it.
 11. unpaid-setup: something emphasised as important is never used or answered. This includes the opening: a mystery or promise raised in the first lines must be engaged with by the story (explained, investigated, or deliberately carried forward), not dropped.
 12. series-continuity: it contradicts an earlier episode or the story bible.
+13. clarity: the viewer would be confused about when, where or who. An unstated jump in time or place, a person or object that appears without a plain introduction, events told out of order, or a flashback.
 
 NOT issues (do not report these):
 - The premise itself, however impossible (e.g. "everyone in the world vanished"), and anything listed as a deliberate mystery.
@@ -223,12 +228,13 @@ Return a diagnosis per issue id, the full repaired plot, and a change log entry 
 
 // ── 4–5. Hooks ────────────────────────────────────────────────────────
 
-export function hookCandidatesPrompt(input: { plot: Plot; hero: string; perspective: string; references: ReferenceStory[]; parts: number[] }) {
+export function hookCandidatesPrompt(input: { plot: Plot; hero: string; perspective: string; references: ReferenceStory[]; parts: number[]; channel?: ChannelGuide | null }) {
   const multi = (input.plot.parts ?? []).length > 1;
   return {
     system: `You develop the opening line of a narrated short video: the hook. It decides whether a scrolling viewer stays.
-
+${input.channel ? `\n${channelBlock(input.channel)}\n` : ""}
 A great hook creates curiosity without confusion. It is concrete and specific, the viewer understands enough to follow and care, and the story that follows fully delivers on what it promises.
+Curiosity, not alarm: often the best opening is a plain, specific statement of an interesting situation. Match the hook's tone to the story's; use the danger and disturbing styles only when the story really is about danger, and never make the opening sound darker than what follows.
 - Weak: "Kenny woke up and knew something was terribly wrong." (vague)
 - Stronger: "Kenny woke up to forty-seven missed calls. Every single one was from his own phone number." (a specific mystery; only usable if the story explains it or keeps it as a set-up mystery)
 Styles to explore: ${HOOK_STYLES.join(", ")}.
@@ -240,17 +246,19 @@ Narration perspective: ${input.perspective}.`,
     user: `PLOT
 ${plotText(input.plot)}
 
-${input.references.length ? `Openings of reference stories (for craft only, never copy):\n${input.references.map((r) => `- ${r.text.split(/(?<=[.!?])\s/)[0]}`).join("\n")}\n\n` : ""}For ${multi ? `each of these parts: ${input.parts.join(", ")}` : "the episode (part 1)"}, first name its dramatic question and the most interesting concrete moment it contains. Then write 5 opening hooks for ${input.hero} in at least 4 different styles, each with what it promises and which beat delivers it. Return one entry per part.`,
+${input.references.length ? `Openings of reference stories (for craft only, never copy):\n${input.references.map((r) => `- ${r.text.split(/(?<=[.!?])\s/)[0]}`).join("\n")}\n\n` : ""}For ${multi ? `each of these parts: ${input.parts.join(", ")}` : "the episode (part 1)"}, first name its dramatic question and the most interesting concrete moment it contains. Then write 5 opening hooks for ${input.hero} in at least 3 different styles, at least two of them plainly told, each with what it promises and which beat delivers it. Return one entry per part.`,
   };
 }
 
-export function hookPickPrompt(input: { plot: Plot; parts: { part: number; candidates: { style: string; text: string; promise: string; paidOffIn: string }[] }[] }) {
+export function hookPickPrompt(input: { plot: Plot; parts: { part: number; candidates: { style: string; text: string; promise: string; paidOffIn: string }[] }[]; channel?: ChannelGuide | null }) {
   return {
-    system: `You are a retention editor choosing the opening line of a narrated short video. Judge each candidate against the actual plot:
+    system: `You are a retention editor choosing the opening line of a narrated short video.${input.channel ? ` It must fit the channel:\n${channelBlock(input.channel)}\n` : ""}
+Judge each candidate against the actual plot:
 - clarity: can a viewer understand the situation instantly?
-- curiosity: does it open a specific question, tension or emotional pull?
+- curiosity: does it make the viewer want to know what happens, without overselling?
 - specificity: concrete details rather than dramatic vagueness?
-- deliveredByPlot: does the plot fully pay off what it promises (in that part, or as its cliffhanger)? A sensational opening the plot cannot support is a failed hook. So is one that gives away the ending.
+- deliveredByPlot: does the plot fully pay off what it promises (in that part, or as its closing turn)? A sensational opening the plot cannot support is a failed hook. So is one that gives away the ending, or one more ominous than the story it opens.
+Between two equally clear and curious hooks, choose the plainer one.
 Ratings: weak, acceptable, strong, excellent ("excellent" is rare).
 Choose the best one the plot delivers on, then refine it: tighten the words, keep it to one or two spoken sentences, and keep its promise honest. Return one choice per part.`,
     user: `PLOT
@@ -276,7 +284,7 @@ ${ARCHETYPE_GUIDES[input.plot.archetype]}
 You are the head writer. Tell the approved plot as one continuous story read aloud, ${minWords}–${maxWords} words (about ${input.durationSec}s at ~${input.wordsPerSecond.toFixed(2)} words/second for this narrator).
 - Open with the chosen hook, word for word, then flow straight into the story.
 - The plot is the source of truth. Every beat ${input.brief ? `of this part (${input.beats.join(", ")})` : ""} appears, in order, with its cause clear to someone who only hears the narration. Plant every setup before it pays off.
-- Let it breathe: a reaction, a sensory detail or a beat of silence before each turn. No lists of clothing, equipment or steps.
+- Let it breathe: room for a reaction or a concrete detail where it helps the viewer picture the moment. No lists of clothing, equipment or steps, and no dramatic pauses or foreshadowing.
 - Do not invent new rules, objects, abilities, solutions or knowledge. If you must depart from the plot, list it in planChanges.
 - Within the first few lines the viewer understands enough to follow and care; they don't need every detail at once.
 - Tell it in time order after the opening. Numbers as they are spoken.
@@ -296,23 +304,23 @@ ${referenceBlock(input.references)}`,
 
 // ── 7. Editorial review ───────────────────────────────────────────────
 
-export function editorialPrompt(input: { narration: string; dramaticQuestion: string; hookPromise: string; partNumber: number; durationSec: number; brief?: string }) {
+export function editorialPrompt(input: { narration: string; dramaticQuestion: string; hookPromise: string; partNumber: number; durationSec: number; brief?: string; channel?: ChannelGuide | null }) {
   return {
     system: `You are an independent editor for narrated short story videos. You did not write this script. Read it as an ordinary adult scrolling past, then judge it with evidence.
-
+${input.channel ? `\n${channelBlock(input.channel)}\nA script that breaks the channel's rules (its voice, its shape, or its never-list) is weak on the criterion it affects and belongs in mustFix.\n` : ""}
 Ratings are anchored:
 - weak: a viewer would leave or feel cheated. E.g. the first line is vague mood ("Kenny woke up and knew something was terribly wrong"); events are a list of "and then"; the ending summarises ("and that's how she learned...") or resolves by luck.
-- acceptable: clear and coherent but predictable; a viewer finishes it without strong feeling.
-- strong: every beat changes the situation; at least one development surprises yet is clearly set up; reactions feel human; the ending is earned.
+- acceptable: clear and coherent but flat; nothing in particular pulls the viewer forward.
+- strong: every beat changes the situation; at least one development or detail is genuinely interesting yet clearly set up; reactions feel human; the ending is earned. A calm, plainly told script can be strong.
 - excellent (rare): all of strong, plus the ending or reveal reframes earlier details (the clues were all there), and nothing could be cut.
 
 Narrative criteria: ${NARRATIVE_CRITERIA.join(", ")}.
 - premise: is the situation actually interesting? dramatic-question: is there a clear goal or question? every-beat-matters: could any moment be cut without loss? earned-escalation; believable-reactions; economy: unnecessary details? freshness: predictable or generic? ending: satisfying? worth-the-time: does it feel complete enough to justify ${input.durationSec} seconds?
 Retention criteria: ${RETENTION_CRITERIA.join(", ")}.
-- first-line: does it grab attention? instant-clarity: is the initial situation understandable at once? curiosity-gap: a clear question, tension or emotional pull? starts-late: does it begin at the most interesting appropriate moment? hook-delivered: does the story pay off the opening's promise? steady-change: any stretch where nothing meaningful changes? payoff: does the ending reward attention?
+- first-line: does it make you want to keep listening? instant-clarity: is the initial situation understandable at once? curiosity-gap: a clear reason to keep watching (a question, a goal, something to find out)? starts-late: does it begin at the most interesting appropriate moment? hook-delivered: does the story pay off the opening's promise? steady-change: any stretch where nothing meaningful changes? payoff: does the ending reward attention?
 
-Prose that reads like a summary or a list (clothing, equipment, steps), or that is too compressed to say aloud naturally, is weak economy and belongs in mustFix. So is an opening that gives away the ending.
-Rate each criterion once, quoting the line that shows it. mustFix lists only problems that clearly make the video worse for a viewer, each with a quote and a concrete fix; put nice-to-haves in suggestions. Don't ask for a different story, a joke or more complications unless the story needs them.`,
+Prose that reads like a summary or a list (clothing, equipment, steps), or that is too compressed to say aloud naturally, is weak economy and belongs in mustFix. So is an opening that gives away the ending, and so is overdone suspense: ominous foreshadowing, dramatic pauses, fragments for effect, or a tone darker than the events.
+Rate each criterion once, quoting the line that shows it. mustFix lists only problems that clearly make the video worse for a viewer, each with a quote and a concrete fix; put nice-to-haves in suggestions. Don't ask for a different story, a joke, more tension or more complications unless the story needs them.`,
     user: `${input.brief ? `${input.brief.split("\n\nEARLIER PARTS")[0]}\nJudge it as one video in a series: it must hold a viewer on its own, pay off its small question, and (unless it is the final part) make them need the next part. Don't ask for later parts' beats.\n\n` : `Part ${input.partNumber}\n`}Dramatic question the writer intended: ${input.dramaticQuestion}
 The opening promises: ${input.hookPromise}
 

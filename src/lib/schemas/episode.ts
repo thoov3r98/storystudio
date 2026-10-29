@@ -2,6 +2,7 @@ import { z } from "zod";
 import { MOTION_PRESETS } from "@/lib/constants";
 import { StoryBibleUpdateSchema } from "./story-bible";
 import { LegacyStoryOutlineSchema, LegacyStoryReviewSchema, PlotSchema, QualityRecordSchema } from "./story-plan";
+import { ProcessSpecSchema } from "./process";
 
 export const SceneSpecSchema = z.object({
   sceneNumber: z.number().int(),
@@ -90,6 +91,8 @@ export const EpisodeSpecRecordSchema = EpisodeDraftSchema.omit({ scenes: true })
   visualState: VisualStateSchema.optional(),
   /** The causal plot the script was told from, and the record of every check and revision. */
   plot: PlotSchema.optional(),
+  /** Process explainers have no plot: the part plan the script was told from (the research is on the story). */
+  process: ProcessSpecSchema.optional(),
   quality: QualityRecordSchema.optional(),
   /** Versions written before the quality pipeline: beat outline and editor scores. */
   outline: LegacyStoryOutlineSchema.optional(),

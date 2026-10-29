@@ -2,6 +2,7 @@ import { AlertTriangle, CheckCircle2, OctagonX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/studio";
 import type { EditorialNote, Plot, QualityRecord, RecordedIssue } from "@/lib/schemas/story-plan";
+import type { ProcessSpec, ResearchRecord } from "@/lib/schemas/process";
 import { cn } from "@/lib/utils";
 import { DismissIssueButton, EpisodeActionButton, ScriptRating } from "./episode-client";
 
@@ -95,14 +96,77 @@ function PlotView({ plot, part }: { plot: Plot; part: number }) {
   );
 }
 
+/** The part plan and the research every line was checked against, with its sources. */
+function ProcessView({ process, research, part }: { process: ProcessSpec; research: ResearchRecord | null; part: number }) {
+  const current = process.plan.parts.find((p) => p.part === part);
+  return (
+    <details className="rounded-xl border bg-card p-3 text-sm">
+      <summary className="cursor-pointer font-medium">
+        Research and plan (part {part} of {process.plan.parts.length}{research ? `, ${research.sources.length} sources` : ""})
+      </summary>
+      <ol className="mt-2 space-y-1 text-xs">
+        {process.plan.parts.map((p) => (
+          <li key={p.part} className={cn(p.part === part ? "font-medium" : "text-muted-foreground")}>
+            Part {p.part}: {p.title} ({p.stages.join(", ")})
+          </li>
+        ))}
+      </ol>
+      {research ? (
+        <div className="mt-3 space-y-3 border-t pt-3 text-xs">
+          <p>{research.overview}</p>
+          {research.stages
+            .filter((s) => current?.stages.includes(s.id))
+            .map((s) => (
+              <div key={s.id}>
+                <div className="font-medium">
+                  {s.id} {s.name}
+                </div>
+                <ul className="mt-1 ml-4 list-disc space-y-1">
+                  {s.steps.map((st, i) => (
+                    <li key={i}>
+                      {st.what}
+                      {st.details ? <span className="text-muted-foreground"> ({st.details})</span> : null}
+                      {st.sources.length ? <span className="text-muted-foreground"> [{st.sources.join(", ")}]</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          {research.uncertain.length ? <p className="text-muted-foreground">Left out as uncertain: {research.uncertain.join("; ")}</p> : null}
+          <ol className="space-y-0.5">
+            {research.sources.map((s) => (
+              <li key={s.n}>
+                [{s.n}]{" "}
+                <a href={s.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                  {s.title}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+    </details>
+  );
+}
+
 function fmtDuration(ms: number) {
   const s = Math.round(ms / 1000);
   return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
 }
 
 /** The record of every check on the current script: verdict, open issues, ratings, hooks, plot and revisions. */
-export function ScriptChecks(props: { quality: QualityRecord | undefined; plot: Plot | undefined; versionId: string; episodeId: string; humanRating: number | null; busy: boolean; atGate: boolean }) {
-  const { quality, plot, versionId, episodeId, busy, atGate } = props;
+export function ScriptChecks(props: {
+  quality: QualityRecord | undefined;
+  plot: Plot | undefined;
+  process?: ProcessSpec;
+  research?: ResearchRecord | null;
+  versionId: string;
+  episodeId: string;
+  humanRating: number | null;
+  busy: boolean;
+  atGate: boolean;
+}) {
+  const { quality, plot, process, research, versionId, episodeId, busy, atGate } = props;
   if (!quality) {
     return (
       <Section title="Script checks">
@@ -123,7 +187,14 @@ export function ScriptChecks(props: { quality: QualityRecord | undefined; plot: 
   const hooks = quality.hooks;
 
   return (
-    <Section title="Script checks" description="An independent logic audit and editorial review of this script. These are editorial judgements, not predictions of how it will perform.">
+    <Section
+      title="Script checks"
+      description={
+        process
+          ? "An independent fact-check of this script against the web research, plus clarity and tone. Read the sources for anything that matters."
+          : "An independent logic audit and editorial review of this script. These are editorial judgements, not predictions of how it will perform."
+      }
+    >
       <div className="space-y-4">
         <div className={cn("flex flex-col gap-3 rounded-xl border p-4 text-sm sm:flex-row sm:items-center sm:justify-between", status.className)}>
           <div className="flex gap-2">
@@ -143,7 +214,7 @@ export function ScriptChecks(props: { quality: QualityRecord | undefined; plot: 
               </p>
             </div>
           </div>
-          {openCount > 0 && plot && atGate ? (
+          {openCount > 0 && (plot || process) && atGate ? (
             <div className="shrink-0">
               <EpisodeActionButton
                 episodeId={episodeId}
@@ -241,6 +312,8 @@ export function ScriptChecks(props: { quality: QualityRecord | undefined; plot: 
             </p>
           </details>
         ) : null}
+
+        {process ? <ProcessView process={process} research={research ?? null} part={quality.part ?? 1} /> : null}
 
         {plot ? (
           <details className="rounded-xl border bg-card p-3">

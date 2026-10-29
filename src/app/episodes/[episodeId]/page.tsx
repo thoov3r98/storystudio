@@ -14,6 +14,7 @@ import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
 import { estimateEpisodeCost, formatUsd } from "@/lib/costs/estimate";
 import { getModels, getPricing } from "@/lib/settings";
 import type { ContinuityReview, EpisodeSpecRecord } from "@/lib/schemas/episode";
+import { ResearchRecordSchema } from "@/lib/schemas/process";
 import type { EpisodeTiming } from "@/lib/timing";
 import { downloadUrl, previewUrl } from "@/lib/urls";
 import { ApproveEpisodeButton } from "@/app/stories/[storyId]/story-client";
@@ -83,7 +84,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
       />
     );
   // One story planned across several videos.
-  const partsPlanned = spec?.plot?.parts?.length ?? 1;
+  const partsPlanned = spec?.plot?.parts?.length ?? spec?.process?.plan.parts.length ?? 1;
   const multiPart = partsPlanned > 1;
   const anyPartProduced = episode.story.episodes.some((e) => !["DRAFT", "SCRIPTED", "FAILED"].includes(e.status));
   // A plot that failed its logic check stops before any narration is written; show why.
@@ -285,7 +286,12 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
           </div>
 
           <div className="min-w-0 space-y-10">
-            <ScriptChecks quality={quality} plot={spec?.plot} versionId={v.id} episodeId={episode.id} humanRating={v.humanRating} busy={busy} atGate={awaitingReview} />
+            <ScriptChecks
+              quality={quality}
+              plot={spec?.plot}
+              process={spec?.process}
+              research={ResearchRecordSchema.safeParse(episode.story.research).data ?? null}
+              versionId={v.id} episodeId={episode.id} humanRating={v.humanRating} busy={busy} atGate={awaitingReview} />
 
             <Section
               title="Script"

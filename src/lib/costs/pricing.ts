@@ -21,6 +21,8 @@ export const PricingSchema = z.object({
   sandboxPerVcpuHour: z.number().nonnegative(),
   /** Fixed overhead per sandbox render (setup time, memory). */
   sandboxOverheadPerRender: z.number().nonnegative(),
+  /** OpenAI web search tool calls (process explainer research), on top of tokens. */
+  webSearchPerCall: z.number().nonnegative().default(0.01),
 });
 
 export type Pricing = z.infer<typeof PricingSchema>;
@@ -37,6 +39,7 @@ export const DEFAULT_PRICING: Pricing = {
   elevenLabsPer1kChars: 0.1,
   sandboxPerVcpuHour: 0.128,
   sandboxOverheadPerRender: 0.02,
+  webSearchPerCall: 0.01,
 };
 
 export function textModelPrice(pricing: Pricing, model: string) {

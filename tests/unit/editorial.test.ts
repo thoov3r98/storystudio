@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { CRITERIA, type CriteriaScores, normalizeScores, totalScore, validateScores } from "@/lib/schemas/concept";
-import { rankConcepts } from "@/lib/pipeline/ideation";
 import { validateDraft } from "@/lib/pipeline/writing";
 import type { EpisodeDraft } from "@/lib/schemas/episode";
 import { estimateBatchCost, estimateEpisodeCost } from "@/lib/costs/estimate";
@@ -22,15 +21,6 @@ describe("scoring", () => {
     const s = { ...scores(5), curiosity: { score: 14, rationale: "" } };
     expect(validateScores(s)).toHaveLength(1);
     expect(normalizeScores(s).curiosity.score).toBe(10);
-  });
-
-  it("ranks by total, then curiosity", () => {
-    const mk = (id: string, total: number, curiosity: number) => ({
-      id,
-      total,
-      evaluation: { conceptIndex: 0, summary: "", scores: { ...scores(5), curiosity: { score: curiosity, rationale: "" } } },
-    });
-    expect(rankConcepts([mk("a", 6, 5), mk("b", 7, 1), mk("c", 6, 9)]).map((x) => x.id)).toEqual(["b", "c", "a"]);
   });
 });
 

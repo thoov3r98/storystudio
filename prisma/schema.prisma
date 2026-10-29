@@ -159,6 +159,42 @@ enum NarrationPerspective {
   THIRD_PERSON
 }
 
+/// How a channel's videos are made: a character's story, or a factual process explained step by step.
+enum ChannelFormat {
+  CHARACTER_STORY
+  PROCESS_EXPLAINER
+}
+
+// ───────────────────────────── Channels ────────────────────────────
+
+/// A TikTok channel. Everything is generated for a channel: its profile steers pitching, writing and checking.
+model Channel {
+  id                String               @id @default(cuid())
+  name              String
+  /// The producer's prompt the profile was generated from.
+  brief             String
+  format            ChannelFormat
+  /// Generated from the brief, then editable: subjects, voice, story shape, things to avoid, Surprise me guidance.
+  profile           Json
+  /// The recurring hero of a character-story channel.
+  characterId       String?
+  character         Character?           @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  perspective       NarrationPerspective @default(THIRD_PERSON)
+  voiceId           String?
+  styleKey          String               @default("stick-figure-color")
+  targetDurationSec Int                  @default(75)
+  /// Each story is planned across minParts..maxParts videos; the planner picks the count.
+  minParts          Int                  @default(3)
+  maxParts          Int                  @default(5)
+  quality           Quality              @default(STANDARD)
+  archivedAt        DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  stories Story[]
+  batches Batch[]
+}
+
 // ───────────────────────────── Characters ──────────────────────────
 
 /// A recurring narrator/hero that series are built around.
@@ -186,9 +222,10 @@ model Character {
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
-  stories Story[]
-  batches Batch[]
-  costs   CostEntry[]
+  stories  Story[]
+  batches  Batch[]
+  channels Channel[]
+  costs    CostEntry[]
 }
 
 // ───────────────────────────── Stories ─────────────────────────────
@@ -216,6 +253,10 @@ model Story {
   videoFormat          String      @default("bands")
   characterId          String?
   character            Character?  @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  channelId            String?
+  channel              Channel?    @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  /// Process explainers: the web research every part is written from (see src/lib/process).
+  research             Json?
   hasUnresolvedThreads Boolean     @default(true)
   archivedAt           DateTime?
   lastActivityAt       DateTime    @default(now())
@@ -236,6 +277,7 @@ model Story {
   @@index([status])
   @@index([normalizedTitle])
   @@index([lastActivityAt])
+  @@index([channelId])
 }
 
 /// Versioned story bible. `data` is validated by StoryBibleSchema (src/lib/schemas/story-bible.ts).
@@ -517,6 +559,8 @@ model Batch {
   estimatedCostUsd  Decimal    @default(0) @db.Decimal(12, 6)
   characterId       String?
   character         Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  channelId         String?
+  channel           Channel?   @relation(fields: [channelId], references: [id], onDelete: SetNull)
   createdAt         DateTime   @default(now())
 
   concepts Concept[]

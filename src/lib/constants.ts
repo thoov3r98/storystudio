@@ -1,75 +1,5 @@
 import type { JobStatus, Quality, StoryStatus } from "@/generated/prisma/enums";
 
-// Descriptions are shown on the Generate page and given to the concept writer.
-export const CATEGORIES = [
-  {
-    value: "custom",
-    label: "Your own topic",
-    description: "Anything you describe: a subject, genre, era, tone or a fictional world. Concepts are pitched from your prompt.",
-    example: "Strange true stories from ancient Rome",
-  },
-  {
-    value: "hidden-infrastructure",
-    label: "Hidden infrastructure",
-    description: "The systems that quietly keep daily life running: power, water, sewers, data, supply chains.",
-    example: "Where your flushed water goes next",
-  },
-  {
-    value: "travel-transportation",
-    label: "Travel and transportation",
-    description: "What happens behind the scenes of flights, trains, ships, roads and the journeys we take.",
-    example: "Where does your lost luggage actually go?",
-  },
-  {
-    value: "everyday-mysteries",
-    label: "Everyday mysteries",
-    description: "Ordinary things people see constantly but never think to question.",
-    example: "Why supermarkets put milk at the back",
-  },
-  {
-    value: "hypothetical-disasters",
-    label: "Hypothetical disasters",
-    description: "Big, clearly framed what-ifs about the things everyone depends on failing: the power grid, the internet, water, money, food.",
-    example: "What happens if the power grid goes down for a month?",
-  },
-  {
-    value: "unusual-business-models",
-    label: "Unusual business models",
-    description: "How surprising companies and industries actually make their money.",
-    example: "How free apps pay their bills",
-  },
-  {
-    value: "engineering-logistics",
-    label: "Engineering and logistics",
-    description: "How huge, complicated things get built, moved, coordinated or kept working.",
-    example: "How a stadium gets ready overnight",
-  },
-  {
-    value: "apocalypse-scenarios",
-    label: "Apocalypse scenarios",
-    description: "Big end-of-the-world what-ifs: everyone vanishes, a zombie outbreak, the power grid goes down, a pandemic, the sun doesn't rise.",
-    example: "You wake up and everyone on Earth is gone",
-  },
-  {
-    value: "survival-scenarios",
-    label: "Survival scenarios",
-    description: "Classic survival situations: lost at sea, stranded in the wilderness, a blizzard, an earthquake, a plane down in the jungle.",
-    example: "Stranded alone in the wilderness after a plane crash",
-  },
-  {
-    value: "mixed",
-    label: "Mixed categories",
-    description: "A spread across all the preset categories above, for variety.",
-    example: "A batch mixing mysteries, disasters and logistics",
-  },
-] as const;
-
-export type CategoryValue = (typeof CATEGORIES)[number]["value"];
-
-export function categoryLabel(value: string): string {
-  return CATEGORIES.find((c) => c.value === value)?.label ?? value;
-}
-
 export const TARGET_DURATIONS = [60, 75, 90] as const;
 export type TargetDuration = (typeof TARGET_DURATIONS)[number];
 
@@ -273,4 +203,3 @@ export const VIDEO = {
 
 /** How many candidate concepts to generate per requested episode. */
 export const CANDIDATE_MULTIPLIER = 2;
-export const MAX_BATCH_SIZE = 50;

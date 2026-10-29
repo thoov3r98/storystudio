@@ -17,12 +17,12 @@ export function toNarrator(c: Character): NarratorProfile {
 }
 
 /** Seeds a new story's bible with its series character so every episode and image starts from them. */
-export function withCharacter(bible: StoryBible, c: Character): StoryBible {
+export function withCharacter(bible: StoryBible, c: Character, perspective = c.perspective): StoryBible {
   return {
     ...bible,
-    tone: "Warm, grounded and suspenseful, carried by the narrator's personality.",
+    tone: "Warm, grounded and plainly told, carried by the narrator's personality.",
     narrativePerspective:
-      c.perspective === "FIRST_PERSON" ? `First person, past tense, narrated by ${c.name}.` : `Close third person, past tense, following ${c.name}.`,
+      perspective === "FIRST_PERSON" ? `First person, past tense, narrated by ${c.name}.` : `Close third person, past tense, following ${c.name}.`,
     characters: [
       { name: c.name, role: "Narrator and hero", description: `${c.tagline}. ${c.personality}`, visualDescription: c.visualDescription, firstAppearedPart: 1 },
       ...bible.characters.filter((x) => x.name.toLowerCase() !== c.name.toLowerCase()),

@@ -5,28 +5,27 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { cancelJob, enqueueEpisodeJob, enqueueIdeation, retryJob } from "@/lib/enqueue";
-import { CATEGORIES, ILLUSTRATION_STYLES, MAX_BATCH_SIZE, TARGET_DURATIONS } from "@/lib/constants";
-import { estimateBatchCost } from "@/lib/costs/estimate";
+import { ILLUSTRATION_STYLES, TARGET_DURATIONS } from "@/lib/constants";
 import { PricingSchema } from "@/lib/costs/pricing";
 import {
   AudioMixSchema,
   DefaultsSchema,
   getDefaults,
-  getPricing,
-  getModels,
+  getVoices,
   ModelsSchema,
   VoiceSchema,
   VoiceSettingsSchema,
   writeSetting,
 } from "@/lib/settings";
 import { StoryBibleSchema } from "@/lib/schemas/story-bible";
-import { emptyBible } from "@/lib/schemas/story-bible";
 import { continuationBlockers, loadCanonicalBible } from "@/lib/pipeline/context";
 import { approveEpisode as approve, ensureEditableVersion, forkVersion, refreshStoryStatus } from "@/lib/pipeline/versions";
 import { listElevenLabsVoices } from "@/lib/providers/speech";
 import { normalizeTitle } from "@/lib/text";
 import { CharacterEditSchema } from "@/lib/schemas/character";
 import { createCharacterFromBrief, drawCharacterSheet } from "@/lib/pipeline/characters";
+import { createChannelFromBrief, PITCHES_SHOWN, storyFromPitch } from "@/lib/pipeline/channels";
+import { ChannelEditSchema } from "@/lib/schemas/channel";
 import { productionDeps } from "@/lib/pipeline/deps";
 import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
 import { ARCHETYPES, ENDING_TYPES, HOOK_STYLES } from "@/lib/schemas/story-plan";
@@ -79,116 +78,85 @@ export async function setCharacterArchived(characterId: string, archived: boolea
   });
 }
 
+// ───────────────────────────── Channels ─────────────────────────────
+
+/** Designs a channel from the producer's prompt, then opens it to review and edit. */
+export async function createChannel(brief: string): Promise<ActionResult<{ channelId: string }>> {
+  let channelId = "";
+  const result = await attempt(async () => {
+    const text = z.string().trim().min(10, "Describe the channel in a sentence or two.").max(3000).parse(brief);
+    const channel = await createChannelFromBrief({ brief: text, deps: productionDeps });
+    channelId = channel.id;
+    return { channelId };
+  });
+  if (result.ok) redirect(`/channels/${channelId}`);
+  return result;
+}
+
+export async function updateChannel(channelId: string, input: unknown) {
+  return attempt(async () => {
+    const data = ChannelEditSchema.parse(input);
+    if (!(TARGET_DURATIONS as readonly number[]).includes(data.targetDurationSec)) throw new Error("Duration must be 60, 75 or 90 seconds.");
+    if (!(data.styleKey in ILLUSTRATION_STYLES)) throw new Error("Unknown illustration style.");
+    await db.channel.update({ where: { id: channelId }, data });
+  });
+}
+
+export async function setChannelArchived(channelId: string, archived: boolean) {
+  return attempt(async () => {
+    await db.channel.update({ where: { id: channelId }, data: { archivedAt: archived ? new Date() : null } });
+  });
+}
+
 // ───────────────────────────── Generate ─────────────────────────────
 
-const GenerateSchema = z.object({
-  mode: z.enum(["CONCEPT", "FULL_PRODUCTION"]),
-  category: z.enum(CATEGORIES.map((c) => c.value) as [string, ...string[]]),
-  customDirection: z.string().max(2000).optional().default(""),
-  count: z.coerce.number().int().min(1).max(MAX_BATCH_SIZE),
-  durationSec: z.coerce.number().refine((n) => (TARGET_DURATIONS as readonly number[]).includes(n), "Duration must be 60, 75 or 90"),
-  styleKey: z.string().refine((s) => s in ILLUSTRATION_STYLES, "Unknown style"),
-  voiceId: z.string().min(1, "Select a narrator voice"),
-  quality: z.enum(["DRAFT", "STANDARD", "PREMIUM"]),
-  maxBudgetUsd: z.coerce.number().positive().max(10_000),
-  autoSelect: z.boolean().default(false),
-  characterId: z.string().nullable().optional(),
-});
-
-export type GenerateInput = z.input<typeof GenerateSchema>;
-
-export async function createBatch(input: GenerateInput): Promise<ActionResult<{ batchId: string }>> {
+/** Pitches ideas for a channel from the producer's idea, or fresh ones when `idea` is empty ("Surprise me"). */
+export async function pitchIdeas(channelId: string, idea: string | null): Promise<ActionResult<{ batchId: string }>> {
   let batchId = "";
   const result = await attempt(async () => {
-    const data = GenerateSchema.parse(input);
-    if (data.category === "custom" && !data.customDirection.trim()) throw new Error("Describe what the videos should be about.");
-    const estimate = estimateBatchCost(await getPricing(), await getModels(), {
-      requested: data.count,
-      durationSec: data.durationSec,
-      quality: data.quality,
-      fullProduction: data.mode === "FULL_PRODUCTION" && data.autoSelect,
-      parts: (await getDefaults()).partsPerStory,
-    });
-    if (estimate.ideation.total > data.maxBudgetUsd) {
-      throw new Error(`Even concept generation is estimated at $${estimate.ideation.total.toFixed(2)}, above the $${data.maxBudgetUsd} budget.`);
-    }
+    const text = z.string().trim().max(2000).nullable().parse(idea) || null;
+    const channel = await db.channel.findUniqueOrThrow({ where: { id: channelId }, include: { character: true } });
+    if (channel.archivedAt) throw new Error("This channel is archived.");
+    if (channel.format === "CHARACTER_STORY" && !channel.character) throw new Error(`Choose ${channel.name}'s character on the channel page first.`);
+    const voiceId = channel.voiceId ?? channel.character?.voiceId ?? (await getVoices())[0]?.id;
+    if (!voiceId) throw new Error("Add a narrator voice in Settings first.");
     const batch = await db.batch.create({
       data: {
-        mode: data.mode,
-        category: data.category,
-        customDirection: data.customDirection || null,
-        requestedCount: data.count,
-        targetDurationSec: data.durationSec,
-        styleKey: data.styleKey,
-        voiceId: data.voiceId,
-        quality: data.quality,
-        maxBudgetUsd: data.maxBudgetUsd.toFixed(2),
-        autoSelect: data.mode === "FULL_PRODUCTION" && data.autoSelect,
-        estimatedCostUsd: estimate.total.toFixed(6),
-        characterId: data.characterId || null,
+        mode: "CONCEPT",
+        category: channel.name,
+        customDirection: text,
+        requestedCount: PITCHES_SHOWN,
+        targetDurationSec: channel.targetDurationSec,
+        styleKey: channel.styleKey,
+        voiceId,
+        quality: channel.quality,
+        maxBudgetUsd: (await getDefaults()).maxBatchBudgetUsd.toFixed(2),
+        characterId: channel.characterId,
+        channelId: channel.id,
       },
     });
     batchId = batch.id;
     await enqueueIdeation(batch.id);
-    return { batchId: batch.id };
+    return { batchId };
   });
   if (result.ok) redirect(`/batches/${batchId}`);
   return result;
 }
 
-/** Approves selected concepts for video production (the Part 1 episode of each story). */
-export async function produceEpisodes(episodeIds: string[], batchId?: string | null) {
-  return attempt(async () => {
-    const ids = z.array(z.string()).min(1).max(MAX_BATCH_SIZE).parse(episodeIds);
-    const batch = batchId ? await db.batch.findUnique({ where: { id: batchId } }) : null;
-    const queued: string[] = [];
-    const errors: string[] = [];
-    for (const episodeId of ids) {
-      try {
-        await enqueueEpisodeJob({
-          episodeId,
-          batchId: batch?.id ?? null,
-          budgetUsd: batch ? Number(batch.maxBudgetUsd) : null,
-          continueProduction: true,
-          request: { action: "produce" },
-        });
-        queued.push(episodeId);
-      } catch (err) {
-        errors.push(err instanceof Error ? err.message : String(err));
-      }
+/** The producer picks a pitch: it becomes a story and every part's script is written (each stops at the script gate). */
+export async function writePitch(conceptId: string): Promise<ActionResult<{ storyId: string }>> {
+  let storyId = "";
+  const result = await attempt(async () => {
+    const story = await storyFromPitch(conceptId);
+    storyId = story.id;
+    const part1 = await db.episode.findFirstOrThrow({ where: { storyId: story.id, partNumber: 1 } });
+    if (part1.status === "DRAFT" && !part1.currentVersionId) {
+      await enqueueEpisodeJob({ episodeId: part1.id, continueProduction: true, request: { action: "produce" } });
     }
-    if (queued.length === 0) throw new Error(errors[0] ?? "Nothing was queued.");
-    return { queued: queued.length, errors };
+    return { storyId };
   });
-}
-
-export async function promoteConcept(conceptId: string) {
-  return attempt(async () => {
-    const concept = await db.concept.findUniqueOrThrow({ where: { id: conceptId }, include: { batch: true, story: true } });
-    if (concept.story) return { storyId: concept.story.id };
-    const story = await db.story.create({
-      data: {
-        title: concept.title,
-        normalizedTitle: concept.normalizedTitle,
-        category: concept.category,
-        premise: concept.premise,
-        logline: concept.logline,
-        storySeed: concept.storySeed ?? undefined,
-        keywords: concept.keywords,
-        factMode: concept.factMode,
-        styleKey: concept.batch.styleKey,
-        voiceId: concept.batch.voiceId,
-        targetDurationSec: concept.batch.targetDurationSec,
-        plannedParts: (await getDefaults()).partsPerStory,
-        quality: concept.batch.quality,
-        conceptId: concept.id,
-        bibles: { create: { version: 1, source: "concept", data: emptyBible({ premise: concept.premise, styleKey: concept.batch.styleKey }) } },
-        episodes: { create: { partNumber: 1, title: concept.title } },
-      },
-    });
-    await db.concept.update({ where: { id: conceptId }, data: { status: "SELECTED" } });
-    return { storyId: story.id };
-  });
+  if (result.ok) redirect(`/stories/${storyId}`);
+  return result;
 }
 
 // ───────────────────────────── Stories ─────────────────────────────

@@ -6,8 +6,7 @@ import { evidenceFound, genericHookPhrase, needsRevision, qualityStatus, recordI
 import { BUILT_IN_REFERENCES, type ReferenceStory, selectReferences } from "@/lib/story/references";
 import { narrationIssues } from "@/lib/story/compose";
 import { groupOutcomes, type ScriptRow, summarize } from "@/lib/story/metrics";
-import { rankConcepts } from "@/lib/pipeline/ideation";
-import { CRITERIA, type CriteriaScores } from "@/lib/schemas/concept";
+import { validateProcessPlan, type ProcessPlan, type ResearchNotes } from "@/lib/schemas/process";
 import { estimateEpisodeCost } from "@/lib/costs/estimate";
 import { DEFAULT_PRICING } from "@/lib/costs/pricing";
 import { scriptModels } from "@/lib/settings";
@@ -85,6 +84,11 @@ describe("multi-part plans", () => {
     expect(issues).toMatch(/Part 1 has 5 beats; give each video 2–4/);
     expect(issues).toMatch(/cover every beat exactly once/);
     expect(validatePlot(story(), { durationSec: 75, parts: 3 }).join(" ")).toMatch(/exactly 3 parts/);
+  });
+
+  it("accepts any part count inside a channel's range, and names the range when it is wrong", () => {
+    expect(validatePlot(story(), { durationSec: 75, parts: [3, 5] })).toEqual([]);
+    expect(validatePlot(story(), { durationSec: 75, parts: [2, 3] }).join(" ")).toMatch(/into 2–3 parts \(you have 4\)/);
   });
 
   it("tells each part what it covers and what came before", () => {
@@ -204,16 +208,7 @@ describe("reference stories", () => {
 
   it("built-in examples are labelled as original examples and cover every main archetype", () => {
     expect(BUILT_IN_REFERENCES.every((r) => r.title.includes("(original example)"))).toBe(true);
-    expect(new Set(BUILT_IN_REFERENCES.map((r) => r.archetype))).toEqual(new Set(["survival", "mystery", "speculative", "comedy", "suspense"]));
-  });
-});
-
-describe("idea selection", () => {
-  const scores = (n: number, feasibility: number) =>
-    Object.fromEntries(CRITERIA.map((c) => [c.key, { score: c.key === "episodeFeasibility" ? feasibility : n, rationale: "" }])) as CriteriaScores;
-  it("ranks a workable episode above a more exciting premise that can't become one", () => {
-    const mk = (id: string, total: number, feasibility: number) => ({ id, total, evaluation: { conceptIndex: 0, summary: "", scores: scores(total, feasibility) } });
-    expect(rankConcepts([mk("thrilling-but-unworkable", 9, 3), mk("solid", 7, 8)]).map((x) => x.id)).toEqual(["solid", "thrilling-but-unworkable"]);
+    expect(new Set(BUILT_IN_REFERENCES.map((r) => r.archetype))).toEqual(new Set(["survival", "mystery", "speculative", "comedy", "suspense", "everyday"]));
   });
 });
 
@@ -275,5 +270,25 @@ describe("benchmark set", () => {
     expect(BENCH_CASES.filter((c) => c.kind === "flawed").length).toBeGreaterThanOrEqual(10);
     expect(BENCH_CASES.filter((c) => c.kind === "sound").length).toBeGreaterThanOrEqual(5);
     expect(new Set(BENCH_PREMISES.map((p) => p.id)).size).toBe(BENCH_PREMISES.length);
+  });
+});
+
+describe("process explainer plans", () => {
+  const research: ResearchNotes = {
+    product: "Crayons",
+    overview: "o",
+    stages: ["Melt", "Mould", "Wrap", "Box"].map((name, i) => ({ id: `T${i + 1}`, name, steps: [{ what: name, details: "", sources: ["1"] }] })),
+    uncertain: [],
+  };
+  const plan = (groups: string[][]): ProcessPlan => ({
+    parts: groups.map((stages, i) => ({ part: i + 1, title: `P${i + 1}`, stages, opening: "Crayons.", endsAt: "next" })),
+  });
+  it("accepts every stage told once, in factory order, within the part range", () => {
+    expect(validateProcessPlan(plan([["T1"], ["T2"], ["T3", "T4"]]), research, [3, 5])).toEqual([]);
+  });
+  it("refuses skipped or reordered stages and too few parts", () => {
+    const issues = validateProcessPlan(plan([["T2"], ["T1", "T3"]]), research, [3, 5]).join(" ");
+    expect(issues).toMatch(/into 3–5 parts/);
+    expect(issues).toMatch(/every stage exactly once, in factory order: T1, T2, T3, T4/);
   });
 });

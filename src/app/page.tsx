@@ -6,7 +6,6 @@ import { EmptyState, Money, PageHeader, PageSkeleton, Section, StatCard, StorySt
 import { AutoRefresh } from "@/components/client-helpers";
 import { SetupChecklist } from "@/components/setup-checklist";
 import { getDashboard } from "@/lib/queries";
-import { categoryLabel } from "@/lib/constants";
 import { previewUrl } from "@/lib/urls";
 
 export default function DashboardPage() {
@@ -18,7 +17,7 @@ export default function DashboardPage() {
         actions={
           <Button asChild size="lg">
             <Link href="/generate">
-              <Sparkles /> New batch
+              <Sparkles /> Make videos
             </Link>
           </Button>
         }
@@ -79,7 +78,7 @@ async function DashboardContent() {
             description="Generate a batch of concepts to start your library. Concept mode costs only a few cents of text generation."
             action={
               <Button asChild>
-                <Link href="/generate">Generate concepts</Link>
+                <Link href="/generate">Make videos</Link>
               </Button>
             }
           />
@@ -91,7 +90,7 @@ async function DashboardContent() {
                 <div className="min-w-0 flex-1">
                   <div className="line-clamp-2 text-sm font-medium group-hover:underline">{s.title}</div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {categoryLabel(s.category)} · {s._count.episodes} ep · {relativeTime(s.lastActivityAt)}
+                    {s.channel?.name ?? "Before channels"} · {s._count.episodes} ep · {relativeTime(s.lastActivityAt)}
                   </div>
                   <div className="mt-2">
                     <StoryStatusBadge status={s.status} />

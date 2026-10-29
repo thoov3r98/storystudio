@@ -89,7 +89,7 @@ export type StoryBibleUpdate = z.infer<typeof StoryBibleUpdateSchema>;
 export function emptyBible(input: { premise: string; tone?: string; styleKey: string }): StoryBible {
   return {
     premise: input.premise,
-    tone: input.tone ?? "Curious, grounded, quietly suspenseful. Second-person and conversational.",
+    tone: input.tone ?? "Curious, grounded and plainly told. Second-person and conversational.",
     narrativePerspective: "Second person ('you'), present tense.",
     characters: [],
     locations: [],

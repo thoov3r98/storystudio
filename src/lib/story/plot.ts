@@ -14,16 +14,29 @@ export function partBeatRange(durationSec: number, parts: number): [number, numb
   return durationSec <= 65 ? [2, 3] : [2, 4];
 }
 
+/** A fixed number of parts, or a range the planner chooses from. */
+export type PartCount = number | [number, number];
+
+export function partBounds(parts: PartCount): [number, number] {
+  return typeof parts === "number" ? [parts, parts] : parts;
+}
+
+/** "4" or "3–5", for prompts. */
+export function partsLabel(parts: PartCount): string {
+  const [min, max] = partBounds(parts);
+  return min === max ? String(min) : `${min}–${max}`;
+}
+
 /**
  * Deterministic structure checks on a plot, fed back to the model on failure.
  * They catch what can be caught mechanically: missing causes, references to
  * nothing, and payoffs that rely on something introduced only when needed.
  */
-export function validatePlot(plot: Plot, opts: { durationSec: number; parts?: number }): string[] {
+export function validatePlot(plot: Plot, opts: { durationSec: number; parts?: PartCount }): string[] {
   const issues: string[] = [];
   const parts = opts.parts ?? 1;
   const beats = plot.beats;
-  if (parts === 1) {
+  if (partBounds(parts)[1] === 1) {
     const [minBeats, maxBeats] = plotBeatRange(opts.durationSec);
     if (beats.length < minBeats || beats.length > maxBeats) {
       issues.push(`Use ${minBeats}–${maxBeats} major beats for a ${opts.durationSec}s episode (you have ${beats.length}). Simplify rather than cram.`);
@@ -78,17 +91,19 @@ export function validatePlot(plot: Plot, opts: { durationSec: number; parts?: nu
   return issues;
 }
 
-function partIssues(plot: Plot, durationSec: number, count: number): string[] {
+function partIssues(plot: Plot, durationSec: number, wanted: PartCount): string[] {
   const issues: string[] = [];
   const parts = plot.parts ?? [];
-  if (parts.length !== count) return [`Split the story into exactly ${count} part${count === 1 ? "" : "s"} (you have ${parts.length}).`];
+  const [lo, hi] = partBounds(wanted);
+  if (parts.length < lo || parts.length > hi) return [`Split the story into ${lo === hi ? "exactly " : ""}${partsLabel(wanted)} part${hi === 1 ? "" : "s"} (you have ${parts.length}).`];
+  const count = parts.length;
   const [min, max] = partBeatRange(durationSec, count);
   const order = parts.flatMap((p) => p.beats);
   if (order.join(",") !== plot.beats.map((b) => b.n).join(",")) issues.push("parts must cover every beat exactly once, in order, each part a consecutive run of beats.");
   parts.forEach((p, i) => {
     if (p.part !== i + 1) issues.push(`Parts must be numbered 1..${count}; position ${i + 1} is numbered ${p.part}.`);
     if (count > 1 && (p.beats.length < min || p.beats.length > max)) issues.push(`Part ${i + 1} has ${p.beats.length} beats; give each video ${min}–${max} so it has room to breathe.`);
-    if (i < count - 1 && !p.cliffhanger.trim()) issues.push(`Part ${i + 1} needs a cliffhanger: a real turn from the plot that the next part picks up.`);
+    if (i < count - 1 && !p.cliffhanger.trim()) issues.push(`Part ${i + 1} needs a cliffhanger: the real turn from the plot that the next part picks up.`);
     if (i > 0 && !p.newViewerLine.trim()) issues.push(`Part ${i + 1} needs a newViewerLine that orients someone who starts there.`);
     if (!p.smallPayoff.trim()) issues.push(`Part ${i + 1} needs a smallPayoff so it satisfies on its own.`);
   });

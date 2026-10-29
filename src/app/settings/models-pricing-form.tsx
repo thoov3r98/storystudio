@@ -121,6 +121,7 @@ export function ModelsPricingForm(props: { models: Models; pricing: Pricing; ima
       elevenLabsPer1kChars: num(speech),
       sandboxPerVcpuHour: num(sandbox.perVcpuHour),
       sandboxOverheadPerRender: num(sandbox.overhead),
+      webSearchPerCall: props.pricing.webSearchPerCall,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [models, main, fast, rev, imageTokens, perImage, speech, sandbox, props.pricing.textModels],

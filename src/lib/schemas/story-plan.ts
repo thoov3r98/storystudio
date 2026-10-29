@@ -12,6 +12,7 @@ export type Archetype = (typeof ARCHETYPES)[number];
 export const ENDING_TYPES = ["resolution", "failure", "escape", "discovery", "sacrifice", "irony", "cliffhanger"] as const;
 
 export const HOOK_STYLES = [
+  "plain-situation",
   "immediate-danger",
   "impossible-situation",
   "disturbing-discovery",
@@ -93,6 +94,10 @@ export const LOGIC_CATEGORIES = [
   "missing-connection",
   "unpaid-setup",
   "series-continuity",
+  "clarity",
+  // Process explainers: checked against the research instead of a plot.
+  "unsupported-claim",
+  "tone",
 ] as const;
 
 export const SEVERITIES = ["blocking", "significant", "minor"] as const;

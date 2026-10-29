@@ -49,8 +49,8 @@ async function CharacterContent({ params }: { params: PageProps<"/characters/[ch
               {c.archivedAt ? "Restore" : "Archive"}
             </ActionButton>
             <Button asChild>
-              <Link href={`/generate?character=${c.id}`}>
-                <Clapperboard /> Make videos with {c.name}
+              <Link href="/channels">
+                <Clapperboard /> Channels
               </Link>
             </Button>
           </>

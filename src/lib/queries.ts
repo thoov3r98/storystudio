@@ -20,7 +20,7 @@ export async function getDashboard() {
     db.job.count({ where: { status: { in: ACTIVE_JOB_STATUSES } } }),
     db.job.count({ where: { status: "FAILED" } }),
     db.costEntry.aggregate({ _sum: { costUsd: true } }),
-    db.story.findMany({ where: { status: { not: "ARCHIVED" } }, orderBy: { lastActivityAt: "desc" }, take: 6, include: { _count: { select: { episodes: true } } } }),
+    db.story.findMany({ where: { status: { not: "ARCHIVED" } }, orderBy: { lastActivityAt: "desc" }, take: 6, include: { _count: { select: { episodes: true } }, channel: { select: { name: true } } } }),
     db.render.findMany({
       where: { status: "SUCCEEDED" },
       orderBy: { completedAt: "desc" },
@@ -53,20 +53,19 @@ export const STORY_FILTERS: { value: string; label: string; where: Prisma.StoryW
   { value: "archived", label: "Archived", where: { status: "ARCHIVED" } },
 ];
 
-export async function listStories(params: { filter?: string; q?: string; category?: string }) {
+export async function listStories(params: { filter?: string; q?: string; channel?: string }) {
   await connection();
   const filter = STORY_FILTERS.find((f) => f.value === params.filter) ?? STORY_FILTERS[0];
   const q = params.q?.trim();
   const where: Prisma.StoryWhereInput = {
     AND: [
       filter.where,
-      params.category && params.category !== "all" ? { category: params.category } : {},
+      params.channel && params.channel !== "all" ? (params.channel === "none" ? { channelId: null } : { channelId: params.channel }) : {},
       q
         ? {
             OR: [
               { title: { contains: q, mode: "insensitive" } },
               { premise: { contains: q, mode: "insensitive" } },
-              { category: { contains: q, mode: "insensitive" } },
               { keywords: { has: q.toLowerCase() } },
             ],
           }
@@ -77,7 +76,7 @@ export async function listStories(params: { filter?: string; q?: string; categor
     where,
     orderBy: { lastActivityAt: "desc" },
     take: 200,
-    include: { _count: { select: { episodes: true } } },
+    include: { _count: { select: { episodes: true } }, channel: { select: { name: true } } },
   });
 }
 
@@ -87,6 +86,7 @@ export async function getStory(storyId: string) {
     where: { id: storyId },
     include: {
       character: { select: { id: true, name: true, signatureColor: true } },
+      channel: { select: { id: true, name: true, format: true } },
       bibles: { orderBy: { version: "desc" } },
       episodes: {
         orderBy: { partNumber: "asc" },
@@ -173,6 +173,7 @@ export async function getBatch(batchId: string) {
     include: {
       concepts: { orderBy: [{ rank: "asc" }, { createdAt: "asc" }], include: { story: { include: { episodes: { where: { partNumber: 1 }, select: { id: true, status: true } } } } } },
       jobs: { orderBy: { createdAt: "desc" } },
+      channel: { select: { id: true, name: true, format: true } },
     },
   });
   if (!batch) return null;
@@ -209,4 +210,25 @@ export async function getCharacter(characterId: string) {
   if (!character) return null;
   const spend = await db.costEntry.aggregate({ where: { OR: [{ characterId }, { story: { characterId } }] }, _sum: { costUsd: true } });
   return { character, spentUsd: Number(spend._sum.costUsd ?? 0) };
+}
+
+export async function listChannels(params: { archived?: boolean } = {}) {
+  await connection();
+  return db.channel.findMany({
+    where: { archivedAt: params.archived ? { not: null } : null },
+    orderBy: { createdAt: "asc" },
+    include: { character: { select: { id: true, name: true, sheetUrl: true, signatureColor: true } }, _count: { select: { stories: { where: { archivedAt: null } } } } },
+  });
+}
+
+export async function getChannel(channelId: string) {
+  await connection();
+  return db.channel.findUnique({
+    where: { id: channelId },
+    include: {
+      character: { select: { id: true, name: true, sheetUrl: true, signatureColor: true, tagline: true } },
+      stories: { where: { archivedAt: null }, orderBy: { lastActivityAt: "desc" }, take: 30, include: { _count: { select: { episodes: true } } } },
+      batches: { orderBy: { createdAt: "desc" }, take: 8, include: { _count: { select: { concepts: true } } } },
+    },
+  });
 }

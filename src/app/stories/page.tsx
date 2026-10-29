@@ -5,8 +5,7 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState, PageHeader, PageSkeleton, StoryStatusBadge, Thumb, relativeTime } from "@/components/studio";
-import { listStories, STORY_FILTERS } from "@/lib/queries";
-import { CATEGORIES, categoryLabel } from "@/lib/constants";
+import { listChannels, listStories, STORY_FILTERS } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { LibrarySelection, SelectableStory } from "./library-selection";
 
@@ -20,7 +19,7 @@ export default function StoriesPage(props: PageProps<"/stories">) {
         description="Every storyline is kept indefinitely. Open one to continue it with Part 2, 3, 4 and beyond."
         actions={
           <Button asChild>
-            <Link href="/generate">New batch</Link>
+            <Link href="/generate">Make videos</Link>
           </Button>
         }
       />
@@ -41,8 +40,8 @@ async function StoriesContent({ searchParams }: { searchParams: PageProps<"/stor
   const sp = await searchParams;
   const filter = typeof sp.filter === "string" ? sp.filter : "all";
   const q = typeof sp.q === "string" ? sp.q : "";
-  const category = typeof sp.category === "string" ? sp.category : "all";
-  const stories = await listStories({ filter, q, category });
+  const channel = typeof sp.channel === "string" ? sp.channel : "all";
+  const [stories, channels] = await Promise.all([listStories({ filter, q, channel }), listChannels()]);
 
   return (
     <div className="space-y-6">
@@ -51,7 +50,7 @@ async function StoriesContent({ searchParams }: { searchParams: PageProps<"/stor
           {STORY_FILTERS.map((f) => (
             <Link
               key={f.value}
-              href={href({ filter: f.value, q, category })}
+              href={href({ filter: f.value, q, channel })}
               className={cn(
                 "shrink-0 rounded-full border px-3 py-1 text-sm transition-colors",
                 filter === f.value ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground",
@@ -64,17 +63,18 @@ async function StoriesContent({ searchParams }: { searchParams: PageProps<"/stor
         <form action="/stories" className="flex gap-2">
           {filter !== "all" ? <input type="hidden" name="filter" value={filter} /> : null}
           <select
-            name="category"
-            defaultValue={category}
+            name="channel"
+            defaultValue={channel}
             className="h-8 rounded-lg border border-input bg-background px-2 text-sm"
-            aria-label="Category"
+            aria-label="Channel"
           >
-            <option value="all">All categories</option>
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
+            <option value="all">All channels</option>
+            {channels.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
               </option>
             ))}
+            <option value="none">Before channels</option>
           </select>
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -88,8 +88,8 @@ async function StoriesContent({ searchParams }: { searchParams: PageProps<"/stor
 
       {stories.length === 0 ? (
         <EmptyState
-          title={q || filter !== "all" || category !== "all" ? "No stories match" : "Your library is empty"}
-          description={q ? "Try a different search or filter." : "Generate a batch to create your first storylines."}
+          title={q || filter !== "all" || channel !== "all" ? "No stories match" : "Your library is empty"}
+          description={q ? "Try a different search or filter." : "Make videos for a channel to start your first story."}
         />
       ) : (
         <LibrarySelection ids={stories.map((s) => s.id)} archivedView={filter === "archived"}>
@@ -105,7 +105,7 @@ async function StoriesContent({ searchParams }: { searchParams: PageProps<"/stor
                 <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">{s.premise}</p>
                 <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-3 text-xs text-muted-foreground">
                   <StoryStatusBadge status={s.status} />
-                  <span>{categoryLabel(s.category)}</span>
+                  <span>{s.channel?.name ?? "Before channels"}</span>
                   <span>
                     {s._count.episodes} episode{s._count.episodes === 1 ? "" : "s"}
                   </span>

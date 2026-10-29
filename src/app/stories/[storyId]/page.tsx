@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { EpisodeStatusBadge, Money, PageHeader, PageSkeleton, Section, StoryStatusBadge, Thumb, relativeTime } from "@/components/studio";
 import { AutoRefresh } from "@/components/client-helpers";
 import { getStory } from "@/lib/queries";
-import { categoryLabel, ILLUSTRATION_STYLES, JOB_STATUS_LABELS } from "@/lib/constants";
+import { ILLUSTRATION_STYLES, JOB_STATUS_LABELS } from "@/lib/constants";
 import { StoryBibleSchema, StoryBibleUpdateSchema, type StoryBible } from "@/lib/schemas/story-bible";
 import { continuationBlockers } from "@/lib/pipeline/context";
 import { downloadUrl, previewUrl } from "@/lib/urls";
@@ -209,7 +209,14 @@ async function StoryContent({ params }: { params: PageProps<"/stories/[storyId]"
             <Link href="/stories" className="hover:underline">
               Story Library
             </Link>
-            <span>/</span> {categoryLabel(story.category)}
+            <span>/</span>{" "}
+            {story.channel ? (
+              <Link href={`/channels/${story.channel.id}`} className="hover:underline">
+                {story.channel.name}
+              </Link>
+            ) : (
+              "Before channels"
+            )}
             {story.character ? (
               <>
                 <span>·</span>

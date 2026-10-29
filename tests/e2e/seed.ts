@@ -25,7 +25,7 @@ async function main() {
   await db.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(", ")} CASCADE`);
 
   await db.setting.create({ data: { key: "voices", value: [{ id: "test-voice", name: "Test Narrator", description: "" }] } });
-  await db.character.create({
+  const dave = await db.character.create({
     data: {
       name: "Test Dave",
       tagline: "An ex-trucker who keeps ending up stranded",
@@ -38,6 +38,10 @@ async function main() {
       voiceId: "test-voice",
     },
   });
+
+  const profile = (summary: string) => ({ summary, subjects: "s", voice: "Plain and factual.", structure: "In order.", avoid: ["Drama"], surpriseMe: "Pick one.", examples: ["The grid goes down", "Crayons"] });
+  await db.channel.create({ data: { name: "Dave vs the World", brief: "Dave gets through disasters.", format: "CHARACTER_STORY", profile: profile("Dave gets through big disasters."), characterId: dave.id, voiceId: "test-voice" } });
+  await db.channel.create({ data: { name: "How It's Made", brief: "How things are made.", format: "PROCESS_EXPLAINER", profile: profile("How everyday products are made."), voiceId: "test-voice" } });
 
   const hook = "You land after ten hours.";
   const draft = makeDraft(hook, 1);

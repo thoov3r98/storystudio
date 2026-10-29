@@ -27,7 +27,8 @@ vi.mock("@/lib/storage", () => {
 
 const { db } = await import("@/lib/db");
 const { mutedBandColor } = await import("@/lib/constants");
-const { runIdeation } = await import("@/lib/pipeline/ideation");
+const { runChannelIdeation, storyFromPitch } = await import("@/lib/pipeline/channels");
+const { emptyBible } = await import("@/lib/schemas/story-bible");
 const { runEpisodeJob, ScriptGateError } = await import("@/lib/pipeline/produce");
 const { StoryQualityError, MAX_PLOT_REPAIRS } = await import("@/lib/story/compose");
 const { withDismissal } = await import("@/lib/story/review");
@@ -52,6 +53,53 @@ async function approveScript(episodeId: string, deps: Parameters<typeof runEpiso
   await runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "render" } }, deps);
 }
 
+/** A story ready to write without a channel (stories from before channels): Part 1 only, parts from the defaults. */
+async function seedStory(batchId: string) {
+  const batch = await db.batch.findUniqueOrThrow({ where: { id: batchId } });
+  const defaults = (await db.setting.findUnique({ where: { key: "defaults" } }))?.value as { partsPerStory?: number } | undefined;
+  const title = "Where Did the Bag Go?";
+  const story = await db.story.create({
+    data: {
+      title,
+      normalizedTitle: title.toLowerCase(),
+      category: "test",
+      premise: "Your suitcase never arrives at baggage claim.",
+      keywords: ["luggage"],
+      styleKey: batch.styleKey,
+      voiceId: batch.voiceId,
+      targetDurationSec: batch.targetDurationSec,
+      plannedParts: defaults?.partsPerStory ?? 1,
+      quality: batch.quality,
+      bibles: { create: { version: 1, source: "concept", data: emptyBible({ premise: "Your suitcase never arrives at baggage claim.", styleKey: batch.styleKey }) } },
+      episodes: { create: { partNumber: 1, title } },
+    },
+    include: { episodes: true },
+  });
+  return { episodeIds: [story.episodes[0].id] };
+}
+
+const CHANNEL_PROFILE = {
+  summary: "Kenny gets through big disasters, one practical step at a time.",
+  subjects: "Big apocalyptic scenarios.",
+  voice: "Unseen narrator, third person, matter-of-fact.",
+  structure: "Strict time order; each part ends on the next practical problem.",
+  avoid: ["Horror", "Unexplained jumps"],
+  surpriseMe: "Pick a big well-known disaster the channel hasn't covered.",
+  examples: ["The grid goes down"],
+};
+
+async function createChannel(data: { format?: "CHARACTER_STORY" | "PROCESS_EXPLAINER"; characterId?: string; minParts?: number; maxParts?: number; name?: string } = {}) {
+  return db.channel.create({
+    data: { name: data.name ?? "Kenny vs the World", brief: "b", format: data.format ?? "CHARACTER_STORY", profile: CHANNEL_PROFILE, characterId: data.characterId, minParts: data.minParts ?? 3, maxParts: data.maxParts ?? 5, voiceId: "voice-channel" },
+  });
+}
+
+async function channelBatch(channelId: string, idea: string | null, budget = 100) {
+  return db.batch.create({
+    data: { mode: "CONCEPT", category: "channel", customDirection: idea, requestedCount: 3, targetDurationSec: 75, styleKey: "stick-figure-color", voiceId: "voice-1", quality: "STANDARD", maxBudgetUsd: budget, channelId },
+  });
+}
+
 async function createBatch(requested = 3, budget = 100) {
   return db.batch.create({
     data: { mode: "CONCEPT", category: "hidden-infrastructure", requestedCount: requested, targetDurationSec: 75, styleKey: "stick-figure", voiceId: "voice-1", quality: "STANDARD", maxBudgetUsd: budget },
@@ -68,45 +116,54 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     await db.setting.create({ data: { key: "defaults", value: { partsPerStory: 1 } } });
   });
 
-  it("ideates, dedupes, ranks and selects, with no separate hook step", async () => {
+  it("pitches for a channel: Surprise me skips the channel's own stories, three are shown, and a pick becomes a channel story", async () => {
+    const channel = await createChannel({ name: "How It's Made", format: "PROCESS_EXPLAINER" });
     await db.story.create({
-      data: { title: "Where Does Your Lost Luggage Actually Go?", normalizedTitle: "lost luggage", category: "travel-transportation", premise: "Your lost suitcase travels through hidden baggage systems.", keywords: ["luggage"] },
+      data: { title: "Where Does Your Lost Luggage Actually Go?", normalizedTitle: "lost luggage", category: "c", premise: "Your lost suitcase travels through hidden baggage systems.", keywords: ["luggage"], channelId: channel.id },
     });
-    const batch = await createBatch(3);
+    const batch = await channelBatch(channel.id, null);
     const job = await newJob({ type: "BATCH_IDEATION", batchId: batch.id });
     const { deps, text } = fakeDeps();
 
-    const result = await runIdeation({ batchId: batch.id, jobId: job.id, deps });
+    const result = await runChannelIdeation({ batchId: batch.id, jobId: job.id, deps });
 
-    expect(result.candidates).toBe(6); // 2× requested
-    expect(result.duplicates).toBe(1);
-    expect(result.selected).toBe(3);
-    const concepts = await db.concept.findMany({ where: { batchId: batch.id } });
+    expect(result).toMatchObject({ pitches: 6, shown: 3, duplicates: 1 });
+    expect(text.prompts.pitch_batch[0]).toContain("Surprise me");
+    expect(text.prompts.pitch_batch[0]).toContain("Where Does Your Lost Luggage Actually Go?");
+    const concepts = await db.concept.findMany({ where: { batchId: batch.id }, orderBy: { rank: "asc" } });
+    expect(concepts.filter((c) => c.status === "CANDIDATE").map((c) => c.rank)).toEqual([1, 2, 3]);
     expect(concepts.filter((c) => c.status === "DUPLICATE")[0].duplicateOfTitle).toContain("Lost Luggage");
-    expect(concepts.filter((c) => c.status === "SELECTED")).toHaveLength(3);
-    const ranked = concepts.filter((c) => c.rank !== null).sort((a, b) => a.rank! - b.rank!);
-    expect(ranked[0].totalScore!).toBeGreaterThanOrEqual(ranked.at(-1)!.totalScore!);
-    const stories = await db.story.findMany({ where: { conceptId: { not: null } }, include: { episodes: true, bibles: true } });
-    expect(stories).toHaveLength(3);
-    for (const s of stories) {
-      expect(s.status).toBe("CONCEPT");
-      expect(s.bibles).toHaveLength(1);
-    }
-    expect(Object.keys(text.calls).sort()).toEqual(["concept_batch", "concept_evaluation"]);
-    const costs = await db.costEntry.count({ where: { batchId: batch.id } });
-    expect(costs).toBeGreaterThan(0);
+    expect(concepts.find((c) => c.rank === 1)!.scores).toMatchObject({ summary: "Works because 0." });
+    expect(Object.keys(text.calls).sort()).toEqual(["pitch_batch", "pitch_pick"]);
+    expect(await db.story.count({ where: { channelId: channel.id } })).toBe(1);
 
-    // Retrying a finished ideation job must not duplicate concepts.
-    const again = await runIdeation({ batchId: batch.id, jobId: job.id, deps });
-    expect(again.resumed).toBe(true);
-    expect(await db.concept.count({ where: { batchId: batch.id } })).toBe(concepts.length);
+    // Retrying a finished job must not duplicate pitches.
+    expect((await runChannelIdeation({ batchId: batch.id, jobId: job.id, deps })).resumed).toBe(true);
+
+    const pick = concepts.find((c) => c.rank === 1)!;
+    const story = await storyFromPitch(pick.id);
+    expect(story).toMatchObject({ channelId: channel.id, plannedParts: 5, voiceId: "voice-channel", factMode: "FACTUAL", styleKey: channel.styleKey });
+    expect(story.episodes).toHaveLength(1);
+    expect((await db.concept.findUniqueOrThrow({ where: { id: pick.id } })).status).toBe("SELECTED");
+    // Picking it again opens the same story.
+    expect((await storyFromPitch(pick.id)).id).toBe(story.id);
+  });
+
+  it("keeps the producer's own idea in every pitch", async () => {
+    const channel = await createChannel();
+    const batch = await channelBatch(channel.id, "The power grid goes down");
+    const f = fakeDeps();
+    await runChannelIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    expect(f.text.prompts.pitch_batch[0]).toContain("The power grid goes down");
+    expect(f.text.prompts.pitch_batch[0]).toContain("Keep its central situation exactly as given");
+    // An idea is meant to repeat itself across pitches, so nothing is dropped as a duplicate.
+    expect(await db.concept.count({ where: { batchId: batch.id, status: "DUPLICATE" } })).toBe(0);
   });
 
   it("produces Part 1, approves it into the bible, and continues to Part 2 with context", async () => {
     const batch = await createBatch(1);
-    const ideJob = await newJob({ type: "BATCH_IDEATION", batchId: batch.id });
     const f = fakeDeps();
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: ideJob.id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     const episodeId = episodeIds[0];
 
     const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId });
@@ -174,7 +231,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   it("regenerating one image keeps every other asset and only re-renders", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps();
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce" } }, f.deps);
     await approveScript(episodeId, f.deps);
@@ -199,7 +256,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   it("forks a new version instead of editing an approved one", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps();
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce" } }, f.deps);
     await approveScript(episodeId, f.deps);
@@ -222,7 +279,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   it("rewrites the opening into a new version and keeps the story text in sync", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps();
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce" } }, f.deps);
     await approveScript(episodeId, f.deps);
@@ -244,7 +301,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   it("keeps successful images when one scene fails, then resumes on retry", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps();
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     const episodeId = episodeIds[0];
     const failing = { ...f.deps, images: fakeImages(new Set(["5"])) };
     const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId });
@@ -264,7 +321,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   it("blocks a Part 2 that contradicts the series: saved for review, never produced, until the issue is resolved", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps();
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce" } }, f.deps);
     await approveScript(episodeId, f.deps);
@@ -301,7 +358,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   it("stops before narration when the plot keeps a blocking hole", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps({ plotAudit: "blocking-always" });
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId: episodeIds[0] });
     const err = await runEpisodeJob({ jobId: job.id, episodeId: episodeIds[0], continueProduction: true, request: { action: "produce" } }, f.deps).catch((e) => e);
     expect(err).toBeInstanceOf(StoryQualityError);
@@ -315,7 +372,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   it("plans, audits, repairs and edits a script, recording every round and its cost", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps({ plotAudit: "blocking-once", scriptAudit: "significant-once" });
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     const episodeId = episodeIds[0];
     const job = await newJob({ type: "EPISODE_PRODUCTION", episodeId });
     await runEpisodeJob({ jobId: job.id, episodeId, continueProduction: true, request: { action: "produce" } }, f.deps);
@@ -365,7 +422,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   it("needs an explicit override to produce a script with open editorial notes, and records it", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps({ editorial: "must-fix-always" });
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce" } }, f.deps);
     expect(f.text.calls.script_revision).toBe(2);
@@ -384,7 +441,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   it("fixes flagged issues as a new version, and re-checks a hand-edited line", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps({ editorial: "must-fix-once" });
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     const episodeId = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId })).id, episodeId, continueProduction: true, request: { action: "produce" } }, f.deps);
     // The editor's note was fixed automatically on the first pass.
@@ -408,8 +465,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     await db.setting.update({ where: { key: "defaults" }, data: { value: { partsPerStory: 4 } } });
     const batch = await createBatch(1);
     const f = fakeDeps();
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
-    expect(f.text.prompts.concept_batch[0]).toContain("told across 4 short videos");
+    const { episodeIds } = await seedStory(batch.id);
     const part1 = episodeIds[0];
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId: part1 })).id, episodeId: part1, continueProduction: true, request: { action: "produce" } }, f.deps);
 
@@ -464,9 +520,12 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   });
 
   it("enforces the budget before paid steps", async () => {
-    const batch = await createBatch(3, 0.0001);
+    const channel = await createChannel();
+    const batch = await channelBatch(channel.id, null, 0.0001);
     const f = fakeDeps();
-    await expect(runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps })).rejects.toBeInstanceOf(BudgetExceededError);
+    await expect(runChannelIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps })).rejects.toBeInstanceOf(
+      BudgetExceededError,
+    );
   });
 
   it("builds series around a character: pitches, narrator, reference sheet and bands layout", async () => {
@@ -479,13 +538,17 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect((await db.character.findUniqueOrThrow({ where: { id: dave.id } })).sheetUrl).toMatch(/characters\//);
     expect(await db.costEntry.count({ where: { characterId: dave.id } })).toBe(2);
 
-    const batch = await db.batch.create({
-      data: { mode: "CONCEPT", category: "survival-scenarios", requestedCount: 1, targetDurationSec: 75, styleKey: "stick-figure-color", voiceId: "voice-1", quality: "STANDARD", maxBudgetUsd: 100, characterId: dave.id },
+    // A one-part channel starring Dave, narrated by Dave.
+    const channel = await db.channel.create({
+      data: { name: "Dave", brief: "b", format: "CHARACTER_STORY", profile: CHANNEL_PROFILE, characterId: dave.id, perspective: "FIRST_PERSON", minParts: 1, maxParts: 1 },
     });
-    await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
-    expect(f.text.prompts.concept_batch[0]).toContain("Series character");
+    const batch = await channelBatch(channel.id, null);
+    await runChannelIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    expect(f.text.prompts.pitch_batch[0]).toContain("Every pitch stars Big Dave");
+    const pitch = await db.concept.findFirstOrThrow({ where: { batchId: batch.id, rank: 1 } });
+    await storyFromPitch(pitch.id);
     const story = await db.story.findFirstOrThrow({ where: { characterId: dave.id }, include: { bibles: true, episodes: true } });
-    expect(story).toMatchObject({ voiceId: "voice-dave", videoFormat: "bands" });
+    expect(story).toMatchObject({ voiceId: "voice-dave", videoFormat: "bands", plannedParts: 1 });
     expect((story.bibles[0].data as { characters: { name: string }[] }).characters[0].name).toBe("Big Dave");
 
     const episodeId = story.episodes[0].id;
@@ -495,6 +558,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     await approveScript(episodeId, f.deps);
 
     expect(f.text.prompts.story_narration[0]).toContain("NARRATOR AND HERO: Big Dave");
+    expect(f.text.prompts.story_narration[0]).toContain("CHANNEL: Dave.");
     const sceneCalls = f.images.calls.slice(imagesBefore);
     expect(sceneCalls.length).toBeGreaterThan(0);
     expect(sceneCalls.every((c) => c.size === "1536x1024")).toBe(true);
@@ -510,10 +574,81 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(mutedBandColor("#C62828")).not.toBe("#C62828");
   });
 
+  it("lets the planner choose a character story's part count within the channel's range, told by the channel's narrator", async () => {
+    const f = fakeDeps();
+    const kenny = await db.character.create({
+      data: { name: "Kenny", tagline: "t", brief: "b", personality: "p", backstory: "b", speakingStyle: "s", visualDescription: "v", perspective: "FIRST_PERSON" },
+    });
+    const channel = await createChannel({ characterId: kenny.id });
+    const batch = await channelBatch(channel.id, "The power grid goes down");
+    await runChannelIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const story = await storyFromPitch((await db.concept.findFirstOrThrow({ where: { batchId: batch.id, rank: 1 } })).id);
+    expect(story.plannedParts).toBe(5);
+    const part1 = story.episodes[0].id;
+    await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId: part1 })).id, episodeId: part1, continueProduction: true, request: { action: "produce" } }, f.deps);
+
+    expect(f.text.prompts.plot_candidates[0]).toContain("for this 3–5-part story");
+    expect(f.text.prompts.plot_candidates[0]).toContain("CHANNEL: Kenny vs the World.");
+    // The channel narrates in the third person even though Kenny's own default is first person.
+    expect(f.text.prompts.story_narration[0]).toContain("Narrate in close third person, past tense, following Kenny.");
+    const after = await db.story.findUniqueOrThrow({ where: { id: story.id }, include: { episodes: { orderBy: { partNumber: "asc" } }, bibles: true } });
+    expect(after.plannedParts).toBe(4);
+    expect(after.episodes.map((e) => [e.partNumber, e.status])).toEqual([
+      [1, "SCRIPTED"],
+      [2, "SCRIPTED"],
+      [3, "SCRIPTED"],
+      [4, "SCRIPTED"],
+    ]);
+    expect((after.bibles[0].data as { narrativePerspective: string }).narrativePerspective).toContain("Close third person");
+  });
+
+  it("writes a How It's Made series from web research, fact-checks each part against it, and keeps the research for rewrites", async () => {
+    const f = fakeDeps({ processAudit: "significant-once" });
+    const channel = await createChannel({ name: "How It's Made", format: "PROCESS_EXPLAINER" });
+    const batch = await channelBatch(channel.id, "Crayons");
+    await runChannelIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const story = await storyFromPitch((await db.concept.findFirstOrThrow({ where: { batchId: batch.id, rank: 1 } })).id);
+    const part1 = story.episodes[0].id;
+    await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId: part1 })).id, episodeId: part1, continueProduction: true, request: { action: "produce" } }, f.deps);
+
+    expect(f.research.calls).toBe(1);
+    expect(f.text.calls).toMatchObject({ research_notes: 1, process_plan: 1, process_narration: 4, scene_breakdown: 4, process_revision: 1 });
+    expect(f.text.calls.plot_candidates).toBeUndefined();
+    expect(f.text.calls.hook_candidates).toBeUndefined();
+    expect(f.text.prompts.process_narration[0]).toContain("about 80 degrees Celsius");
+    expect(f.text.prompts.process_audit[0]).toContain("RESEARCH NOTES");
+    // Research costs tokens plus each web search.
+    const research = await db.costEntry.findFirstOrThrow({ where: { operation: "research" } });
+    expect(Number(research.costUsd)).toBeGreaterThan(0.02);
+
+    const saved = await db.story.findUniqueOrThrow({ where: { id: story.id }, include: { episodes: { orderBy: { partNumber: "asc" }, include: { currentVersion: true } } } });
+    expect(saved.plannedParts).toBe(4);
+    expect((saved.research as { sources: { url: string }[] }).sources[0].url).toBe("https://example.test/crayons");
+    for (const e of saved.episodes) {
+      const spec = e.currentVersion!.spec as EpisodeSpecRecord;
+      expect(spec.process?.part).toBe(e.partNumber);
+      expect(spec.plot).toBeUndefined();
+      expect(e.status).toBe("SCRIPTED");
+      expect(e.currentVersion!.qualityStatus).toBe("passed");
+    }
+    // Part 1's unsupported claim was fixed by one revision.
+    const q1 = (saved.episodes[0].currentVersion!.spec as EpisodeSpecRecord).quality!;
+    expect(q1.scriptRounds).toHaveLength(2);
+    expect(q1.scriptRounds[0].issues[0].category).toBe("unsupported-claim");
+
+    // Rewriting Part 3 reuses the saved research and plan.
+    const part3 = saved.episodes[2];
+    await runEpisodeJob({ jobId: (await newJob({ type: "REGENERATE_SCRIPT", episodeId: part3.id })).id, episodeId: part3.id, continueProduction: false, request: { action: "regenerate-script" } }, f.deps);
+    expect(f.research.calls).toBe(1);
+    expect(f.text.calls.process_plan).toBe(1);
+    expect(f.text.prompts.process_narration.at(-1)).toContain("EARLIER PARTS, AS NARRATED");
+    expect(await db.episodeVersion.count({ where: { episodeId: part3.id } })).toBe(2);
+  });
+
   it("checks each image and redraws a wrong one once, with the problem spelled out", async () => {
     const batch = await createBatch(1);
     const f = fakeDeps({}, { rejectOnce: new Set(["3"]) });
-    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    const { episodeIds } = await seedStory(batch.id);
     await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId: episodeIds[0] })).id, episodeId: episodeIds[0], continueProduction: true, request: { action: "produce" } }, f.deps);
     await approveScript(episodeIds[0], f.deps);
     expect(f.images.count).toBe(13); // 12 scenes + 1 redraw

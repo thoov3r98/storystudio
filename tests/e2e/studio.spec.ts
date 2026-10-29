@@ -37,18 +37,28 @@ test.describe("studio pages", () => {
     await expect(page.getByRole("switch")).toHaveCount(0);
   });
 
-  test("generate form updates the cost estimate", async ({ page }) => {
+  test("make videos: pick a channel, then give an idea or be surprised", async ({ page }) => {
     await page.goto("/generate");
-    await expect(page.getByRole("heading", { name: "Generate opening episodes" })).toBeVisible();
-    const total = page.locator("aside").getByText(/^≈ \$/).first();
-    const conceptCost = await total.textContent();
-    await page.getByRole("radio", { name: /Full production/ }).click();
-    await expect(total).not.toHaveText(conceptCost ?? "");
-    await expect(page.getByText("Episodes the budget covers")).toBeVisible();
-    // "Your own topic" is the default and needs a prompt before a batch can start.
-    await expect(page.getByRole("button", { name: "Start production batch" })).toBeDisabled();
-    await page.getByLabel("What should these videos be about?").fill("Strange true stories from ancient Rome");
-    await expect(page.getByRole("button", { name: "Start production batch" })).toBeEnabled();
+    await expect(page.getByRole("heading", { name: "Make videos" })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /Dave vs the World/ })).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByLabel("What does Test Dave face this time?")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Pitch this idea" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Surprise me" })).toBeEnabled();
+    await page.getByRole("button", { name: "The grid goes down" }).click();
+    await expect(page.getByRole("button", { name: "Pitch this idea" })).toBeEnabled();
+    await page.getByRole("radio", { name: /How It's Made/ }).click();
+    await expect(page.getByLabel("Which product?")).toBeVisible();
+    await expect(page.getByText("researched on the web")).toBeVisible();
+  });
+
+  test("channels: list and edit the profile", async ({ page }) => {
+    await page.goto("/channels");
+    await expect(page.getByRole("heading", { name: "Channels", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Set up channel" })).toBeDisabled();
+    await page.getByRole("link", { name: "How It's Made", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "How It's Made" })).toBeVisible();
+    await expect(page.getByLabel("Voice")).toHaveValue("Plain and factual.");
+    await expect(page.getByRole("button", { name: "Save channel" })).toBeVisible();
   });
 
   test("story library filters and searches", async ({ page }) => {
@@ -146,7 +156,7 @@ test.describe("studio pages", () => {
     await expect(page.getByRole("heading", { name: "Models & pricing" })).toBeVisible();
   });
 
-  test("characters: list, edit page and making videos starring them", async ({ page }) => {
+  test("characters: list, edit page and the channels they star in", async ({ page }) => {
     await page.goto("/characters");
     await expect(page.getByRole("heading", { name: "Characters", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Design character" })).toBeDisabled();
@@ -154,10 +164,8 @@ test.describe("studio pages", () => {
     await expect(page.getByRole("heading", { name: "Test Dave" })).toBeVisible();
     await expect(page.getByLabel("Name")).toHaveValue("Test Dave");
     await expect(page.getByRole("button", { name: "Draw character" })).toBeVisible();
-    await page.getByRole("link", { name: "Make videos with Test Dave" }).click();
-    await expect(page).toHaveURL(/\/generate\?character=/);
-    // Client navigation can leave a hidden copy of the previous render in the DOM; match the visible one.
-    await expect(page.getByText("Starring", { exact: true }).filter({ visible: true })).toBeVisible();
-    await expect(page.getByText("Test Dave", { exact: true }).filter({ visible: true })).toBeVisible();
+    await page.getByRole("link", { name: "Channels" }).filter({ visible: true }).last().click();
+    await expect(page).toHaveURL(/\/channels$/);
+    await expect(page.getByText("Stars Test Dave").filter({ visible: true })).toBeVisible();
   });
 });

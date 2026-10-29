@@ -1,16 +1,15 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { JobStatusBadge, Money, PageHeader, PageSkeleton } from "@/components/studio";
 import { AutoRefresh } from "@/components/client-helpers";
 import { Progress } from "@/components/ui/progress";
 import { getBatch } from "@/lib/queries";
-import { ACTIVE_JOB_STATUSES, categoryLabel, QUALITY_PRESETS } from "@/lib/constants";
-import { estimateEpisodeCost } from "@/lib/costs/estimate";
-import { getDefaults, getPricing, getModels } from "@/lib/settings";
-import { ConceptBoard } from "./concept-board";
+import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
+import { PitchBoard } from "./concept-board";
 
-export const metadata: Metadata = { title: "Batch" };
+export const metadata: Metadata = { title: "Pitches" };
 
 export default function BatchPage(props: PageProps<"/batches/[batchId]">) {
   return (
@@ -27,19 +26,24 @@ async function BatchContent({ params }: { params: PageProps<"/batches/[batchId]"
   const { batch, spentUsd } = data;
   const ideationJob = batch.jobs.find((j) => j.type === "BATCH_IDEATION");
   const active = batch.jobs.some((j) => ACTIVE_JOB_STATUSES.includes(j.status));
-  // Only scripts are written from here; media is made per episode once its script is approved.
-  const perEpisode = estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: batch.targetDurationSec, quality: batch.quality, parts: (await getDefaults()).partsPerStory }).text;
 
   return (
     <>
       <AutoRefresh active={active} />
       <PageHeader
-        eyebrow={`${batch.mode === "CONCEPT" ? "Concept batch" : "Production batch"} · ${batch.createdAt.toLocaleString()}`}
-        title={`${batch.requestedCount} × ${categoryLabel(batch.category)}`}
+        eyebrow={
+          batch.channel ? (
+            <Link href={`/channels/${batch.channel.id}`} className="hover:underline">
+              {batch.channel.name}
+            </Link>
+          ) : (
+            "Before channels"
+          )
+        }
+        title={batch.customDirection ? `“${batch.customDirection}”` : "Surprise me"}
         description={
           <>
-            {batch.targetDurationSec}s · {QUALITY_PRESETS[batch.quality].label} quality · budget ${Number(batch.maxBudgetUsd).toFixed(2)} · spent <Money value={spentUsd} />
-            {batch.customDirection ? <span className="mt-1 block italic">“{batch.customDirection}”</span> : null}
+            {batch.createdAt.toLocaleString()} · spent <Money value={spentUsd} />
           </>
         }
       />
@@ -54,30 +58,24 @@ async function BatchContent({ params }: { params: PageProps<"/batches/[batchId]"
           </div>
           <Progress value={ideationJob.progress * 100} className="mt-3" />
           {ideationJob.status === "FAILED" ? (
-            <p className="mt-3 text-sm text-destructive">{(ideationJob.error as { message?: string } | null)?.message ?? "Ideation failed."} Retry it from Generation Jobs.</p>
+            <p className="mt-3 text-sm text-destructive">{(ideationJob.error as { message?: string } | null)?.message ?? "Pitching failed."} Retry it from Generation Jobs.</p>
           ) : null}
         </div>
       ) : null}
 
-      <ConceptBoard
-        batchId={batch.id}
-        perEpisodeEstimate={perEpisode}
+      <PitchBoard
+        canWrite={Boolean(batch.channel)}
         concepts={batch.concepts.map((c) => ({
           id: c.id,
           title: c.title,
           premise: c.premise,
           logline: c.logline,
-          factMode: c.factMode,
-          seriesPotential: c.seriesPotential,
+          arc: c.seriesPotential,
           status: c.status,
           rank: c.rank,
-          totalScore: c.totalScore,
-          scores: c.scores as Record<string, { score: number; rationale: string }> & { summary?: string } | null,
+          reason: (c.scores as { summary?: string } | null)?.summary ?? null,
           duplicateOfTitle: c.duplicateOfTitle,
-          similarity: c.similarity,
           storyId: c.story?.id ?? null,
-          episodeId: c.story?.episodes[0]?.id ?? null,
-          episodeStatus: c.story?.episodes[0]?.status ?? null,
         }))}
       />
     </>

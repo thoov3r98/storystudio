@@ -90,6 +90,19 @@ export const BUILT_IN_REFERENCES: ReferenceStory[] = [
     source: "built-in",
     text: `At two in the morning, the baby monitor in Jess's hand started humming. Not static. A lullaby. A woman's voice, soft and close, the way you sing with your face right by the crib. Jess was alone in the house. She took the stairs two at a time and pushed open the nursery door. Her daughter was asleep. The room was empty. The little camera on the dresser was dark and silent. But the monitor in her hand was still humming. She stood in the doorway listening, and slowly it made sense. Old monitors share channels, and the couple next door had brought their new baby home on Sunday. It wasn't in her house at all. She almost laughed. Then the humming stopped. And the woman on the monitor said, quietly, I know you can hear me, Jess. Close her window.`,
   },
+  {
+    id: "builtin-wrong-dog",
+    title: "The Wrong Dog (original example)",
+    archetype: "everyday",
+    hookStyle: "plain-situation",
+    structure: "Ordinary errand → small detail noticed → simple, sensible steps → a plain, warm resolution",
+    tone: "plain, warm, curious",
+    pacing: "Calm and descriptive; interest comes from the situation and its details, not suspense",
+    endingType: "resolution",
+    qualities: ["engaging without manufactured tension", "the clue is planted plainly (the white paw)", "each step is the obvious sensible one", "a warm ending that follows from what came before"],
+    source: "built-in",
+    text: `Theo picked up his dog from the groomer on Saturday, paid, and drove home with her asleep on the back seat. It was only when she walked straight past her own bed and lay down by the front door that he looked at her properly. Same size. Same curly grey coat, freshly trimmed. But Biscuit had a white patch on her left front paw, and this dog's paws were all grey. He rang the groomer, but they had closed for the weekend. Her collar had no tag, just the blue ribbon the groomer ties on every dog. So he took her photo and posted it in the neighbourhood group, saying he thought he had someone's dog, and that they probably had his. An hour later a woman two streets away replied with a photo of her own sofa. On it was Biscuit, white paw and all, chewing a slipper. They met halfway, outside the corner shop, each holding a lead. The two dogs ignored them and sniffed each other for a long time. The woman said her dog, Pepper, had never once slept in a car. Theo said Biscuit had never once chewed a slipper. They swapped leads, and then, since they were both standing there anyway, phone numbers, for the next time the groomer had a busy Saturday.`,
+  },
 ];
 
 /** Picks the references most like the episode being written, never more than `max`. */
@@ -112,7 +125,7 @@ export function selectReferences(all: ReferenceStory[], want: { archetype?: stri
 export function referenceBlock(refs: ReferenceStory[]): string {
   if (refs.length === 0) return "";
   return `REFERENCE STORIES (craft examples only)
-Study how fast the situation becomes clear, how setups are planted before they pay off, how each moment causes the next, and how little explanation is needed. Do NOT copy their wording, characters, situations or twists.
+Study how fast the situation becomes clear, how setups are planted before they pay off, how each moment causes the next, and how little explanation is needed. Do NOT copy their wording, characters, situations, twists or tone: take the tone from this story's own events.
 
 ${refs.map((r) => `### ${r.title}\n${r.archetype} · hook: ${r.hookStyle} · ending: ${r.endingType}\nWhat it does well: ${r.qualities.join("; ")}\nShape: ${r.structure}\n\n${r.text}`).join("\n\n")}`;
 }

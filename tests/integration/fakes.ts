@@ -8,10 +8,8 @@ import type { ImageProvider } from "@/lib/providers/images";
 import type { SpeechProvider } from "@/lib/providers/speech";
 import type { RenderClient } from "@/lib/render/client";
 import type { PipelineDeps } from "@/lib/pipeline/deps";
-import { CRITERIA } from "@/lib/schemas/concept";
 import type { EpisodeDraft } from "@/lib/schemas/episode";
 
-const scores = (n: number) => Object.fromEntries(CRITERIA.map((c) => [c.key, { score: n, rationale: "test" }]));
 
 const SUBJECTS = ["luggage", "water", "elevators", "subway", "mail", "ports", "power", "satellites", "bridges", "sewers", "trains", "hospitals", "shipping", "airports", "tunnels", "dams", "trucks", "ferries", "cables", "grain"];
 
@@ -22,6 +20,8 @@ export type FakeTextOptions = {
   scriptAudit?: "pass" | "significant-once" | "blocking-always" | "series-conflict";
   /** Editorial review: a must-fix note on the first read, or on every read. */
   editorial?: "ready" | "must-fix-once" | "must-fix-always";
+  /** Process explainer fact-check: an unsupported claim that one revision fixes. */
+  processAudit?: "pass" | "significant-once";
 };
 
 /** A valid five-beat causal plot (setups planted before use, every beat caused). */
@@ -174,7 +174,7 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
     calls,
     prompts,
     models,
-    async generate({ schemaName, user, model }) {
+    async generate({ schemaName, system, user, model }) {
       calls[schemaName] = (calls[schemaName] ?? 0) + 1;
       models[schemaName] = model;
       (prompts[schemaName] ??= []).push(user);
@@ -192,35 +192,98 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
             visualDescription: "Big round stick figure with a beard, red flannel shirt and a trucker cap.",
             signatureColor: "#C62828",
           });
-        case "concept_batch": {
-          const n = Number(/Pitch exactly (\d+)/.exec(user)?.[1] ?? 4);
+        case "channel_design":
           return out({
-            concepts: Array.from({ length: n }, () => {
+            name: "Grandma Tries It",
+            format: "CHARACTER_STORY",
+            perspective: "THIRD_PERSON",
+            minParts: 2,
+            maxParts: 3,
+            profile: {
+              summary: "A grandma tries a new job every week.",
+              subjects: "Everyday jobs.",
+              voice: "Warm, plain, third person.",
+              structure: "One job per story, in time order.",
+              avoid: ["Drama"],
+              surpriseMe: "Pick a job she hasn't tried.",
+              examples: ["Barista", "Bus driver", "Lifeguard"],
+            },
+          });
+        case "pitch_batch": {
+          const n = Number(/Pitch exactly (\d+)/.exec(user)?.[1] ?? 6);
+          return out({
+            pitches: Array.from({ length: n }, () => {
               const i = conceptCounter++;
               const subject = SUBJECTS[i % SUBJECTS.length];
-              // The 4th concept duplicates the library's "lost luggage" story.
-              const title = i === 3 ? "Where Does Lost Luggage Go?" : `The Secret Life of ${subject} ${i}`;
+              // The 4th pitch repeats the channel's existing "lost luggage" story.
+              const title = i === 3 ? "Where Does Lost Luggage Go?" : `The ${subject} problem ${i}`;
               return {
                 title,
                 premise: i === 3 ? "Your lost suitcase travels through hidden baggage systems at the airport." : `Unique premise about ${subject} number ${i} and zebra${i} quartz${i}.`,
                 logline: `Logline ${i}`,
-                category: "hidden-infrastructure",
                 keywords: [subject, `k${i}`],
-                openingSituation: `You notice ${subject}`,
-                seriesPotential: "Many parts",
-                archetype: "mystery",
-                dramaticQuestion: `What is behind the ${subject}?`,
-                beatSketch: "It starts. It turns. It pays off.",
+                openingSituation: `It starts with ${subject}`,
+                arc: "It starts. It builds. It ends well.",
               };
             }),
           });
         }
-        case "concept_evaluation": {
+        case "pitch_pick": {
           const n = (user.match(/^\[\d+\]/gm) ?? []).length;
-          return out({ evaluations: Array.from({ length: n }, (_, i) => ({ conceptIndex: i, scores: scores(4 + ((i * 3) % 6)), summary: "ok" })) });
+          const keep = Math.min(n, Number(/Choose the (\d+) pitches/.exec(system)?.[1] ?? 3));
+          return out({ picks: Array.from({ length: keep }, (_, i) => ({ index: n - 1 - i, reason: `Works because ${i}.` })) });
+        }
+        case "research_notes":
+          return out({
+            product: "Crayons",
+            overview: "Crayons are paraffin wax and pigment, melted, moulded, wrapped and boxed.",
+            stages: ["Melting the wax", "Moulding", "Wrapping", "Boxing"].map((name, i) => ({
+              id: `T${i + 1}`,
+              name,
+              steps: [{ what: `${name} happens.`, details: i === 0 ? "about 80 degrees Celsius" : "", sources: ["1"] }],
+            })),
+            uncertain: ["How many colours are made a day"],
+          });
+        case "process_plan": {
+          const [, min, max] = /across (\d+)–(\d+) videos/.exec(system) ?? ["", "1", "1"];
+          const stages = [...user.matchAll(/^(T\d+) /gm)].map((m) => m[1]);
+          const count = Math.max(Number(min), Math.min(Number(max), stages.length));
+          const per = Math.ceil(stages.length / count);
+          return out({
+            parts: Array.from({ length: count }, (_, i) => ({
+              part: i + 1,
+              title: `Stage group ${i + 1}`,
+              stages: stages.slice(i * per, (i + 1) * per),
+              opening: i === 0 ? "This is how crayons are made." : `Crayons, part ${i + 1}.`,
+              endsAt: i === count - 1 ? "Boxed and shipped" : `Stage group ${i + 2}`,
+            })),
+          });
+        }
+        case "process_narration": {
+          const part = Number(/Narration for Part (\d+)/i.exec(system)?.[1] ?? 1);
+          const d = makeDraft(part === 1 ? "This is how crayons are made." : `Crayons, part ${part}.`, part, 12, "worker");
+          return out({ title: `How crayons are made, part ${part}`, storyNarration: d.storyNarration, summary: `Part ${part} of crayons.` });
+        }
+        case "process_audit": {
+          const narration = between(user, "SCRIPT\n");
+          const quote = narration.split(" ").slice(6, 12).join(" ");
+          const fail = opts.processAudit === "significant-once" && calls.process_audit === 1;
+          return out({
+            intendedUnknowns: [],
+            issues: fail ? [{ ...AUDIT_ISSUE("significant", quote, "unsupported-claim"), location: "Sentence 2" }] : [],
+            previousIssues: user.includes("EARLIER ISSUES") ? issueIds(user).map((id) => ({ id, resolved: !fail, note: "" })) : [],
+          });
+        }
+        case "process_revision": {
+          const narration = between(user, "CURRENT SCRIPT", "\u0000").replace(/^\(Part .*\)\n/, "");
+          const sentences = narration.split(/(?<=\.)\s+/);
+          sentences[2] = sentences[2].replace(/\.$/, " revised.");
+          return out({ title: "Revised crayons", storyNarration: sentences.join(" "), summary: "Revised.", changeLog: issueIds(user).map((issueId) => ({ issueId, change: "Kept to the research." })) });
         }
         case "plot_candidates": {
-          const count = Number(/for this (\d+)-part story/.exec(user)?.[1] ?? 1);
+          // A range ("3–5-part story") leaves the count to the planner; the fake picks one below the most.
+          const [, fewest, most] = /for this (\d+)(?:–(\d+))?-part story/.exec(user) ?? ["", "1"];
+          const count = most ? Math.max(Number(fewest), Number(most) - 1) : Number(fewest);
           const plot = count > 1 ? fakeStoryPlot(count) : FAKE_PLOT;
           return out({ plots: [plot, { ...plot, dramaticQuestion: count > 1 ? `Second ${count}-part plot` : "Second plot" }] });
         }
@@ -419,11 +482,30 @@ export function fakeRender(): RenderClient & { renders: RenderCall[] } {
   return client;
 }
 
+/** Web research that returns a fixed report about crayons. */
+export function fakeResearch() {
+  const client = {
+    calls: 0,
+    async search() {
+      client.calls++;
+      return {
+        text: "Crayons are made from paraffin wax and powdered pigment. ".repeat(10),
+        sources: [{ url: "https://example.test/crayons", title: "How crayons are made" }],
+        searches: 2,
+        model: "gpt-test",
+        usage: { inputTokens: 1000, cachedInputTokens: 0, outputTokens: 800 },
+      };
+    },
+  };
+  return client;
+}
+
 export function fakeDeps(opts: FakeTextOptions = {}, imageOpts: { rejectOnce?: Set<string> } = {}) {
   const text = fakeText(opts);
   const images = fakeImages(new Set(), imageOpts);
   const speech = fakeSpeech();
   const render = fakeRender();
-  const deps: PipelineDeps = { text, images, speech, render: () => render };
-  return { deps, text, images, speech, render };
+  const research = fakeResearch();
+  const deps: PipelineDeps = { text, research, images, speech, render: () => render };
+  return { deps, text, images, speech, render, research };
 }
