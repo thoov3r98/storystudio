@@ -35,6 +35,17 @@ export const ILLUSTRATION_STYLES = {
       "No gradients, no shading, no photorealism, no 3D, no logos, no text, letters, numbers or captions anywhere in the image.",
     ].join(" "),
   },
+  "stick-figure-full-color": {
+    label: "Coloured-in stick figures",
+    description: "Simple stick figures with everything coloured in: flat, soft colours on people, objects and backgrounds.",
+    spec: [
+      "Simple stick-figure cartoon illustration, fully coloured in like a neat colouring-book page.",
+      "Thick, consistent black ink outlines, round heads, simple expressive poses and clear facial expressions.",
+      "Every area is filled with flat colour: clothing, objects, buildings, ground and sky or walls. Use a soft, friendly palette of a few muted colours per scene, with the main character's signature clothing colour always the same.",
+      "Simple readable settings with a few key props; at most three figures; one clear action.",
+      "No gradients, no shading, no textures, no photorealism, no 3D, no logos, no text, letters, numbers or captions anywhere in the image.",
+    ].join(" "),
+  },
   "stick-figure": {
     label: "Minimal stick figures",
     description: "Black-and-white stick figures on off-white, flat, diagram-like.",
