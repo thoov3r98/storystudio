@@ -7,7 +7,8 @@ import { countWords, DEFAULT_WORDS_PER_SECOND, estimateSpokenDuration, joinNarra
 import { getAudioMix, getPricing, getModels, scriptModels, voiceWordsPerSecond } from "@/lib/settings";
 import { assertWithinBudget, type CostContext } from "@/lib/costs/record";
 import { setJobStage } from "@/lib/jobs";
-import { type ComposeDeps, type ComposeInput, type ComposeResult, composeScript, recheckScript, reviseComposed, type ScriptState } from "@/lib/story/compose";
+import { type ComposeDeps, type ComposeInput, type ComposeResult, composePart, composeScript, composeStory, recheckScript, reviseComposed, type ScriptState } from "@/lib/story/compose";
+import { partBrief } from "@/lib/ai/story-prompts";
 import { BUILT_IN_REFERENCES, type ReferenceStory } from "@/lib/story/references";
 import { approvedHistory, loadCanonicalBible, selectContinuationContext } from "./context";
 import type { PipelineDeps } from "./deps";
@@ -81,18 +82,62 @@ async function composeContext(ctx: WriteContext, setup: Setup, direction?: strin
   };
 }
 
-export type WriteResult = { versionId: string; quality: QualityRecord };
+export type WriteResult = { versionId: string; quality: QualityRecord; parts?: number };
+
+/** The saved multi-part plan for this story, if Part 1 was written as one: the plot and each part's current script. */
+async function loadStoryPlan(storyId: string) {
+  const episodes = await db.episode.findMany({ where: { storyId }, orderBy: { partNumber: "asc" }, include: { currentVersion: true } });
+  const plot = episodes.map((e) => (e.currentVersion?.spec as EpisodeSpecRecord | undefined)?.plot).find((p) => (p?.parts?.length ?? 0) > 1);
+  return plot ? { plot, episodes } : null;
+}
 
 /**
  * Writes a complete new script version for an episode with the planned,
  * verified pipeline (see docs/story-quality.md) and stops at the script gate.
- * The proposed bible update is stored as a pending proposal, never applied here.
+ * For a multi-part story, writing Part 1 plans the whole story and writes
+ * every part (each its own episode, each stopping at the gate); rewriting a
+ * later part keeps the plan. Bible updates are stored as pending proposals.
  */
-export async function writeEpisode(ctx: WriteContext & { reason: string; direction?: string | null }): Promise<WriteResult> {
+export async function writeEpisode(ctx: WriteContext & { reason: string; direction?: string | null; replanStory?: boolean }): Promise<WriteResult> {
   const setup = await loadEpisodeSetup(ctx.episodeId);
+  const { episode, story } = setup;
+  const parts = story.plannedParts;
   const { input, deps } = await composeContext(ctx, setup, ctx.direction);
+  const plan = parts > 1 ? await loadStoryPlan(story.id) : null;
+
+  // One part of an already planned story: rewrite it from the saved plan.
+  if (plan && !(episode.partNumber === 1 && ctx.replanStory) && episode.partNumber <= (plan.plot.parts?.length ?? 0)) {
+    const earlier = plan.episodes.filter((e) => e.partNumber < episode.partNumber).map((e) => e.currentVersion?.narration ?? "");
+    const saved = plan.episodes.find((e) => e.currentVersion)?.currentVersion?.spec as EpisodeSpecRecord;
+    const result = await composePart({ ...input, partNumber: 1, parts: plan.plot.parts.length }, deps, {
+      plot: plan.plot,
+      part: episode.partNumber,
+      earlier,
+      plotRounds: saved.quality?.plotRounds ?? [],
+    });
+    return saveComposed(setup, episode, result, ctx.reason);
+  }
+
+  // A new story, or replanning one: plan every part together.
+  if (parts > 1 && episode.partNumber === 1) {
+    const produced = plan?.episodes.filter((e) => !["DRAFT", "SCRIPTED", "FAILED"].includes(e.status)) ?? [];
+    if (produced.length) throw new Error(`Part ${produced[0].partNumber} has already been produced, so the story can't be replanned. Rewrite individual parts instead.`);
+    const results = await composeStory({ ...input, parts }, deps);
+    let first: WriteResult | null = null;
+    for (const result of results) {
+      const n = result.quality.part;
+      const target =
+        n === 1
+          ? episode
+          : ((await db.episode.findFirst({ where: { storyId: story.id, partNumber: n } })) ?? (await db.episode.create({ data: { storyId: story.id, partNumber: n, title: result.draft.title } })));
+      const saved = await saveComposed(setup, target, result, ctx.reason);
+      first ??= saved;
+    }
+    return { ...first!, parts };
+  }
+
   const result = await composeScript(input, deps);
-  return saveComposed(ctx, setup, result, ctx.reason);
+  return saveComposed(setup, episode, result, ctx.reason);
 }
 
 /** Fixes the open issues flagged on the current script with targeted revisions, as a new version. */
@@ -102,13 +147,24 @@ export async function reviseEpisode(ctx: WriteContext): Promise<WriteResult> {
   const spec = version.spec as EpisodeSpecRecord;
   if (!spec.plot || !spec.quality) throw new Error("This script was written before the quality checks. Regenerate it instead.");
   const { input, deps } = await composeContext(ctx, setup);
-  const result = await reviseComposed(input, deps, { state: scriptState(spec, version.narration), quality: spec.quality });
-  return saveComposed(ctx, setup, result, "revise-issues");
+  const state = await scriptState(setup.story.id, spec, version.narration);
+  const result = await reviseComposed({ ...input, parts: spec.plot.parts?.length ?? 1 }, deps, { state, quality: spec.quality });
+  return saveComposed(setup, setup.episode, result, "revise-issues");
 }
 
-function scriptState(spec: EpisodeSpecRecord, narration: string): ScriptState {
+/** Rebuilds a saved script's working state, including what earlier parts of the story told. */
+async function scriptState(storyId: string, spec: EpisodeSpecRecord, narration: string): Promise<ScriptState> {
+  const plot = spec.plot!;
+  const part = spec.quality?.part ?? 1;
+  let earlier: string[] = [];
+  if ((plot.parts?.length ?? 0) > 1 && part > 1) {
+    const eps = await db.episode.findMany({ where: { storyId, partNumber: { lt: part } }, orderBy: { partNumber: "asc" }, include: { currentVersion: { select: { narration: true } } } });
+    earlier = eps.map((e) => e.currentVersion?.narration ?? "");
+  }
   return {
-    plot: spec.plot!,
+    plot,
+    part,
+    brief: partBrief(plot, part, earlier),
     hook: spec.selectedHook,
     hookPromise: spec.quality?.hooks?.pick.promise ?? "",
     title: spec.title,
@@ -119,8 +175,8 @@ function scriptState(spec: EpisodeSpecRecord, narration: string): ScriptState {
   };
 }
 
-async function saveComposed(ctx: WriteContext, setup: Setup, result: ComposeResult, reason: string): Promise<WriteResult> {
-  const { episode, story } = setup;
+async function saveComposed(setup: Setup, episode: { id: string; partNumber: number; currentVersionId: string | null }, result: ComposeResult, reason: string): Promise<WriteResult> {
+  const { story } = setup;
   const versionId = await persistVersion({
     episodeId: episode.id,
     storyId: story.id,
@@ -276,6 +332,6 @@ async function recheckVersion(ctx: WriteContext, setup: Setup, versionId: string
   const spec = version.spec as EpisodeSpecRecord;
   if (!spec.plot || !spec.quality) return;
   const { input, deps } = await composeContext(ctx, setup);
-  const quality = await recheckScript(input, deps, scriptState(spec, version.narration), spec.quality);
+  const quality = await recheckScript({ ...input, parts: spec.plot.parts?.length ?? 1 }, deps, await scriptState(setup.story.id, spec, version.narration), spec.quality);
   await db.episodeVersion.update({ where: { id: versionId }, data: { spec: { ...spec, quality }, qualityStatus: quality.status } });
 }

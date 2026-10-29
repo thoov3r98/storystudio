@@ -208,6 +208,8 @@ model Story {
   styleKey             String      @default("stick-figure")
   voiceId              String?
   targetDurationSec    Int         @default(75)
+  /// How many videos one story is planned across. Writing Part 1 plans and writes every part.
+  plannedParts         Int         @default(1)
   quality              Quality     @default(STANDARD)
   thumbnailUrl         String?
   /// "bands": 3:2 landscape art between coloured title/caption bands. "full": legacy full-frame portrait art.

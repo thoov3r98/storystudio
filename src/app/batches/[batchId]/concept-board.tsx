@@ -150,7 +150,7 @@ export function ConceptBoard({ batchId, concepts, perEpisodeEstimate }: { batchI
               onSuccess={() => setPicked(new Set())}
               confirm={{
                 title: `Write ${pickedEpisodeIds.length} script${pickedEpisodeIds.length === 1 ? "" : "s"}?`,
-                description: `Plans, checks and writes each episode's script, then stops so you can review it. Images, narration and rendering start only when you approve a script. Estimated ≈ ${formatUsd(perEpisodeEstimate * pickedEpisodeIds.length)} for the scripts (≈ ${formatUsd(perEpisodeEstimate)} each).`,
+                description: `Plans each story, checks it and writes the scripts for all its parts, then stops so you can review them. Images, narration and rendering start only when you approve a part. Estimated ≈ ${formatUsd(perEpisodeEstimate * pickedEpisodeIds.length)} for the scripts (≈ ${formatUsd(perEpisodeEstimate)} per story).`,
                 confirmLabel: "Write scripts",
               }}
             >

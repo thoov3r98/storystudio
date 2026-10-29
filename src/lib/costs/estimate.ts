@@ -40,6 +40,8 @@ export type Calibration = {
 export type EpisodeEstimateInput = {
   durationSec: number;
   quality: Quality;
+  /** Writing a multi-part story writes every part at once; `text` covers all of them, media is for one part. */
+  parts?: number;
 };
 
 export type CostBreakdown = { text: number; images: number; speech: number; render: number; total: number };
@@ -67,6 +69,9 @@ export function estimateEpisodeCost(pricing: Pricing, models: ModelNames, input:
   const reviewer = preset.reviewerModel === "main" ? models.main : models.fast;
   const h = TOKEN_HEURISTICS;
   const scale = input.durationSec / 75;
+  const p = input.parts ?? 1;
+  // The plan for several parts is longer; everything after it happens once per part.
+  const plan = p > 1 ? 1.8 : 1;
   // Matches scriptModels() in settings: checking uses the strongest model except at Draft.
   const checker = input.quality === "DRAFT" ? models.fast : models.reviewer?.trim() || models.main;
   const calls = (model: string, steps: [{ input: number; output: number }, number][]) =>
@@ -76,19 +81,19 @@ export function estimateEpisodeCost(pricing: Pricing, models: ModelNames, input:
     });
   let text =
     calls(writer, [
-      [h.plotCandidates, 1],
-      [h.plotRepair, h.expectedPlotRepairs],
-      [h.hookCandidates, 1],
-      [h.narration, 1],
-      [h.scriptRevision, h.expectedRevisions],
-      [h.sceneBreakdown, 1],
+      [h.plotCandidates, plan],
+      [h.plotRepair, h.expectedPlotRepairs * plan],
+      [h.hookCandidates, p],
+      [h.narration, p],
+      [h.scriptRevision, h.expectedRevisions * p],
+      [h.sceneBreakdown, p],
     ]) +
     calls(checker, [
-      [h.plotPick, 1],
-      [h.plotAudit, 1 + h.expectedPlotRepairs],
-      [h.hookPick, 1],
-      [h.scriptAudit, 1 + h.expectedRevisions],
-      [h.editorialReview, 1 + h.expectedRevisions],
+      [h.plotPick, plan],
+      [h.plotAudit, (1 + h.expectedPlotRepairs) * plan],
+      [h.hookPick, p],
+      [h.scriptAudit, (1 + h.expectedRevisions) * p],
+      [h.editorialReview, (1 + h.expectedRevisions) * p],
     ]);
   text *= cal.textFactor;
 
@@ -110,11 +115,12 @@ export function estimateEpisodeCost(pricing: Pricing, models: ModelNames, input:
 export function estimateBatchCost(
   pricing: Pricing,
   models: ModelNames,
-  input: { requested: number; durationSec: number; quality: Quality; fullProduction: boolean },
+  input: { requested: number; durationSec: number; quality: Quality; fullProduction: boolean; parts?: number },
   cal?: Calibration,
 ): { ideation: CostBreakdown; perEpisode: CostBreakdown; total: number } {
   const ideation = estimateIdeationCost(pricing, models, input.requested, input.quality, cal);
-  const perEpisode = estimateEpisodeCost(pricing, models, { durationSec: input.durationSec, quality: input.quality }, cal);
+  // Per story: every part's script, plus media for Part 1 (later parts are made one at a time).
+  const perEpisode = estimateEpisodeCost(pricing, models, { durationSec: input.durationSec, quality: input.quality, parts: input.parts }, cal);
   const total = ideation.total + (input.fullProduction ? perEpisode.total * input.requested : 0);
   return { ideation, perEpisode, total };
 }

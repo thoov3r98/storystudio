@@ -33,11 +33,12 @@ export function criteriaGuide(): string {
   return CRITERIA.map((c) => `- ${c.key}: ${c.label}`).join("\n");
 }
 
-export function ideationPrompt(input: { category: string; customDirection?: string | null; count: number; avoidTitles: string[]; character?: NarratorProfile | null }) {
+export function ideationPrompt(input: { category: string; customDirection?: string | null; count: number; avoidTitles: string[]; character?: NarratorProfile | null; parts?: number }) {
+  const parts = input.parts ?? 1;
   const ownTopic = input.category === "custom";
   const c = input.character;
   const starring = c
-    ? `\n## Series character\n${narratorBlock(c)}\n\nEvery concept is the opening situation of a series starring ${c.name}. Pitch situations where ${c.name}'s personality and choices matter (everyday ones unless the producer's premise says otherwise). Titles name the situation plainly, with or without their name (e.g. "${c.name} Breaks Down in the Middle of Nowhere", "Three Days Snowed In at a Truck Stop"). Write premise, logline and openingSituation about ${c.name}, not "you".\n`
+    ? `\n## Series character\n${narratorBlock(c)}\n\nEvery concept is the opening situation of a series starring ${c.name}. Pitch situations where ${c.name}'s personality and choices matter, from everyday trouble to the end of the world, whatever the category calls for. Titles name the situation plainly, with or without their name (e.g. "${c.name} Breaks Down in the Middle of Nowhere", "Three Days Snowed In at a Truck Stop"). Write premise, logline and openingSituation about ${c.name}, not "you".\n`
     : "";
   const direction = input.customDirection?.trim();
   // The producer's direction is the premise itself, never a loose theme: it outranks the category and the realism defaults.
@@ -65,15 +66,21 @@ ${TRUTHFULNESS}`,
 
 ${premise}${brief}
 ${starring}
-For each concept, also sketch how one episode would actually go (beatSketch): a strong idea is one that becomes a complete story with believable cause and effect and a satisfying payoff in about a minute, not just an exciting first line.
+${
+      parts > 1
+        ? `Each story will be told across ${parts} short videos (about a minute each), so it needs enough story for ${parts} parts, each ending on a real turn. For each concept, sketch the arc (beatSketch): how it starts, how it escalates across the parts, and how it ends. A strong idea becomes a complete story with believable cause and effect and a satisfying ending, not just an exciting first line.`
+        : "For each concept, also sketch how one episode would actually go (beatSketch): a strong idea is one that becomes a complete story with believable cause and effect and a satisfying payoff in about a minute, not just an exciting first line."
+    }
 Write each premise the way you'd say it out loud in one breath ("Kenny wakes up and everyone in the world is gone"). Big and simple beats detailed: no clock times, deadlines, notices, routes or official procedures.
+Each premise is the broad, classic version of a scenario ("the power grid goes down", "a zombie outbreak starts"), never a niche predicament in one room or building ("locked in the office stairwell"). Where the episode opens is decided later.
 ${direction ? "Each concept must open differently (a different first moment or first problem)." : "Each concept must have a different central situation."}
 Do not repeat ${direction ? "the opening" : "the central situation"} of any existing story (reusing a familiar setting is fine):
 ${input.avoidTitles.length ? input.avoidTitles.map((t) => `- ${t}`).join("\n") : "- (none yet)"}`,
   };
 }
 
-export function evaluationPrompt(input: { concepts: { title: string; premise: string; logline: string; seriesPotential: string; dramaticQuestion?: string; beatSketch?: string }[]; existingTitles: string[]; premise?: string | null }) {
+export function evaluationPrompt(input: { concepts: { title: string; premise: string; logline: string; seriesPotential: string; dramaticQuestion?: string; beatSketch?: string }[]; existingTitles: string[]; premise?: string | null; parts?: number }) {
+  const length = (input.parts ?? 1) > 1 ? `story told across ${input.parts} videos of about a minute each (enough story for every part, each ending on a real turn)` : "45–90 second episode";
   return {
     system: `You are a demanding story editor for short-form vertical video. You score concepts consistently on a 1–10 integer scale per criterion, where 5 is an average pitch and 9–10 is rare.
 These are editorial heuristics, not predictions of view counts.
@@ -85,9 +92,10 @@ The audience is everyday adults scrolling short-form video, not experts. Favor c
 - relatability, curiosity, hookStrength and audienceAppeal: high only if an ordinary person would understand the idea within two seconds, could picture themselves in it, and would want to know what happens next.
 - A concept that cannot be explained to a friend in one plain sentence, needs world-building or specialist knowledge, has manufactured stakes, or rests on a forced twist ("the real danger isn't X, it's Y") scores at most 4 on curiosity, hookStrength and audienceAppeal.
 - A big, simple premise ("everyone in the world vanished overnight") is easy to understand in one sentence; it is not world-building. Penalise detail and logistics (deadlines, notices, procedures), not scale.
-- episodeFeasibility: can this become a coherent, satisfying 45–90 second episode? Judge the episode sketch: a clear dramatic question, a believable chain of cause and effect, character choices that make sense, a payoff that doesn't rely on luck or conveniences, and a plot small enough for the length. A thrilling premise with no workable episode scores at most 4; a slightly quieter idea that makes a great episode beats it.
+- A narrow, small-stakes predicament (locked in a stairwell, stuck in a lift, a hotel mix-up) scores at most 5 on curiosity, hookStrength and audienceAppeal, however relatable. Broad, famous what-ifs (blackout, zombies, an empty world) score well on those.
+- episodeFeasibility: can this become a coherent, satisfying ${length}? Judge the episode sketch: a clear dramatic question, a believable chain of cause and effect, character choices that make sense, a payoff that doesn't rely on luck or conveniences, and a plot small enough for the length. A thrilling premise with no workable episode scores at most 4; a slightly quieter idea that makes a great episode beats it.
 - seriesPotential: a credible natural continuation scores well; two strong episodes beat six stretched ones. Do not reward convoluted plots.
-For originality, compare against the producer's existing stories: penalise only repeating the same central situation, not reusing a familiar setting (lost luggage and a missed connection are different stories).
+For originality, compare against the producer's existing stories only: penalise repeating one of THEIR stories, never a premise for being famous or familiar in general (zombies and blackouts are fine; lost luggage and a missed connection are different stories).
 Give one honest sentence of rationale per score. Evaluate every concept, using its index.`,
     user: `${
       input.premise
@@ -147,6 +155,8 @@ export type WriterInput = {
   previousEpisodes: { partNumber: number; title: string; summary: string }[];
   latestEpisode: { partNumber: number; title: string; narration: string; keyReveals: string[]; unresolvedQuestions: string[] } | null;
   direction?: string | null;
+  /** One story told across this many videos; set when planning or writing its parts. */
+  parts?: number;
 };
 
 export type NarratorProfile = {
@@ -182,7 +192,10 @@ Part: ${input.partNumber}
 ${input.narrator ? `\n${narratorBlock(input.narrator)}\n` : ""}${input.direction ? `Producer direction: ${input.direction}\n` : ""}
 ${bibleContextBlock(input.bible)}
 ${
-  isContinuation
+  (input.parts ?? 1) > 1
+    ? `
+This story is told across ${input.parts} videos (Part 1–${input.parts}), planned together. What the video being written must do is described below.`
+    : isContinuation
     ? `
 EARLIER EPISODES (approved)
 ${input.previousEpisodes.map((e) => `- Part ${e.partNumber} "${e.title}": ${e.summary}`).join("\n")}

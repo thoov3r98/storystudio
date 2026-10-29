@@ -36,6 +36,8 @@ export const DefaultsSchema = z.object({
   durationSec: z.number().default(75),
   quality: z.enum(["DRAFT", "STANDARD", "PREMIUM"]).default("STANDARD"),
   maxBatchBudgetUsd: z.number().default(25),
+  /** New stories are planned across this many videos; writing Part 1 writes them all. */
+  partsPerStory: z.number().int().min(1).max(6).default(4),
   /** Check each illustration against the story and redraw it once if it is wrong. */
   imageCheck: z.boolean().default(true),
   useStyleReferences: z.boolean().default(true),

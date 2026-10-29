@@ -110,6 +110,7 @@ async function main() {
   const evidence = chairNarration.split(" ").slice(6, 12).join(" ");
   const quality: QualityRecord = {
     pipelineVersion: 2,
+    part: 1,
     status: "needs-attention",
     plotRounds: [{ issues: [], changeLog: [] }],
     scriptRounds: [],

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { type Plot, PlotSchema, type QualityRecord, type RecordedIssue } from "@/lib/schemas/story-plan";
-import { plotBeatRange, validatePlot } from "@/lib/story/plot";
+import { partBeatRange, plotBeatRange, validatePlot } from "@/lib/story/plot";
+import { partBrief } from "@/lib/ai/story-prompts";
 import { evidenceFound, genericHookPhrase, needsRevision, qualityStatus, recordIssues, withDismissal } from "@/lib/story/review";
 import { BUILT_IN_REFERENCES, type ReferenceStory, selectReferences } from "@/lib/story/references";
 import { narrationIssues } from "@/lib/story/compose";
@@ -10,7 +11,7 @@ import { CRITERIA, type CriteriaScores } from "@/lib/schemas/concept";
 import { estimateEpisodeCost } from "@/lib/costs/estimate";
 import { DEFAULT_PRICING } from "@/lib/costs/pricing";
 import { scriptModels } from "@/lib/settings";
-import { FAKE_PLOT } from "../integration/fakes";
+import { FAKE_PLOT, fakeStoryPlot } from "../integration/fakes";
 import { BENCH_CASES } from "../story-bench/cases";
 import { BENCH_PREMISES } from "../story-bench/premises";
 
@@ -55,6 +56,53 @@ describe("plot structure checks", () => {
     expect(validatePlot(p, { durationSec: 45 }).join(" ")).toMatch(/3–5 major beats .* \(you have 6\)/);
     p.beats.forEach((b, i) => (b.link = i === 0 ? "start" : "meanwhile"));
     expect(validatePlot(p, opts).join(" ")).toMatch(/"meanwhile" at most once/);
+  });
+});
+
+describe("multi-part plans", () => {
+  const story = (): Plot => PlotSchema.parse(structuredClone(fakeStoryPlot(4)));
+  it("accepts one story split into four parts with room in each", () => {
+    expect(validatePlot(story(), { durationSec: 75, parts: 4 })).toEqual([]);
+    expect(partBeatRange(75, 4)).toEqual([2, 4]);
+  });
+
+  it("requires every part to have a real cliffhanger, a small payoff and (after Part 1) an orienting line", () => {
+    const p = story();
+    p.parts[1].cliffhanger = "";
+    p.parts[2].newViewerLine = "";
+    p.parts[0].smallPayoff = " ";
+    const issues = validatePlot(p, { durationSec: 75, parts: 4 }).join(" | ");
+    expect(issues).toMatch(/Part 2 needs a cliffhanger/);
+    expect(issues).toMatch(/Part 3 needs a newViewerLine/);
+    expect(issues).toMatch(/Part 1 needs a smallPayoff/);
+  });
+
+  it("refuses crammed parts, gaps and the wrong number of parts", () => {
+    const p = story();
+    p.parts[0].beats = [1, 2, 3, 4, 5];
+    p.parts[1].beats = [7];
+    const issues = validatePlot(p, { durationSec: 75, parts: 4 }).join(" ");
+    expect(issues).toMatch(/Part 1 has 5 beats; give each video 2–4/);
+    expect(issues).toMatch(/cover every beat exactly once/);
+    expect(validatePlot(story(), { durationSec: 75, parts: 3 }).join(" ")).toMatch(/exactly 3 parts/);
+  });
+
+  it("tells each part what it covers and what came before", () => {
+    const brief = partBrief(story(), 2, ["Part one text."]);
+    expect(brief).toContain("THIS IS PART 2 OF 4");
+    expect(brief).toContain("It tells beats 4, 5, 6 only");
+    expect(brief).toContain("Turn at the end of part 2");
+    expect(brief).toContain("Part 1: Part one text.");
+    expect(partBrief(plot(), 1, [])).toBe("");
+  });
+
+  it("prices all parts' scripts together and media for one part", () => {
+    const models = { main: "gpt-5.5", fast: "gpt-5.4-mini", image: "img", speech: "tts" };
+    const one = estimateEpisodeCost(DEFAULT_PRICING, models, { durationSec: 75, quality: "STANDARD" });
+    const four = estimateEpisodeCost(DEFAULT_PRICING, models, { durationSec: 75, quality: "STANDARD", parts: 4 });
+    expect(four.text).toBeGreaterThan(one.text * 2.5);
+    expect(four.text).toBeLessThan(one.text * 4);
+    expect(four.images).toBe(one.images);
   });
 });
 

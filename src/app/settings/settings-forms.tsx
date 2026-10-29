@@ -227,6 +227,21 @@ export function SettingsForms(props: {
               </Select>
             </div>
             <div className="space-y-2">
+              <Label>Parts per story</Label>
+              <Select value={String(defaults.partsPerStory)} onValueChange={(v) => setDefaults({ ...defaults, partsPerStory: Number(v) })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4].map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n === 1 ? "1 video (complete story)" : `${n} videos, planned together`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label>Quality</Label>
               <Select value={defaults.quality} onValueChange={(v) => setDefaults({ ...defaults, quality: v as Defaults["quality"] })}>
                 <SelectTrigger className="w-full">

@@ -11,6 +11,7 @@ import { PricingSchema } from "@/lib/costs/pricing";
 import {
   AudioMixSchema,
   DefaultsSchema,
+  getDefaults,
   getPricing,
   getModels,
   ModelsSchema,
@@ -106,6 +107,7 @@ export async function createBatch(input: GenerateInput): Promise<ActionResult<{ 
       durationSec: data.durationSec,
       quality: data.quality,
       fullProduction: data.mode === "FULL_PRODUCTION" && data.autoSelect,
+      parts: (await getDefaults()).partsPerStory,
     });
     if (estimate.ideation.total > data.maxBudgetUsd) {
       throw new Error(`Even concept generation is estimated at $${estimate.ideation.total.toFixed(2)}, above the $${data.maxBudgetUsd} budget.`);
@@ -177,6 +179,7 @@ export async function promoteConcept(conceptId: string) {
         styleKey: concept.batch.styleKey,
         voiceId: concept.batch.voiceId,
         targetDurationSec: concept.batch.targetDurationSec,
+        plannedParts: (await getDefaults()).partsPerStory,
         quality: concept.batch.quality,
         conceptId: concept.id,
         bibles: { create: { version: 1, source: "concept", data: emptyBible({ premise: concept.premise, styleKey: concept.batch.styleKey }) } },

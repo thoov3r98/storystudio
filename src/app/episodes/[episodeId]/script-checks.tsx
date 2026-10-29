@@ -53,7 +53,9 @@ function NoteCard({ note }: { note: EditorialNote }) {
   );
 }
 
-function PlotView({ plot }: { plot: Plot }) {
+function PlotView({ plot, part }: { plot: Plot; part: number }) {
+  const parts = plot.parts ?? [];
+  const mine = parts.length > 1 ? new Set(parts.find((p) => p.part === part)?.beats ?? []) : null;
   return (
     <div className="space-y-2 text-sm">
       <p>
@@ -64,7 +66,7 @@ function PlotView({ plot }: { plot: Plot }) {
       {plot.setups.length ? <p className="text-xs text-muted-foreground">Setups: {plot.setups.map((s) => `${s.id} (beat ${s.plantedInBeat}) ${s.what}`).join(" · ")}</p> : null}
       <ol className="space-y-1.5">
         {plot.beats.map((b) => (
-          <li key={b.n} className="rounded-lg border bg-background p-2">
+          <li key={b.n} className={cn("rounded-lg border bg-background p-2", mine && !mine.has(b.n) && "opacity-50")}>
             <span className="text-xs font-medium uppercase text-muted-foreground">
               B{b.n} · {b.link}
             </span>{" "}
@@ -79,6 +81,16 @@ function PlotView({ plot }: { plot: Plot }) {
         <span className="font-medium">Ending ({plot.resolution.endingType}):</span> {plot.resolution.what}
       </p>
       {plot.deliberateMysteries.length ? <p className="text-xs text-muted-foreground">Left open on purpose: {plot.deliberateMysteries.join(" · ")}</p> : null}
+      {parts.length > 1 ? (
+        <ul className="space-y-1 text-xs">
+          {parts.map((p) => (
+            <li key={p.part} className={p.part === part ? "font-medium" : "text-muted-foreground"}>
+              Part {p.part} (beats {p.beats.join(", ")}): answers {p.smallPayoff}
+              {p.cliffhanger ? ` · ends on ${p.cliffhanger}` : ""}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -232,9 +244,11 @@ export function ScriptChecks(props: { quality: QualityRecord | undefined; plot: 
 
         {plot ? (
           <details className="rounded-xl border bg-card p-3">
-            <summary className="cursor-pointer text-sm font-medium">Plot ({plot.beats.length} beats)</summary>
+            <summary className="cursor-pointer text-sm font-medium">
+              {(plot.parts?.length ?? 1) > 1 ? `Story plan (part ${quality.part ?? 1} of ${plot.parts.length}, ${plot.beats.length} beats in all)` : `Plot (${plot.beats.length} beats)`}
+            </summary>
             <div className="mt-2">
-              <PlotView plot={plot} />
+              <PlotView plot={plot} part={quality.part ?? 1} />
             </div>
           </details>
         ) : null}

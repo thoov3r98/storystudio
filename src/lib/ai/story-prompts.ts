@@ -2,7 +2,7 @@ import type { StoryBible } from "@/lib/schemas/story-bible";
 import type { Archetype, HookPick, Plot } from "@/lib/schemas/story-plan";
 import { ARCHETYPES, HOOK_STYLES, NARRATIVE_CRITERIA, RETENTION_CRITERIA } from "@/lib/schemas/story-plan";
 import { sceneCountRange, targetWordRange } from "@/lib/constants";
-import { plotBeatRange, plotText } from "@/lib/story/plot";
+import { partBeatRange, plotBeatRange, plotText } from "@/lib/story/plot";
 import { GENERIC_HOOK_PHRASES } from "@/lib/story/review";
 import { referenceBlock, type ReferenceStory } from "@/lib/story/references";
 import { bibleContextBlock, episodeContext, HOUSE_STYLE, type WriterInput } from "./prompts";
@@ -48,10 +48,37 @@ function seedBlock(seed?: StorySeed | null): string {
   return `\nFrom the approved pitch:${seed.archetype ? `\n- Suggested archetype: ${seed.archetype}` : ""}${seed.dramaticQuestion ? `\n- Dramatic question: ${seed.dramaticQuestion}` : ""}${seed.beatSketch ? `\n- Beat sketch: ${seed.beatSketch}` : ""}\n`;
 }
 
+/**
+ * What one video of a multi-part story must do, and what earlier parts told.
+ * Empty for single-episode stories.
+ */
+export function partBrief(plot: Plot, partNo: number, earlier: string[]): string {
+  const parts = plot.parts ?? [];
+  if (parts.length <= 1) return "";
+  const p = parts.find((x) => x.part === partNo);
+  if (!p) return "";
+  return `THIS IS PART ${partNo} OF ${parts.length} of one story, each part its own video.
+It tells beats ${p.beats.join(", ")} only; later beats belong to later parts and are deliberately not here.
+It must satisfy on its own by paying off: ${p.smallPayoff}
+${p.cliffhanger ? `It ends on this cliffhanger, the real turn the next part picks up: ${p.cliffhanger}` : "It is the final part: it delivers the story's ending."}
+${partNo > 1 ? `Many viewers start here, so the opening orients them in one spoken line (${p.newViewerLine}) without recapping, then hooks.
+
+EARLIER PARTS, AS NARRATED (the viewer of the whole series has heard these):
+${earlier.map((t, i) => `Part ${i + 1}: ${t}`).join("\n\n")}` : ""}`;
+}
+
 // ── 1. Plot candidates ────────────────────────────────────────────────
 
-export function plotCandidatesPrompt(input: WriterInput & { seed?: StorySeed | null; references: ReferenceStory[] }, count = 2) {
+export function plotCandidatesPrompt(input: WriterInput & { seed?: StorySeed | null; references: ReferenceStory[]; parts: number }, count = 2) {
   const [minBeats, maxBeats] = plotBeatRange(input.durationSec);
+  const [partMin, partMax] = partBeatRange(input.durationSec, input.parts);
+  const split =
+    input.parts > 1
+      ? `- This is ONE story told across ${input.parts} videos of about ${input.durationSec} seconds each, released as Part 1–${input.parts}. Plan ${input.parts * partMin}–${input.parts * partMax} beats in total, ${partMin}–${partMax} per part, so every video has room to breathe: reactions, atmosphere and a pause before each turn.
+- parts: split the beats into ${input.parts} consecutive runs. Each part answers one small question of its own (smallPayoff) so it satisfies alone, and every part but the last ends on a cliffhanger that is a real turn in the plot, never an invented one. Parts 2+ get a newViewerLine that orients someone who starts there. The final part delivers the story's ending.
+- Escalate across the whole story: the stakes in Part ${input.parts} are bigger than in Part 1.`
+      : `- ${minBeats}–${maxBeats} major beats for about ${input.durationSec} seconds of narration. A beat is a change in the situation, not a camera shot.
+- parts: one part covering every beat, with an empty cliffhanger and newViewerLine.`;
   const hero = input.narrator?.name ?? "the main character";
   return {
     system: `You are the story architect of a short-form narrated story series. Before any narration is written, you plan the actual chain of events.
@@ -62,7 +89,7 @@ Story archetypes (planning tools, not formulas; choose the one that fits, and le
 ${archetypeMenu()}
 
 How to plan:
-- ${minBeats}–${maxBeats} major beats for about ${input.durationSec} seconds of narration. A beat is a change in the situation, not a camera shot.
+${split}
 - For every beat: what happens, why it happens now, what the hero wants and knows at that moment, where they are and what they have afterwards, and what changed.
 - link: "but" when something gets in the way, "therefore" when it follows as a consequence or decision. Avoid "and then" stories.
 - enabledBy lists the earlier beats ("B2"), setups ("S1") and world rules ("R1") that make the beat possible. Every beat after the first has at least one.
@@ -73,15 +100,17 @@ How to plan:
     user: `${episodeContext(input)}
 ${seedBlock(input.seed)}
 ${input.references.length ? `Examples of how other stories in a similar mode are shaped (do not reuse their situations):\n${input.references.map((r) => `- ${r.title}: ${r.structure}`).join("\n")}\n` : ""}
-Plan ${count} genuinely different plots for this episode starring ${hero}: different chains of events or endings, not variations of one plan. Keep the premise exactly as given.`,
+Plan ${count} genuinely different plots for this ${input.parts > 1 ? `${input.parts}-part story` : "episode"} starring ${hero}: different chains of events or endings, not variations of one plan. Keep the premise exactly as given.`,
   };
 }
 
 // ── 2. Plot pick (narrative editor) ───────────────────────────────────
 
-export function plotPickPrompt(input: { plots: Plot[]; premise: string; partNumber: number; durationSec: number }) {
+export function plotPickPrompt(input: { plots: Plot[]; premise: string; partNumber: number; durationSec: number; parts: number }) {
   return {
-    system: `You are a demanding story editor for short narrated videos. Choose the plot a viewer is most likely to follow, care about and find satisfying in about ${input.durationSec} seconds.
+    system: `You are a demanding story editor for short narrated videos. Choose the plot a viewer is most likely to follow, care about and find satisfying${
+      input.parts > 1 ? ` across ${input.parts} videos of about ${input.durationSec} seconds, each of which must hold a viewer on its own and make them want the next` : ` in about ${input.durationSec} seconds`
+    }.
 
 ${STORY_PRINCIPLES}
 
@@ -154,10 +183,12 @@ export function scriptAuditPrompt(input: {
   premise: string;
   previous?: { id: string; text: string }[];
   series?: { bible: StoryBible; previousSummaries: string[] } | null;
+  /** For one part of a multi-part story: its scope and the earlier parts. */
+  brief?: string;
 }) {
   return {
     system: AUDIT_RULES,
-    user: `Audit the NARRATION, which is all the viewer will hear.${
+    user: `${input.brief ? `${input.brief}\nAudit only this part's narration. Beats from later parts being absent is intended, and so is the cliffhanger; what this part says must still agree with the earlier parts.\n\n` : ""}Audit the NARRATION, which is all the viewer will hear.${
       input.plot
         ? ` The plan is given so you know what was intended, but the viewer never sees it:
 - A cause that is in the plan but never reaches the narration is a causal gap.
@@ -174,10 +205,10 @@ ${input.narration}`,
 
 // ── Plot repair ───────────────────────────────────────────────────────
 
-export function plotRepairPrompt(input: { plot: Plot; issues: { id: string; text: string }[]; durationSec: number }) {
-  const [minBeats, maxBeats] = plotBeatRange(input.durationSec);
+export function plotRepairPrompt(input: { plot: Plot; issues: { id: string; text: string }[]; durationSec: number; parts: number }) {
+  const [minBeats, maxBeats] = input.parts > 1 ? partBeatRange(input.durationSec, input.parts).map((n) => n * input.parts) : plotBeatRange(input.durationSec);
   return {
-    system: `You repair story plots. For each issue: find the earliest beat where the missing cause, setup or knowledge belongs, fix it there, then update every later beat that depends on it. Keep everything that works exactly as it is. Prefer simplifying (removing a weak beat or convenience) over adding complication. Do not introduce a new object, ability, fact or person unless it is planted as a setup before it is used. Keep ${minBeats}–${maxBeats} beats.
+    system: `You repair story plots. For each issue: find the earliest beat where the missing cause, setup or knowledge belongs, fix it there, then update every later beat that depends on it. Keep everything that works exactly as it is. Prefer simplifying (removing a weak beat or convenience) over adding complication. Do not introduce a new object, ability, fact or person unless it is planted as a setup before it is used. Keep ${minBeats}–${maxBeats} beats${input.parts > 1 ? `, split into the same ${input.parts} parts (update parts if beats change)` : ""}.
 
 ${STORY_PRINCIPLES}`,
     user: `ISSUES
@@ -192,7 +223,8 @@ Return a diagnosis per issue id, the full repaired plot, and a change log entry 
 
 // ── 4–5. Hooks ────────────────────────────────────────────────────────
 
-export function hookCandidatesPrompt(input: { plot: Plot; hero: string; perspective: string; references: ReferenceStory[] }) {
+export function hookCandidatesPrompt(input: { plot: Plot; hero: string; perspective: string; references: ReferenceStory[]; parts: number[] }) {
+  const multi = (input.plot.parts ?? []).length > 1;
   return {
     system: `You develop the opening line of a narrated short video: the hook. It decides whether a scrolling viewer stays.
 
@@ -200,36 +232,39 @@ A great hook creates curiosity without confusion. It is concrete and specific, t
 - Weak: "Kenny woke up and knew something was terribly wrong." (vague)
 - Stronger: "Kenny woke up to forty-seven missed calls. Every single one was from his own phone number." (a specific mystery; only usable if the story explains it or keeps it as a set-up mystery)
 Styles to explore: ${HOOK_STYLES.join(", ")}.
-Never: ${GENERIC_HOOK_PHRASES.slice(0, 8).map((p) => `"${p}"`).join(", ")}, rhetorical questions, or a cliffhanger the plot doesn't pay off.
-Don't cram who, where and what into one cumbersome sentence; one or two short spoken sentences.
+Never: ${GENERIC_HOOK_PHRASES.slice(0, 8).map((p) => `"${p}"`).join(", ")}, rhetorical questions, a summary or spoiler of how it ends, or a cliffhanger the plot doesn't pay off.
+Don't cram who, where and what into one cumbersome sentence; one or two short spoken sentences.${
+      multi ? "\nFor parts 2+, the hook is what a new viewer hears first: it folds in the part's newViewerLine so they know the situation, then pulls them in. Never \"Previously\" or \"In part one\"." : ""
+    }
 Narration perspective: ${input.perspective}.`,
     user: `PLOT
 ${plotText(input.plot)}
 
-${input.references.length ? `Openings of reference stories (for craft only, never copy):\n${input.references.map((r) => `- ${r.text.split(/(?<=[.!?])\s/)[0]}`).join("\n")}\n\n` : ""}First name the dramatic question and the most interesting concrete moment in this plot. Then write 5 opening hooks for ${input.hero}'s episode in at least 4 different styles, each with what it promises and which beat delivers it.`,
+${input.references.length ? `Openings of reference stories (for craft only, never copy):\n${input.references.map((r) => `- ${r.text.split(/(?<=[.!?])\s/)[0]}`).join("\n")}\n\n` : ""}For ${multi ? `each of these parts: ${input.parts.join(", ")}` : "the episode (part 1)"}, first name its dramatic question and the most interesting concrete moment it contains. Then write 5 opening hooks for ${input.hero} in at least 4 different styles, each with what it promises and which beat delivers it. Return one entry per part.`,
   };
 }
 
-export function hookPickPrompt(input: { plot: Plot; candidates: { style: string; text: string; promise: string; paidOffIn: string }[] }) {
+export function hookPickPrompt(input: { plot: Plot; parts: { part: number; candidates: { style: string; text: string; promise: string; paidOffIn: string }[] }[] }) {
   return {
     system: `You are a retention editor choosing the opening line of a narrated short video. Judge each candidate against the actual plot:
 - clarity: can a viewer understand the situation instantly?
 - curiosity: does it open a specific question, tension or emotional pull?
 - specificity: concrete details rather than dramatic vagueness?
-- deliveredByPlot: does the plot fully pay off what it promises? A sensational opening the plot cannot support is a failed hook.
+- deliveredByPlot: does the plot fully pay off what it promises (in that part, or as its cliffhanger)? A sensational opening the plot cannot support is a failed hook. So is one that gives away the ending.
 Ratings: weak, acceptable, strong, excellent ("excellent" is rare).
-Choose the best one that the plot delivers on, then refine it: tighten the words, keep it to one or two spoken sentences, and keep its promise honest.`,
+Choose the best one the plot delivers on, then refine it: tighten the words, keep it to one or two spoken sentences, and keep its promise honest. Return one choice per part.`,
     user: `PLOT
 ${plotText(input.plot)}
 
-CANDIDATES
-${input.candidates.map((c, i) => `[${i}] (${c.style}) ${c.text}\n    promises: ${c.promise}\n    paid off in: ${c.paidOffIn}`).join("\n")}`,
+${input.parts
+  .map((p) => `PART ${p.part} CANDIDATES\n${p.candidates.map((c, i) => `[${i}] (${c.style}) ${c.text}\n    promises: ${c.promise}\n    paid off in: ${c.paidOffIn}`).join("\n")}`)
+  .join("\n\n")}`,
   };
 }
 
 // ── 6. Narration ──────────────────────────────────────────────────────
 
-export function narrationPrompt(input: WriterInput & { plot: Plot; hook: HookPick; references: ReferenceStory[] }) {
+export function narrationPrompt(input: WriterInput & { plot: Plot; hook: HookPick; references: ReferenceStory[]; brief: string; beats: number[] }) {
   const [minWords, maxWords] = targetWordRange(input.durationSec, input.wordsPerSecond);
   return {
     system: `${HOUSE_STYLE}
@@ -240,14 +275,15 @@ ${ARCHETYPE_GUIDES[input.plot.archetype]}
 
 You are the head writer. Tell the approved plot as one continuous story read aloud, ${minWords}–${maxWords} words (about ${input.durationSec}s at ~${input.wordsPerSecond.toFixed(2)} words/second for this narrator).
 - Open with the chosen hook, word for word, then flow straight into the story.
-- The plot is the source of truth. Every beat appears, in order, with its cause clear to someone who only hears the narration. Plant every setup before it pays off.
+- The plot is the source of truth. Every beat ${input.brief ? `of this part (${input.beats.join(", ")})` : ""} appears, in order, with its cause clear to someone who only hears the narration. Plant every setup before it pays off.
+- Let it breathe: a reaction, a sensory detail or a beat of silence before each turn. No lists of clothing, equipment or steps.
 - Do not invent new rules, objects, abilities, solutions or knowledge. If you must depart from the plot, list it in planChanges.
 - Within the first few lines the viewer understands enough to follow and care; they don't need every detail at once.
 - Tell it in time order after the opening. Numbers as they are spoken.
 - If the words run short of the plot, simplify how things are said, never drop a cause the viewer needs.
-- beatCoverage: for each beat number, the first few words of the narration where it is told.`,
+- beatCoverage: for each beat number${input.brief ? " in this part" : ""}, the first few words of the narration where it is told.`,
     user: `${episodeContext(input)}
-
+${input.brief ? `\n${input.brief}\n` : ""}
 APPROVED PLOT
 ${plotText(input.plot)}
 
@@ -260,7 +296,7 @@ ${referenceBlock(input.references)}`,
 
 // ── 7. Editorial review ───────────────────────────────────────────────
 
-export function editorialPrompt(input: { narration: string; dramaticQuestion: string; hookPromise: string; partNumber: number; durationSec: number }) {
+export function editorialPrompt(input: { narration: string; dramaticQuestion: string; hookPromise: string; partNumber: number; durationSec: number; brief?: string }) {
   return {
     system: `You are an independent editor for narrated short story videos. You did not write this script. Read it as an ordinary adult scrolling past, then judge it with evidence.
 
@@ -275,9 +311,9 @@ Narrative criteria: ${NARRATIVE_CRITERIA.join(", ")}.
 Retention criteria: ${RETENTION_CRITERIA.join(", ")}.
 - first-line: does it grab attention? instant-clarity: is the initial situation understandable at once? curiosity-gap: a clear question, tension or emotional pull? starts-late: does it begin at the most interesting appropriate moment? hook-delivered: does the story pay off the opening's promise? steady-change: any stretch where nothing meaningful changes? payoff: does the ending reward attention?
 
+Prose that reads like a summary or a list (clothing, equipment, steps), or that is too compressed to say aloud naturally, is weak economy and belongs in mustFix. So is an opening that gives away the ending.
 Rate each criterion once, quoting the line that shows it. mustFix lists only problems that clearly make the video worse for a viewer, each with a quote and a concrete fix; put nice-to-haves in suggestions. Don't ask for a different story, a joke or more complications unless the story needs them.`,
-    user: `Part ${input.partNumber}
-Dramatic question the writer intended: ${input.dramaticQuestion}
+    user: `${input.brief ? `${input.brief.split("\n\nEARLIER PARTS")[0]}\nJudge it as one video in a series: it must hold a viewer on its own, pay off its small question, and (unless it is the final part) make them need the next part. Don't ask for later parts' beats.\n\n` : `Part ${input.partNumber}\n`}Dramatic question the writer intended: ${input.dramaticQuestion}
 The opening promises: ${input.hookPromise}
 
 SCRIPT
@@ -287,7 +323,7 @@ ${input.narration}`,
 
 // ── 8. Targeted revision ──────────────────────────────────────────────
 
-export function scriptRevisionPrompt(input: WriterInput & { plot: Plot; narration: string; hook: string; issues: { id: string; text: string }[]; hookIssue: boolean }) {
+export function scriptRevisionPrompt(input: WriterInput & { plot: Plot; narration: string; hook: string; issues: { id: string; text: string }[]; hookIssue: boolean; brief: string }) {
   const [minWords, maxWords] = targetWordRange(input.durationSec, input.wordsPerSecond);
   return {
     system: `${HOUSE_STYLE}
@@ -301,7 +337,7 @@ You repair a script with specific problems. Work in this order:
 4. Record a change log entry for every issue id.
 Never fix one problem by creating another: no new object, ability or fact unless it is planted before it is used. Keep the story ${minWords}–${maxWords} words.${input.hookIssue ? "" : `\nKeep the opening hook exactly: "${input.hook}"`}`,
     user: `${episodeContext(input)}
-
+${input.brief ? `\n${input.brief}\nThe narration below is this part only; change only beats in this part, and keep the parts list unchanged.\n` : ""}
 ISSUES TO FIX
 ${input.issues.map((i) => `- ${i.id}: ${i.text}`).join("\n")}
 
@@ -315,7 +351,7 @@ ${input.narration}`,
 
 // ── 9. Scene breakdown ────────────────────────────────────────────────
 
-export function sceneBreakdownPrompt(input: WriterInput & { plot: Plot; narration: string; title: string }) {
+export function sceneBreakdownPrompt(input: WriterInput & { plot: Plot; narration: string; title: string; brief: string }) {
   const [minScenes, maxScenes] = sceneCountRange(input.durationSec);
   const hero = input.narrator?.name ?? "the main character";
   return {
@@ -333,7 +369,7 @@ STEP 2 — scenes: cut the narration into ${minScenes}–${maxScenes} shots, in 
 
 STEP 3 — bibleUpdate: only what THIS episode adds or changes, using the exact names from the bible. Thread ids are short stable slugs; resolve threads by their existing ids. arcSummary replaces the series summary; under 150 words, including this episode. Record the plot's world rules as constraints and its deliberate mysteries as mysteries when they are new.`,
     user: `${episodeContext(input)}
-
+${input.brief ? `\n${input.brief}\nThe bibleUpdate covers only what THIS part adds.\n` : ""}
 PLOT (for states, locations and rules)
 ${plotText(input.plot)}
 

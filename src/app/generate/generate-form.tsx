@@ -61,8 +61,8 @@ export function GenerateForm({
   const [pending, start] = useTransition();
 
   const estimate = useMemo(
-    () => estimateBatchCost(pricing, models, { requested: count, durationSec, quality, fullProduction: mode === "FULL_PRODUCTION" }),
-    [pricing, models, count, durationSec, quality, mode],
+    () => estimateBatchCost(pricing, models, { requested: count, durationSec, quality, fullProduction: mode === "FULL_PRODUCTION", parts: defaults.partsPerStory }),
+    [pricing, models, count, durationSec, quality, mode, defaults.partsPerStory],
   );
   const budgetNum = Number(budget);
   const affordableEpisodes = Math.max(0, Math.floor((budgetNum - estimate.ideation.total) / Math.max(estimate.perEpisode.total, 0.0001)));

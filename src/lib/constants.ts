@@ -29,8 +29,8 @@ export const CATEGORIES = [
   {
     value: "hypothetical-disasters",
     label: "Hypothetical disasters",
-    description: "Clearly framed what-ifs about everyday things failing: water, power, phones, payments, roads.",
-    example: "You wake up and your neighborhood has no water",
+    description: "Big, clearly framed what-ifs about the things everyone depends on failing: the power grid, the internet, water, money, food.",
+    example: "What happens if the power grid goes down for a month?",
   },
   {
     value: "unusual-business-models",
@@ -45,10 +45,16 @@ export const CATEGORIES = [
     example: "How a stadium gets ready overnight",
   },
   {
+    value: "apocalypse-scenarios",
+    label: "Apocalypse scenarios",
+    description: "Big end-of-the-world what-ifs: everyone vanishes, a zombie outbreak, the power grid goes down, a pandemic, the sun doesn't rise.",
+    example: "You wake up and everyone on Earth is gone",
+  },
+  {
     value: "survival-scenarios",
     label: "Survival scenarios",
-    description: "Ordinary people caught in a difficult situation: stranded, lost, stuck or stuck waiting for help.",
-    example: "Your car breaks down in the middle of nowhere",
+    description: "Classic survival situations: lost at sea, stranded in the wilderness, a blizzard, an earthquake, a plane down in the jungle.",
+    example: "Stranded alone in the wilderness after a plane crash",
   },
   {
     value: "mixed",

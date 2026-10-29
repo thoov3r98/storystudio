@@ -16,7 +16,7 @@ import { toNarrator, withCharacter } from "./characters";
 import { normalizeTitle } from "@/lib/text";
 import { dedupeCandidates } from "@/lib/similarity";
 import { chunk, mapSettled } from "@/lib/async";
-import { getPricing, getModels } from "@/lib/settings";
+import { getDefaults, getPricing, getModels } from "@/lib/settings";
 import { assertWithinBudget, type CostContext } from "@/lib/costs/record";
 import { setJobStage, assertNotCanceled } from "@/lib/jobs";
 import type { PipelineDeps } from "./deps";
@@ -47,6 +47,7 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
   const preset = QUALITY_PRESETS[batch.quality];
   const writerModel = preset.writerModel === "main" ? models.main : models.fast;
   const reviewerModel = preset.reviewerModel === "main" ? models.main : models.fast;
+  const parts = (await getDefaults()).partsPerStory;
   const cost: CostContext = { jobId: input.jobId, batchId: batch.id, budgetUsd: Number(batch.maxBudgetUsd), budgetScope: "batch" };
 
   // Retry safety: concepts already selected (and their stories) are kept.
@@ -71,7 +72,7 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
       client: input.deps.text,
       pricing,
       model: writerModel,
-      ...ideationPrompt({ category: batch.category, customDirection: batch.customDirection, count, avoidTitles, character: character ? toNarrator(character) : null }),
+      ...ideationPrompt({ category: batch.category, customDirection: batch.customDirection, count, avoidTitles, character: character ? toNarrator(character) : null, parts }),
       schema: ConceptBatchSchema,
       schemaName: "concept_batch",
       validate: (v) => (v.concepts.length < Math.ceil(count * 0.8) ? [`Return ${count} concepts (got ${v.concepts.length}).`] : []),
@@ -114,7 +115,7 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
       client: input.deps.text,
       pricing,
       model: reviewerModel,
-      ...evaluationPrompt({ concepts: group, existingTitles: avoidTitles, premise: batch.customDirection }),
+      ...evaluationPrompt({ concepts: group, existingTitles: avoidTitles, premise: batch.customDirection, parts }),
       schema: ConceptEvaluationSchema,
       schemaName: "concept_evaluation",
       validate: (v) => {
@@ -179,6 +180,7 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
         voiceId: character?.voiceId ?? batch.voiceId,
         characterId: character?.id ?? null,
         targetDurationSec: batch.targetDurationSec,
+        plannedParts: parts,
         quality: batch.quality,
         conceptId: c.id,
         bibles: {

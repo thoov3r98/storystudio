@@ -13,7 +13,8 @@ import type { PipelineDeps } from "./deps";
 
 export const EpisodeActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("produce"), direction: z.string().nullish() }),
-  z.object({ action: z.literal("regenerate-script"), direction: z.string().nullish() }),
+  /** On Part 1 of a multi-part story, `replanStory` plans and rewrites every part (only before any part is produced). */
+  z.object({ action: z.literal("regenerate-script"), direction: z.string().nullish(), replanStory: z.boolean().optional() }),
   /** Fix the issues flagged on the current script with targeted revisions. */
   z.object({ action: z.literal("revise-script") }),
   z.object({ action: z.literal("rewrite-scene"), sceneNumber: z.number().int(), instruction: z.string().nullish() }),
@@ -135,9 +136,9 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
   const req = payload.request;
   const { jobId } = payload;
 
-  const write = async (reason: string, direction?: string | null) => {
+  const write = async (reason: string, direction?: string | null, replanStory?: boolean) => {
     await setJobStage(jobId, "WRITING_STORY", "Planning, writing and checking the script", 0.02);
-    return writeEpisode({ ...ctx, jobId, reason, direction });
+    return writeEpisode({ ...ctx, jobId, reason, direction, replanStory });
   };
   // A changed script only goes on to media when it passed its checks; otherwise it waits at the gate.
   const continueIfPassed = async (status: string | null) => {
@@ -158,8 +159,9 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
       return produceDownstream(episode.id, jobId, cost, deps);
     }
     case "regenerate-script": {
-      const result = await write("regenerate-script", req.direction);
-      return continueIfPassed(result.quality.status);
+      const result = await write("regenerate-script", req.direction, req.replanStory);
+      // Replanning rewrites every part, so all of them wait at the gate.
+      return continueIfPassed(result.parts ? null : result.quality.status);
     }
     case "revise-script": {
       await setJobStage(jobId, "WRITING_STORY", "Fixing the flagged issues", 0.02);

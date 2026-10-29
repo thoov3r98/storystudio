@@ -167,7 +167,8 @@ export async function refreshStoryStatus(storyId: string) {
   const eps = story.episodes;
   let status = story.status;
   if (eps.some((e) => e.status === "IN_PRODUCTION")) status = "IN_PRODUCTION";
-  else if (eps.some((e) => e.partNumber > 1)) status = "CONTINUING";
+  // Parts written ahead of time don't make a story "continuing" until one is produced.
+  else if (eps.some((e) => e.partNumber > 1 && e.status !== "DRAFT" && e.status !== "SCRIPTED")) status = "CONTINUING";
   else if (eps.some((e) => e.status === "PUBLISHED")) status = "PUBLISHED";
   else if (eps.some((e) => e.status === "READY" || e.status === "APPROVED")) status = "READY";
   else status = "CONCEPT";

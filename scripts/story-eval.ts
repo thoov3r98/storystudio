@@ -2,7 +2,7 @@
  * Optional evaluation with REAL models (costs money; never run in CI).
  *
  *   pnpm story-eval audit [--model gpt-5.5]           logic auditor vs. the fixed benchmark
- *   pnpm story-eval generate [--only id,id] [--writer m] [--reviewer m]
+ *   pnpm story-eval generate [--only id,id] [--parts 4] [--writer m] [--reviewer m]
  *                                                     full script pipeline on fixed premises
  *
  * Needs OPENAI_API_KEY (read from .env). No database is used. Results are
@@ -17,7 +17,7 @@ import { scriptAuditPrompt } from "@/lib/ai/story-prompts";
 import { DEFAULT_PRICING } from "@/lib/costs/pricing";
 import { LogicAuditSchema } from "@/lib/schemas/story-plan";
 import { emptyBible } from "@/lib/schemas/story-bible";
-import { composeScript } from "@/lib/story/compose";
+import { composeStory } from "@/lib/story/compose";
 import { BUILT_IN_REFERENCES } from "@/lib/story/references";
 import { recordIssues } from "@/lib/story/review";
 import { BENCH_CASES } from "../tests/story-bench/cases";
@@ -89,14 +89,15 @@ async function generate() {
   const only = flag("only")?.split(",");
   const writer = flag("writer") ?? mainModel;
   const reviewer = flag("reviewer") ?? writer;
+  const parts = Number(flag("parts") ?? 1);
   const premises = BENCH_PREMISES.filter((p) => !only || only.includes(p.id));
-  const results = [];
+  const out: unknown[] = [];
   let md = `# Generated scripts — ${stamp}\n\nWriter ${writer}, reviewer ${reviewer}. Read each for plot holes and whether you'd watch to the end.\n`;
   for (const p of premises) {
     const started = Date.now();
     process.stdout.write(`${p.id}… `);
     try {
-      const result = await composeScript(
+      const results = await composeStory(
         {
           storyId: `bench-${p.id}`,
           title: p.title,
@@ -109,24 +110,30 @@ async function generate() {
           previousEpisodes: [],
           latestEpisode: null,
           seed: p.seed ?? null,
+          parts,
         },
         { text: openAIStructuredClient, pricing: DEFAULT_PRICING, writer, reviewer, references: BUILT_IN_REFERENCES },
       );
-      const q = result.quality;
-      console.log(`${q.status} · ${q.metrics.plotRepairs} plot repairs · ${q.metrics.scriptRevisions} revisions · $${q.metrics.textCostUsd.toFixed(2)} · ${Math.round((Date.now() - started) / 1000)}s`);
-      results.push({ id: p.id, status: q.status, metrics: q.metrics, narration: result.draft.storyNarration, hook: result.draft.selectedHook, plot: result.plot, quality: q });
-      md += `\n## ${p.title} (${result.plot.archetype})\n\nStatus: **${q.status}** · ${q.metrics.plotRepairs} plot repairs · ${q.metrics.scriptRevisions} script revisions · $${q.metrics.textCostUsd.toFixed(2)} · ${Math.round(q.metrics.durationMs / 1000)}s\n\n> ${result.draft.storyNarration}\n\n${
+      const cost = results.reduce((t, r) => t + r.quality.metrics.textCostUsd, 0);
+      console.log(`${results.map((r) => r.quality.status).join("/")} · $${cost.toFixed(2)} · ${Math.round((Date.now() - started) / 1000)}s`);
+      md += `\n## ${p.title} (${results[0].plot.archetype}, ${results.length} part${results.length > 1 ? "s" : ""})\n\n$${cost.toFixed(2)} · ${Math.round((Date.now() - started) / 1000)}s\n`;
+      for (const result of results) {
+        const q = result.quality;
+        out.push({ id: p.id, part: q.part, status: q.status, metrics: q.metrics, narration: result.draft.storyNarration, hook: result.draft.selectedHook, plot: result.plot, quality: q });
+        md += `\n### ${results.length > 1 ? `Part ${q.part}: ` : ""}${result.draft.title}\n\nStatus: **${q.status}** · ${q.metrics.plotRepairs} plot repairs · ${q.metrics.scriptRevisions} script revisions\n\n> ${result.draft.storyNarration}\n\n${
         q.issues.length || q.mustFix.length
           ? `Open notes:\n${[...q.issues.map((i) => `- ${i.severity} ${i.category}: ${i.problem}`), ...q.mustFix.map((n) => `- editor: ${n.problem}`)].join("\n")}\n`
           : "No open notes.\n"
-      }\nHuman review: logic holes? ______  would you watch to the end (1–5)? ______\n`;
+      }`;
+      }
+      md += `\nHuman review: logic holes? ______  would you watch every part (1–5)? ______\n`;
     } catch (err) {
       console.log(`failed: ${err instanceof Error ? err.message : String(err)}`);
-      results.push({ id: p.id, status: "failed", error: err instanceof Error ? err.message : String(err) });
+      out.push({ id: p.id, status: "failed", error: err instanceof Error ? err.message : String(err) });
       md += `\n## ${p.title}\n\nFailed: ${err instanceof Error ? err.message : String(err)}\n`;
     }
   }
-  save(`generate-${stamp}`, { writer, reviewer, results }, md);
+  save(`generate-${stamp}`, { writer, reviewer, parts, results: out }, md);
 }
 
 const mode = args[0];

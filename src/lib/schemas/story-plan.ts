@@ -55,8 +55,20 @@ export const PlotSchema = z.object({
     endingType: z.enum(ENDING_TYPES),
   }),
   deliberateMysteries: z.array(z.string()).describe("Questions intentionally left unanswered for the viewer (e.g. why everyone vanished). Not plot holes."),
+  parts: z
+    .array(
+      z.object({
+        part: z.number().int().describe("1..P"),
+        beats: z.array(z.number().int()).describe("The beat numbers this video tells, consecutive."),
+        smallPayoff: z.string().describe("The question this video answers or the thing it resolves, so it satisfies on its own."),
+        cliffhanger: z.string().describe("The real turn this video ends on, which the next part picks up. Empty for the final part."),
+        newViewerLine: z.string().describe("For parts 2+: how the opening orients someone who starts here, in one spoken line. Empty for part 1."),
+      }),
+    )
+    .describe("How the story splits into videos. One part for a single episode."),
 });
 export type Plot = z.infer<typeof PlotSchema>;
+export type PlotPart = Plot["parts"][number];
 
 export const PlotCandidatesSchema = z.object({ plots: z.array(PlotSchema) });
 
@@ -156,6 +168,9 @@ export const HookCandidatesSchema = z.object({
 });
 export type HookCandidates = z.infer<typeof HookCandidatesSchema>;
 
+/** Hook candidates for every part of a story at once. */
+export const PartHookCandidatesSchema = z.object({ parts: z.array(HookCandidatesSchema.extend({ part: z.number().int() })) });
+
 export const HookPickSchema = z.object({
   reviews: z.array(
     z.object({
@@ -172,6 +187,8 @@ export const HookPickSchema = z.object({
   promise: z.string(),
 });
 export type HookPick = z.infer<typeof HookPickSchema>;
+
+export const PartHookPickSchema = z.object({ parts: z.array(HookPickSchema.extend({ part: z.number().int() })) });
 
 // ── Narration and revision ────────────────────────────────────────────
 
@@ -219,6 +236,8 @@ export type RecordedIssue = z.infer<typeof RecordedIssueSchema>;
 
 export const QualityRecordSchema = z.object({
   pipelineVersion: z.literal(2),
+  /** Which part of a multi-part story this script is (1 for single episodes). */
+  part: z.number().int().default(1),
   status: z.enum(QUALITY_STATUSES),
   plotRounds: z.array(z.object({ issues: z.array(RecordedIssueSchema), changeLog: z.array(z.object({ issueId: z.string(), change: z.string() })).default([]) })),
   scriptRounds: z.array(

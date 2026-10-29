@@ -62,7 +62,11 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
   beforeAll(async () => {
     await db.$queryRawUnsafe("SELECT 1");
   });
-  beforeEach(reset);
+  beforeEach(async () => {
+    await reset();
+    // Most tests cover single-episode stories; multi-part stories have their own test.
+    await db.setting.create({ data: { key: "defaults", value: { partsPerStory: 1 } } });
+  });
 
   it("ideates, dedupes, ranks and selects, with no separate hook step", async () => {
     await db.story.create({
@@ -398,6 +402,65 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(edited.currentVersion!.version).toBe(3);
     expect((edited.currentVersion!.spec as EpisodeSpecRecord).quality!.scriptRounds.length).toBeGreaterThan(1);
     expect(edited.status).toBe("SCRIPTED");
+  });
+
+  it("writes all four parts of a story from one plan, then makes media one part at a time", async () => {
+    await db.setting.update({ where: { key: "defaults" }, data: { value: { partsPerStory: 4 } } });
+    const batch = await createBatch(1);
+    const f = fakeDeps();
+    const { episodeIds } = await runIdeation({ batchId: batch.id, jobId: (await newJob({ type: "BATCH_IDEATION", batchId: batch.id })).id, deps: f.deps });
+    expect(f.text.prompts.concept_batch[0]).toContain("told across 4 short videos");
+    const part1 = episodeIds[0];
+    await runEpisodeJob({ jobId: (await newJob({ type: "EPISODE_PRODUCTION", episodeId: part1 })).id, episodeId: part1, continueProduction: true, request: { action: "produce" } }, f.deps);
+
+    // One plan and one audit for the whole story; hooks for all parts at once; each part written and checked on its own.
+    expect(f.text.calls).toMatchObject({ plot_candidates: 1, plot_audit: 1, hook_candidates: 1, hook_pick: 1, story_narration: 4, script_audit: 4, editorial_review: 4, scene_breakdown: 4 });
+    expect(f.text.prompts.plot_candidates[0]).toContain("for this 4-part story");
+    expect(f.text.prompts.story_narration[1]).toContain("THIS IS PART 2 OF 4");
+    expect(f.text.prompts.story_narration[1]).toContain("It tells beats 4, 5, 6 only");
+    // Later parts hear what earlier parts told, and their checks know the scope.
+    const part1Text = (await db.episode.findUniqueOrThrow({ where: { id: part1 }, include: { currentVersion: true } })).currentVersion!.narration;
+    expect(f.text.prompts.story_narration[1]).toContain(part1Text.slice(0, 40));
+    expect(f.text.prompts.script_audit[3]).toContain("THIS IS PART 4 OF 4");
+
+    const story = await db.story.findFirstOrThrow({ where: { episodes: { some: { id: part1 } } }, include: { episodes: { orderBy: { partNumber: "asc" }, include: { currentVersion: true } } } });
+    expect(story.plannedParts).toBe(4);
+    expect(story.status).toBe("CONCEPT");
+    expect(story.episodes.map((e) => [e.partNumber, e.status])).toEqual([
+      [1, "SCRIPTED"],
+      [2, "SCRIPTED"],
+      [3, "SCRIPTED"],
+      [4, "SCRIPTED"],
+    ]);
+    for (const e of story.episodes) {
+      const spec = e.currentVersion!.spec as EpisodeSpecRecord;
+      expect(spec.quality?.part).toBe(e.partNumber);
+      expect(spec.plot?.parts).toHaveLength(4);
+      expect(e.currentVersion!.qualityStatus).toBe("passed");
+    }
+    // Planning is shared, so each part carries a share of it; together they match what was spent.
+    const textSpend = (await db.costEntry.findMany({ where: { storyId: story.id, provider: "OPENAI_TEXT" } })).reduce((t, c) => t + Number(c.costUsd), 0);
+    const recorded = story.episodes.reduce((t, e) => t + (e.currentVersion!.spec as EpisodeSpecRecord).quality!.metrics.textCostUsd, 0);
+    expect(recorded).toBeCloseTo(textSpend, 2);
+    expect(f.images.count).toBe(0);
+
+    // Media for Part 1 only.
+    await approveScript(part1, f.deps);
+    const after = await db.episode.findMany({ where: { storyId: story.id }, orderBy: { partNumber: "asc" } });
+    expect(after.map((e) => e.status)).toEqual(["READY", "SCRIPTED", "SCRIPTED", "SCRIPTED"]);
+    expect(f.render.renders).toHaveLength(1);
+
+    // Rewriting Part 3 keeps the plan and the other parts; replanning is refused once a part is produced.
+    const part3 = after[2];
+    const plansBefore = f.text.calls.plot_candidates;
+    await runEpisodeJob({ jobId: (await newJob({ type: "REGENERATE_SCRIPT", episodeId: part3.id })).id, episodeId: part3.id, continueProduction: false, request: { action: "regenerate-script" } }, f.deps);
+    expect(f.text.calls.plot_candidates).toBe(plansBefore);
+    expect(f.text.prompts.story_narration.at(-1)).toContain("THIS IS PART 3 OF 4");
+    expect((await db.episodeVersion.count({ where: { episodeId: part3.id } }))).toBe(2);
+    expect(await db.episodeVersion.count({ where: { episodeId: after[1].id } })).toBe(1);
+    await expect(
+      runEpisodeJob({ jobId: (await newJob({ type: "REGENERATE_SCRIPT", episodeId: part1 })).id, episodeId: part1, continueProduction: false, request: { action: "regenerate-script", replanStory: true } }, f.deps),
+    ).rejects.toThrow(/already been produced/);
   });
 
   it("enforces the budget before paid steps", async () => {

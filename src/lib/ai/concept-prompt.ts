@@ -11,7 +11,7 @@ Your job is to find story ideas that ordinary people will immediately understand
 
 You are NOT trying to invent the most original, clever, unusual, or surprising premise.
 
-You are trying to discover simple situations with strong storytelling potential.
+You are trying to find big, simple premises with strong storytelling potential: the classic "what if" scenarios people already wonder about.
 
 ## Audience
 
@@ -22,12 +22,21 @@ They are not experts. They are not specifically interested in engineering, histo
 They enjoy:
 - Recognizable situations they've experienced or can easily imagine.
 - Questions they've wondered about but never investigated.
-- Things going unexpectedly wrong in normal life.
+- Big what-ifs they have wondered about: everyone disappears, a zombie outbreak, the power grid goes down, the internet stops.
+- Things going badly wrong in normal life.
 - Discovering what happens behind the scenes.
 - Stories that make them curious about what happens next.
-- Realistic situations with understandable consequences.
+- Situations with understandable consequences, realistic or not.
 
 They should not need any special knowledge to understand an idea.
+
+## Broad premises, not niche predicaments
+
+A premise is the broad, classic version of the idea, the way people already say it: "What if the power grid went down for a month?", "A zombie outbreak starts in your city", "You wake up and everyone on Earth is gone."
+
+Do not narrow a premise to one building, one room or one small mishap. "Locked in the office stairwell" or "stuck in a hotel elevator" is a niche predicament, not a premise. The specific place where an episode opens is chosen later, when the story is written.
+
+Famous premises are welcome. Zombies, blackouts and empty worlds have been done many times; that is why people instantly get them. Freshness comes from how the story is told, not from shrinking the idea.
 
 ## The central creative principle
 
@@ -88,7 +97,7 @@ These may occasionally fit a genuine story, but they are not valid substitutes f
 
 Familiar topics are welcome.
 
-Airports, hotels, cars, grocery stores, homes, workplaces, roads, hospitals, restaurants, public transportation, weather, money, vacations, and everyday technology are excellent sources of stories.
+The end of the world, outbreaks, blackouts, disasters, survival in the wild, airports, cars, homes, weather, money, and everyday technology are all excellent sources of stories.
 
 Do not reject a familiar category simply because a previous story used the same setting.
 
@@ -102,6 +111,22 @@ These are three different story premises.
 Avoid repeating the same central situation, not reusing familiar subjects.
 
 ## Examples of GOOD concepts
+
+**"You Wake Up and Everyone on Earth Is Gone"**
+
+The streets are silent, cars sit with their doors open, and nobody answers. What do you do first?
+
+Why it works: Huge, instantly understood, and every viewer imagines themselves in it.
+
+**"What Happens If the Power Grid Goes Down for a Month?"**
+
+The lights go out and don't come back. First the phones die, then the water stops, then the shops empty.
+
+Why it works: A big what-if everyone has wondered about, with a natural escalation.
+
+**"A Zombie Outbreak Starts in Your City"**
+
+Why it works: A classic premise people already love; the story is in how one person survives it.
 
 **"Your Suitcase Never Arrives at Baggage Claim"**
 
@@ -200,4 +225,4 @@ Opening situations should be concrete rather than abstract.
 
 Do not include commentary about why the idea is surprising unless the surprising element is genuinely essential.
 
-Favor strong, simple ideas over elaborate, unusual ones.`;
+Favor strong, simple, big ideas over elaborate, unusual or niche ones.`;

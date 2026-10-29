@@ -38,6 +38,12 @@ Episode:
 
 The reviewer model is configurable (Settings → Models: "Story reviewer", defaults to the main model). Draft quality uses the fast model for everything.
 
+### Stories in several parts
+
+New stories are planned across several videos (Settings → Parts per story, default 4). Writing Part 1 plans ONE causal plot for the whole story and splits its beats into parts of 2–4 beats each, so each ~75 s video has room for reactions and atmosphere instead of cramming a whole story into 190 words. Each part pays off one small question of its own, every part but the last ends on a cliffhanger that is a real turn in the plot, and Parts 2+ open with a line that orients a viewer who starts there.
+
+The plan is audited once; hooks for every part are developed in one pass; then each part is narrated, checked and revised in order (each sees what the earlier parts actually said), and the shots are cut. All parts land at the script gate; media is made one part at a time when you approve each. "Rewrite Part N" rewrites one part from the saved plan; "Replan all parts" (Part 1, before anything is produced) starts the story over. Planning cost is shared equally across the parts in each script's recorded cost.
+
 ### Validation policy
 
 - **Blocking**: a real contradiction or missing causal link a viewer would notice. Plot stage: narration is not written. Script stage: the script is saved so you can read it, but it cannot be approved until it is fixed, regenerated, or you dismiss the issue as a false positive (recorded).

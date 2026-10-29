@@ -82,6 +82,10 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         confirm={`Generates the illustrations, narration, captions and edit, then renders the MP4. Estimated ${mediaCost}.`}
       />
     );
+  // One story planned across several videos.
+  const partsPlanned = spec?.plot?.parts?.length ?? 1;
+  const multiPart = partsPlanned > 1;
+  const anyPartProduced = episode.story.episodes.some((e) => !["DRAFT", "SCRIPTED", "FAILED"].includes(e.status));
   // A plot that failed its logic check stops before any narration is written; show why.
   const lastJob = episode.jobs[0];
   const plotFailure =
@@ -287,16 +291,34 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
               title="Script"
               description={`${v.wordCount} words · ~${v.estimatedDurationSec.toFixed(0)}s estimated${timing ? ` · ${(timing.totalDurationMs / 1000).toFixed(1)}s actual` : ""}`}
               actions={
-                <EpisodeActionButton
-                  episodeId={episode.id}
-                  request={{ action: "regenerate-script" }}
-                  disabled={busy}
-                  label="Regenerate script"
-                  size="sm"
-                  variant="outline"
-                  continueProduction={false}
-                  confirm="Plans, writes and checks a new script version and stops for your review; nothing is spent on media until you approve it. The current version is kept in history."
-                />
+                <div className="flex flex-wrap gap-2">
+                  <EpisodeActionButton
+                    episodeId={episode.id}
+                    request={{ action: "regenerate-script" }}
+                    disabled={busy}
+                    label={multiPart ? `Rewrite Part ${episode.partNumber}` : "Regenerate script"}
+                    size="sm"
+                    variant="outline"
+                    continueProduction={false}
+                    confirm={
+                      multiPart
+                        ? `Rewrites Part ${episode.partNumber} from the story's plan (new hook, narration and checks) and stops for your review. The other parts are unchanged; nothing is spent on media.`
+                        : "Plans, writes and checks a new script version and stops for your review; nothing is spent on media until you approve it. The current version is kept in history."
+                    }
+                  />
+                  {multiPart && episode.partNumber === 1 && !anyPartProduced ? (
+                    <EpisodeActionButton
+                      episodeId={episode.id}
+                      request={{ action: "regenerate-script", replanStory: true }}
+                      disabled={busy}
+                      label={`Replan all ${partsPlanned} parts`}
+                      size="sm"
+                      variant="outline"
+                      continueProduction={false}
+                      confirm={`Plans the whole story again and rewrites all ${partsPlanned} parts as new versions. Use it when the story itself isn't working. Nothing is spent on media.`}
+                    />
+                  ) : null}
+                </div>
               }
             >
               <div className="space-y-4 rounded-xl border bg-card p-5">

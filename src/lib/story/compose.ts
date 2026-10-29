@@ -15,16 +15,17 @@ import {
   sceneBreakdownPrompt,
   scriptAuditPrompt,
   scriptRevisionPrompt,
+  partBrief,
   type StorySeed,
 } from "@/lib/ai/story-prompts";
 import {
   type EditorialNote,
   type EditorialReview,
   EditorialReviewSchema,
-  HookCandidatesSchema,
   type HookCandidates,
   type HookPick,
-  HookPickSchema,
+  PartHookCandidatesSchema,
+  PartHookPickSchema,
   LogicAuditSchema,
   type Plot,
   PlotCandidatesSchema,
@@ -69,7 +70,8 @@ export class StoryQualityError extends Error {
 
 export type SeriesContext = { bible: StoryBible; previousSummaries: string[] };
 
-export type ComposeInput = WriterInput & { seed?: StorySeed | null; series?: SeriesContext | null };
+/** `parts` > 1 plans one story told across that many videos (Part 1..N). */
+export type ComposeInput = WriterInput & { seed?: StorySeed | null; series?: SeriesContext | null; parts?: number };
 
 export type ComposeDeps = {
   text: StructuredTextClient;
@@ -87,6 +89,9 @@ export type ComposeDeps = {
 /** Everything one script carries between steps. The plot stays the source of truth. */
 export type ScriptState = {
   plot: Plot;
+  /** Which part of the plot this script tells (1 for single episodes), and that part's brief (see partBrief). */
+  part: number;
+  brief: string;
   hook: string;
   hookPromise: string;
   title: string;
@@ -170,14 +175,20 @@ function narrationLengthIssues(narration: string, opts: { durationSec: number; w
 /** Narration checks: length, the chosen opening, and every plot beat told. */
 export function narrationIssues(
   v: { storyNarration: string; beatCoverage: { beat: number }[] },
-  opts: { durationSec: number; wordsPerSecond: number; plot: Plot; hook: string | null },
+  opts: { durationSec: number; wordsPerSecond: number; plot: Plot; hook: string | null; part?: number },
 ): string[] {
   const issues = narrationLengthIssues(v.storyNarration, opts);
   if (opts.hook && !startsWith(v.storyNarration, opts.hook)) issues.push(`Open with the chosen hook word for word: "${opts.hook}"`);
   const covered = new Set(v.beatCoverage.map((b) => b.beat));
-  const missing = opts.plot.beats.filter((b) => !covered.has(b.n)).map((b) => b.n);
+  const missing = partBeats(opts.plot, opts.part ?? 1).filter((n) => !covered.has(n));
   if (missing.length) issues.push(`Every beat must be told; beatCoverage is missing beat(s) ${missing.join(", ")}.`);
   return issues;
+}
+
+/** The beat numbers a part tells; every beat when the plot is one part. */
+export function partBeats(plot: Plot, part: number): number[] {
+  const parts = plot.parts ?? [];
+  return parts.length > 1 ? (parts.find((p) => p.part === part)?.beats ?? []) : plot.beats.map((b) => b.n);
 }
 
 function changeLogIssues(changeLog: { issueId: string }[], ids: string[]): string[] {
@@ -194,27 +205,29 @@ function firstSentence(text: string): string {
 
 async function planPlot(run: Run, input: ComposeInput, deps: ComposeDeps) {
   const refs = selectReferences(deps.references, { archetype: input.seed?.archetype });
+  const parts = input.parts ?? 1;
+  const check = { durationSec: input.durationSec, parts };
   let invalid: string[] = [];
   const { plots } = await run({
-    prompt: plotCandidatesPrompt({ ...input, references: refs }, 2),
+    prompt: plotCandidatesPrompt({ ...input, references: refs, parts }, 2),
     schema: PlotCandidatesSchema,
     schemaName: "plot_candidates",
     role: "writer",
     operation: "plot-candidates",
-    budget: 0.15,
+    budget: 0.15 * Math.max(1, parts / 2),
     // At least one plot must pass the structure checks; failing ones are dropped.
     validate: (v) => {
-      invalid = v.plots.map((p, i) => validatePlot(p, input).map((x) => `plots[${i}]: ${x}`)).flat();
-      return v.plots.some((p) => validatePlot(p, input).length === 0) ? [] : invalid.length ? invalid : ["Plan at least one plot."];
+      invalid = v.plots.map((p, i) => validatePlot(p, check).map((x) => `plots[${i}]: ${x}`)).flat();
+      return v.plots.some((p) => validatePlot(p, check).length === 0) ? [] : invalid.length ? invalid : ["Plan at least one plot."];
     },
   });
-  const valid = plots.filter((p) => validatePlot(p, input).length === 0);
+  const valid = plots.filter((p) => validatePlot(p, check).length === 0);
 
   let plot = valid[0];
   let plotPick: QualityRecord["plotPick"] = null;
   if (valid.length > 1) {
     const pick = await run({
-      prompt: plotPickPrompt({ plots: valid, premise: input.premise, partNumber: input.partNumber, durationSec: input.durationSec }),
+      prompt: plotPickPrompt({ plots: valid, premise: input.premise, partNumber: input.partNumber, durationSec: input.durationSec, parts }),
       schema: PlotPickSchema,
       schemaName: "plot_pick",
       role: "reviewer",
@@ -240,13 +253,13 @@ async function planPlot(run: Run, input: ComposeInput, deps: ComposeDeps) {
     previous = issueBrief(serious, []);
     const ids = previous.map((p) => p.id);
     const repair = await run({
-      prompt: plotRepairPrompt({ plot, issues: previous, durationSec: input.durationSec }),
+      prompt: plotRepairPrompt({ plot, issues: previous, durationSec: input.durationSec, parts }),
       schema: PlotRepairSchema,
       schemaName: "plot_repair",
       role: "writer",
       operation: "plot-repair",
       budget: 0.12,
-      validate: (v) => [...validatePlot(v.plot, input), ...changeLogIssues(v.changeLog, ids)],
+      validate: (v) => [...validatePlot(v.plot, check), ...changeLogIssues(v.changeLog, ids)],
     });
     plot = repair.plot;
     changeLog = repair.changeLog;
@@ -256,51 +269,68 @@ async function planPlot(run: Run, input: ComposeInput, deps: ComposeDeps) {
   return { plot, plotPick, rounds };
 }
 
-// ── Hooks: candidates → pick against the plot ─────────────────────────
+// ── Hooks: candidates → pick against the plot, for every part at once ──
 
-async function developHook(run: Run, input: ComposeInput, plot: Plot, deps: ComposeDeps) {
+type PartHooks = { candidates: HookCandidates; pick: HookPick };
+
+async function developHooks(run: Run, input: ComposeInput, plot: Plot, deps: ComposeDeps, parts: number[]): Promise<Map<number, PartHooks>> {
   const hero = input.narrator?.name ?? "the main character";
   const perspective = input.narrator ? (input.narrator.perspective === "FIRST_PERSON" ? `first person, as ${hero}` : `close third person, following ${hero}`) : "second person, present tense";
-  const candidates: HookCandidates = await run({
-    prompt: hookCandidatesPrompt({ plot, hero, perspective, references: selectReferences(deps.references, { archetype: plot.archetype }) }),
-    schema: HookCandidatesSchema,
+  const missing = (got: { part: number }[]) => parts.filter((n) => !got.some((g) => g.part === n));
+  const { parts: candidates } = await run({
+    prompt: hookCandidatesPrompt({ plot, hero, perspective, references: selectReferences(deps.references, { archetype: plot.archetype }), parts }),
+    schema: PartHookCandidatesSchema,
     schemaName: "hook_candidates",
     role: "writer",
     operation: "hook-candidates",
-    budget: 0.06,
+    budget: 0.06 * parts.length,
     validate: (v) => [
-      ...(v.candidates.length < 4 ? ["Write at least 4 hooks."] : []),
-      ...(new Set(v.candidates.map((c) => c.style)).size < 3 ? ["Use at least 3 different hook styles."] : []),
+      ...missing(v.parts).map((n) => `Write hooks for part ${n}.`),
+      ...v.parts.flatMap((p) => [
+        ...(p.candidates.length < 4 ? [`Part ${p.part}: write at least 4 hooks.`] : []),
+        ...(new Set(p.candidates.map((c) => c.style)).size < 3 ? [`Part ${p.part}: use at least 3 different hook styles.`] : []),
+      ]),
     ],
   });
-  const pick: HookPick = await run({
-    prompt: hookPickPrompt({ plot, candidates: candidates.candidates }),
-    schema: HookPickSchema,
+  const forPart = (n: number) => candidates.find((c) => c.part === n)!;
+  const { parts: picks } = await run({
+    prompt: hookPickPrompt({ plot, parts: parts.map((n) => ({ part: n, candidates: forPart(n).candidates })) }),
+    schema: PartHookPickSchema,
     schemaName: "hook_pick",
     role: "reviewer",
     operation: "hook-pick",
-    validate: (v) => {
-      const issues: string[] = [];
-      if (v.chosenIndex < 0 || v.chosenIndex >= candidates.candidates.length) issues.push(`chosenIndex must be 0–${candidates.candidates.length - 1}.`);
-      const chosen = v.reviews.find((r) => r.index === v.chosenIndex);
-      if (chosen && !chosen.deliveredByPlot) issues.push("Choose a hook the plot fully delivers on.");
-      const generic = genericHookPhrase(v.hook);
-      if (generic) issues.push(`The hook uses a generic phrase ("${generic}"). Make it concrete.`);
-      if (countWords(v.hook) > 35) issues.push("Keep the hook to one or two short spoken sentences (35 words at most).");
-      return issues;
-    },
+    validate: (v) => [
+      ...missing(v.parts).map((n) => `Choose a hook for part ${n}.`),
+      ...v.parts.flatMap((p) => {
+        const issues: string[] = [];
+        const options = forPart(p.part)?.candidates ?? [];
+        if (p.chosenIndex < 0 || p.chosenIndex >= options.length) issues.push(`Part ${p.part}: chosenIndex must be 0–${options.length - 1}.`);
+        const chosen = p.reviews.find((r) => r.index === p.chosenIndex);
+        if (chosen && !chosen.deliveredByPlot) issues.push(`Part ${p.part}: choose a hook the plot fully delivers on.`);
+        const generic = genericHookPhrase(p.hook);
+        if (generic) issues.push(`Part ${p.part}: the hook uses a generic phrase ("${generic}"). Make it concrete.`);
+        if (countWords(p.hook) > 35) issues.push(`Part ${p.part}: keep the hook to one or two short spoken sentences (35 words at most).`);
+        return issues;
+      }),
+    ],
   });
-  return { candidates, pick };
+  return new Map(
+    parts.map((n) => {
+      const { part: _c, ...c } = forPart(n);
+      const { part: _p, ...pick } = picks.find((p) => p.part === n)!;
+      return [n, { candidates: c, pick }];
+    }),
+  );
 }
 
 // ── Checks and targeted revisions ─────────────────────────────────────
 
 async function checkScript(run: Run, input: ComposeInput, s: ScriptState, previous?: { id: string; text: string }[], round = 1) {
-  const auditPrompt = scriptAuditPrompt({ plot: s.plot, narration: s.narration, premise: input.premise, previous, series: input.series });
+  const auditPrompt = scriptAuditPrompt({ plot: s.plot, narration: s.narration, premise: input.premise, previous, series: input.series, brief: s.brief });
   const [audit, editorial] = await Promise.all([
     run({ prompt: auditPrompt, schema: LogicAuditSchema, schemaName: "script_audit", role: "reviewer", operation: "script-audit", budget: 0.08 }),
     run({
-      prompt: editorialPrompt({ narration: s.narration, dramaticQuestion: s.plot.dramaticQuestion, hookPromise: s.hookPromise, partNumber: input.partNumber, durationSec: input.durationSec }),
+      prompt: editorialPrompt({ narration: s.narration, dramaticQuestion: s.plot.dramaticQuestion, hookPromise: s.hookPromise, partNumber: input.partNumber + s.part - 1, durationSec: input.durationSec, brief: s.brief }),
       schema: EditorialReviewSchema,
       schemaName: "editorial_review",
       role: "reviewer",
@@ -318,15 +348,15 @@ async function checkScript(run: Run, input: ComposeInput, s: ScriptState, previo
 async function reviseScript(run: Run, input: ComposeInput, s: ScriptState, toFix: { id: string; text: string }[], hookIssue: boolean): Promise<{ state: ScriptState; changeLog: Round["changeLog"] }> {
   const ids = toFix.map((t) => t.id);
   const rev = await run({
-    prompt: scriptRevisionPrompt({ ...input, plot: s.plot, narration: s.narration, hook: s.hook, issues: toFix, hookIssue }),
+    prompt: scriptRevisionPrompt({ ...input, plot: s.plot, narration: s.narration, hook: s.hook, issues: toFix, hookIssue, brief: s.brief }),
     schema: ScriptRevisionSchema,
     schemaName: "script_revision",
     role: "writer",
     operation: "revise-script",
     budget: 0.15,
     validate: (v) => [
-      ...narrationIssues(v, { ...input, plot: v.plot, hook: hookIssue ? null : s.hook }),
-      ...validatePlot(v.plot, input),
+      ...narrationIssues(v, { ...input, plot: v.plot, hook: hookIssue ? null : s.hook, part: s.part }),
+      ...validatePlot(v.plot, { durationSec: input.durationSec, parts: input.parts ?? 1 }),
       ...changeLogIssues(v.changeLog, ids),
     ],
   });
@@ -378,7 +408,7 @@ export async function refineScript(
 async function breakdown(run: Run, input: ComposeInput, s: ScriptState): Promise<EpisodeDraft> {
   const fixed = { title: s.title, storyNarration: s.narration, selectedHook: s.hook, summary: s.summary, keyReveals: s.keyReveals, unresolvedQuestions: s.unresolvedQuestions };
   const b = await run({
-    prompt: sceneBreakdownPrompt({ ...input, plot: s.plot, narration: s.narration, title: s.title }),
+    prompt: sceneBreakdownPrompt({ ...input, plot: s.plot, narration: s.narration, title: s.title, brief: s.brief }),
     schema: SceneBreakdownSchema,
     schemaName: "scene_breakdown",
     role: "writer",
@@ -392,6 +422,7 @@ async function breakdown(run: Run, input: ComposeInput, s: ScriptState): Promise
 export type ComposeResult = { draft: EpisodeDraft; plot: Plot; quality: QualityRecord };
 
 function qualityRecord(input: {
+  part: number;
   plotRounds: QualityRecord["plotRounds"];
   scriptRounds: Round[];
   revisions: number;
@@ -407,6 +438,7 @@ function qualityRecord(input: {
   const firstScript = input.scriptRounds[0];
   return {
     pipelineVersion: 2,
+    part: input.part,
     status: qualityStatus({ issues: last.issues, mustFix: last.mustFix }),
     plotRounds: input.plotRounds,
     scriptRounds: input.scriptRounds,
@@ -432,63 +464,145 @@ function qualityRecord(input: {
 }
 
 /**
- * Writes one episode script: causal plot → logic audit (repairs) → hooks →
- * narration → logic + editorial checks (targeted revisions) → storyboard.
- * Never touches the database, so it can run in evaluations.
+ * Writes a story's scripts: causal plot (split into parts) → logic audit
+ * (repairs) → hooks for every part → for each part in order: narration →
+ * logic + editorial checks (targeted revisions) → storyboard. Never touches
+ * the database, so it can run in evaluations.
  */
+export async function composeStory(input: ComposeInput, deps: ComposeDeps): Promise<ComposeResult[]> {
+  const startedAt = Date.now();
+  const shared = { usd: 0 };
+  const run = makeRunner(deps, shared);
+  const count = input.parts ?? 1;
+  const partNumbers = Array.from({ length: count }, (_, i) => i + 1);
+  const stage = (label: string, progress: number) => deps.onStage?.(label, progress);
+
+  await stage(count > 1 ? `Planning all ${count} parts` : "Planning the plot", 0.06);
+  const planned = await planPlot(run, input, deps);
+
+  await stage("Developing the hooks", 0.25);
+  const hooks = await developHooks(run, input, planned.plot, deps, partNumbers);
+
+  let plot = planned.plot;
+  const written: { state: ScriptState; rounds: Round[]; revisions: number; editorial: EditorialReview | null; refs: string[]; spent: { usd: number } }[] = [];
+  for (const part of partNumbers) {
+    const spent = { usd: 0 };
+    const partRun = makeRunner(deps, spent);
+    const at = 0.3 + (0.55 * (part - 1)) / count;
+    const label = count > 1 ? ` Part ${part}` : "";
+    await stage(`Writing${label || " the narration"}`, at);
+    const h = hooks.get(part)!;
+    const brief = partBrief(plot, part, written.map((w) => w.state.narration));
+    const refs = selectReferences(deps.references, { archetype: plot.archetype, hookStyle: h.candidates.candidates[h.pick.chosenIndex]?.style, endingType: plot.resolution.endingType });
+    const narration = await partRun({
+      prompt: narrationPrompt({ ...input, plot, hook: h.pick, references: refs, brief, beats: partBeats(plot, part) }),
+      schema: StoryNarrationSchema,
+      schemaName: "story_narration",
+      role: "writer",
+      operation: "write-narration",
+      budget: 0.12,
+      validate: (v) => narrationIssues(v, { ...input, plot, hook: h.pick.hook, part }),
+    });
+    const refined = await refineScript(
+      partRun,
+      input,
+      {
+        plot,
+        part,
+        brief,
+        hook: h.pick.hook,
+        hookPromise: h.pick.promise,
+        title: narration.title,
+        narration: narration.storyNarration,
+        summary: narration.summary,
+        keyReveals: narration.keyReveals,
+        unresolvedQuestions: narration.unresolvedQuestions,
+      },
+      { onStage: (l) => stage(`${l}${label ? ` (${label.trim()})` : ""}`, at + 0.05) },
+    );
+    // A revision may repair this part's beats; later parts are told from the repaired plot.
+    plot = refined.state.plot;
+    written.push({ ...refined, refs: refs.map((r) => r.title), spent });
+  }
+
+  await stage(count > 1 ? "Planning the shots for every part" : "Planning the shots", 0.88);
+  const drafts = await Promise.all(written.map((w) => breakdown(makeRunner(deps, w.spent), input, { ...w.state, plot })));
+
+  return written.map((w, i) => ({
+    draft: drafts[i],
+    plot,
+    quality: qualityRecord({
+      part: w.state.part,
+      plotRounds: planned.rounds,
+      scriptRounds: w.rounds,
+      revisions: w.revisions,
+      editorial: w.editorial,
+      hooks: hooks.get(w.state.part)!,
+      plotPick: planned.plotPick,
+      references: w.refs,
+      startedAt,
+      // Planning is shared, so each part carries an equal share of it.
+      costUsd: shared.usd / count + w.spent.usd,
+    }),
+  }));
+}
+
+/** One episode (a single part): the common case and the evaluation entry point. */
 export async function composeScript(input: ComposeInput, deps: ComposeDeps): Promise<ComposeResult> {
+  const [result] = await composeStory({ ...input, parts: 1 }, deps);
+  return result;
+}
+
+/** Rewrites one part of a planned multi-part story from its saved plot: new hooks, narration, checks and shots. */
+export async function composePart(input: ComposeInput, deps: ComposeDeps, saved: { plot: Plot; part: number; earlier: string[]; plotRounds: QualityRecord["plotRounds"] }): Promise<ComposeResult> {
   const startedAt = Date.now();
   const spent = { usd: 0 };
   const run = makeRunner(deps, spent);
-
-  await deps.onStage?.("Planning the plot", 0.06);
-  const planned = await planPlot(run, input, deps);
-
-  await deps.onStage?.("Developing the hook", 0.3);
-  const hooks = await developHook(run, input, planned.plot, deps);
-
-  await deps.onStage?.("Writing the narration", 0.4);
-  const chosenStyle = hooks.candidates.candidates[hooks.pick.chosenIndex]?.style;
-  const refs = selectReferences(deps.references, { archetype: planned.plot.archetype, hookStyle: chosenStyle, endingType: planned.plot.resolution.endingType });
-  const written = await run({
-    prompt: narrationPrompt({ ...input, plot: planned.plot, hook: hooks.pick, references: refs }),
+  const { plot, part } = saved;
+  await deps.onStage?.(`Developing the hook for Part ${part}`, 0.1);
+  const h = (await developHooks(run, input, plot, deps, [part])).get(part)!;
+  const brief = partBrief(plot, part, saved.earlier);
+  const refs = selectReferences(deps.references, { archetype: plot.archetype, hookStyle: h.candidates.candidates[h.pick.chosenIndex]?.style, endingType: plot.resolution.endingType });
+  await deps.onStage?.(`Writing Part ${part}`, 0.3);
+  const narration = await run({
+    prompt: narrationPrompt({ ...input, plot, hook: h.pick, references: refs, brief, beats: partBeats(plot, part) }),
     schema: StoryNarrationSchema,
     schemaName: "story_narration",
     role: "writer",
     operation: "write-narration",
     budget: 0.12,
-    validate: (v) => narrationIssues(v, { ...input, plot: planned.plot, hook: hooks.pick.hook }),
+    validate: (v) => narrationIssues(v, { ...input, plot, hook: h.pick.hook, part }),
   });
-
   const refined = await refineScript(
     run,
     input,
     {
-      plot: planned.plot,
-      hook: hooks.pick.hook,
-      hookPromise: hooks.pick.promise,
-      title: written.title,
-      narration: written.storyNarration,
-      summary: written.summary,
-      keyReveals: written.keyReveals,
-      unresolvedQuestions: written.unresolvedQuestions,
+      plot,
+      part,
+      brief,
+      hook: h.pick.hook,
+      hookPromise: h.pick.promise,
+      title: narration.title,
+      narration: narration.storyNarration,
+      summary: narration.summary,
+      keyReveals: narration.keyReveals,
+      unresolvedQuestions: narration.unresolvedQuestions,
     },
     { onStage: deps.onStage },
   );
-
   await deps.onStage?.("Planning the shots", 0.85);
   const draft = await breakdown(run, input, refined.state);
-
   return {
     draft,
     plot: refined.state.plot,
     quality: qualityRecord({
-      plotRounds: planned.rounds,
+      part,
+      plotRounds: saved.plotRounds,
       scriptRounds: refined.rounds,
       revisions: refined.revisions,
       editorial: refined.editorial,
-      hooks: { candidates: hooks.candidates, pick: hooks.pick },
-      plotPick: planned.plotPick,
+      hooks: h,
+      plotPick: null,
       references: refs.map((r) => r.title),
       startedAt,
       costUsd: spent.usd,
@@ -512,6 +626,7 @@ export async function reviseComposed(input: ComposeInput, deps: ComposeDeps, sav
     draft,
     plot: refined.state.plot,
     quality: qualityRecord({
+      part: saved.quality.part ?? 1,
       plotRounds: saved.quality.plotRounds,
       scriptRounds: [...saved.quality.scriptRounds, ...refined.rounds],
       revisions: saved.quality.metrics.scriptRevisions + refined.revisions,

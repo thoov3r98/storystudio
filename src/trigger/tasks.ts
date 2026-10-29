@@ -7,7 +7,7 @@ import { EpisodeJobPayloadSchema, runEpisodeJob } from "@/lib/pipeline/produce";
 import { productionDeps } from "@/lib/pipeline/deps";
 import { refreshStoryStatus } from "@/lib/pipeline/versions";
 import { estimateEpisodeCost } from "@/lib/costs/estimate";
-import { getPricing, getModels } from "@/lib/settings";
+import { getDefaults, getPricing, getModels } from "@/lib/settings";
 import { spentFor } from "@/lib/costs/record";
 import { BudgetExceededError } from "@/lib/costs/record";
 import { StructuredOutputError } from "@/lib/ai/structured";
@@ -48,7 +48,7 @@ export const ideateBatchTask = schemaTask({
         // Each one stops at the script gate; media is made only once the producer approves it.
         const queued: string[] = [];
         if (batch.mode === "FULL_PRODUCTION" && batch.autoSelect) {
-          const perEpisode = estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: batch.targetDurationSec, quality: batch.quality }).text;
+          const perEpisode = estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: batch.targetDurationSec, quality: batch.quality, parts: (await getDefaults()).partsPerStory }).text;
           let remaining = Number(batch.maxBudgetUsd) - (await spentFor({ batchId, budgetScope: "batch" }));
           for (const episodeId of result.episodeIds) {
             if (remaining < perEpisode) break;

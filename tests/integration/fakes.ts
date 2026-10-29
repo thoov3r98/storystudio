@@ -41,6 +41,38 @@ export const FAKE_PLOT = {
   ],
   resolution: { what: "They board the plane their bag is on.", enabledBy: ["B5", "S1"], endingType: "irony" },
   deliberateMysteries: [],
+  parts: [{ part: 1, beats: [1, 2, 3, 4, 5], smallPayoff: "Where the bag went", cliffhanger: "", newViewerLine: "" }],
+};
+
+/** One story planned across `count` videos, three beats each. */
+export function fakeStoryPlot(count: number) {
+  const n = count * 3;
+  const beats = Array.from({ length: n }, (_, i) => ({
+    ...FAKE_PLOT.beats[i % 5],
+    n: i + 1,
+    link: i === 0 ? "start" : i % 2 ? "but" : "therefore",
+    event: `Event ${i + 1} of the long story.`,
+    enabledBy: i === 0 ? [] : [`B${i}`, ...(i === 2 ? ["S1"] : [])],
+  }));
+  return {
+    ...FAKE_PLOT,
+    dramaticQuestion: `A ${count}-part story`,
+    beats,
+    resolution: { ...FAKE_PLOT.resolution, enabledBy: [`B${n}`, "S1"] },
+    parts: Array.from({ length: count }, (_, p) => ({
+      part: p + 1,
+      beats: [p * 3 + 1, p * 3 + 2, p * 3 + 3],
+      smallPayoff: `What part ${p + 1} answers`,
+      cliffhanger: p < count - 1 ? `Turn at the end of part ${p + 1}` : "",
+      newViewerLine: p > 0 ? `You lost your bag; now part ${p + 1}.` : "",
+    })),
+  };
+}
+
+/** Beat numbers the prompt asks this narration to tell: the part's own, or every beat in the plot. */
+const beatsAsked = (user: string) => {
+  const own = /It tells beats ([\d, ]+) only/.exec(user)?.[1];
+  return own ? own.split(",").map((x) => Number(x.trim())) : [...user.matchAll(/^B(\d+) \[/gm)].map((m) => Number(m[1]));
 };
 
 const AUDIT_ISSUE = (severity: string, evidence: string, category = "causal-gap") => ({
@@ -187,8 +219,11 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
           const n = (user.match(/^\[\d+\]/gm) ?? []).length;
           return out({ evaluations: Array.from({ length: n }, (_, i) => ({ conceptIndex: i, scores: scores(4 + ((i * 3) % 6)), summary: "ok" })) });
         }
-        case "plot_candidates":
-          return out({ plots: [FAKE_PLOT, { ...FAKE_PLOT, dramaticQuestion: "Second plot" }] });
+        case "plot_candidates": {
+          const count = Number(/for this (\d+)-part story/.exec(user)?.[1] ?? 1);
+          const plot = count > 1 ? fakeStoryPlot(count) : FAKE_PLOT;
+          return out({ plots: [plot, { ...plot, dramaticQuestion: count > 1 ? `Second ${count}-part plot` : "Second plot" }] });
+        }
         case "plot_pick":
           return out({ reviews: [0, 1].map((index) => ({ index, strengths: "s", weaknesses: "w" })), chosenIndex: 1, reason: "Clearer cause and effect." });
         case "plot_audit": {
@@ -205,24 +240,34 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
           const ids = issueIds(user);
           return out({ diagnosis: ids.map((issueId) => ({ issueId, rootBeat: 2, rootCause: "c" })), plot, changeLog: ids.map((issueId) => ({ issueId, change: "Planted the cause in beat 2." })) });
         }
-        case "hook_candidates":
+        case "hook_candidates": {
+          const parts = (/For each of these parts: ([\d, ]+),/.exec(user)?.[1] ?? "1").split(",").map((x) => Number(x.trim()));
           return out({
-            dramaticQuestion: "Will they get the bag?",
-            strongestMoment: "The carousel stops",
-            candidates: [
-              { style: "relatable-problem", text: "You land after ten hours.", promise: "A travel problem", paidOffIn: "B1" },
-              { style: "specific-mystery", text: "Your bag is on a plane you are not.", promise: "Where the bag went", paidOffIn: "B4" },
-              { style: "immediate-danger", text: "The carousel stops.", promise: "Trouble", paidOffIn: "B1" },
-              { style: "contradiction", text: "The tag says Lisbon.", promise: "A mix-up", paidOffIn: "B3" },
-            ],
+            parts: parts.map((part) => ({
+              part,
+              dramaticQuestion: "Will they get the bag?",
+              strongestMoment: "The carousel stops",
+              candidates: [
+                { style: "relatable-problem", text: part === 1 ? "You land after ten hours." : `Part ${part} opens here.`, promise: "A travel problem", paidOffIn: "B1" },
+                { style: "specific-mystery", text: "Your bag is on a plane you are not.", promise: "Where the bag went", paidOffIn: "B4" },
+                { style: "immediate-danger", text: "The carousel stops.", promise: "Trouble", paidOffIn: "B1" },
+                { style: "contradiction", text: "The tag says Lisbon.", promise: "A mix-up", paidOffIn: "B3" },
+              ],
+            })),
           });
-        case "hook_pick":
+        }
+        case "hook_pick": {
+          const parts = [...user.matchAll(/^PART (\d+) CANDIDATES/gm)].map((m) => Number(m[1]));
           return out({
-            reviews: [0, 1, 2, 3].map((index) => ({ index, clarity: "strong", curiosity: "strong", specificity: "strong", deliveredByPlot: true, note: "n" })),
-            chosenIndex: 0,
-            hook: "You land after ten hours.",
-            promise: "A travel problem you'll solve",
+            parts: parts.map((part) => ({
+              part,
+              reviews: [0, 1, 2, 3].map((index) => ({ index, clarity: "strong", curiosity: "strong", specificity: "strong", deliveredByPlot: true, note: "n" })),
+              chosenIndex: 0,
+              hook: part === 1 ? "You land after ten hours." : `Part ${part} opens here.`,
+              promise: "A travel problem you'll solve",
+            })),
           });
+        }
         case "story_narration": {
           const hook = /CHOSEN HOOK \(open with exactly this\): (.+)/.exec(user)?.[1] ?? "You land after ten hours.";
           const part = Number(/^Part: (\d+)/m.exec(user)?.[1] ?? 1);
@@ -234,7 +279,7 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
             summary: d.summary,
             keyReveals: d.keyReveals,
             unresolvedQuestions: d.unresolvedQuestions,
-            beatCoverage: FAKE_PLOT.beats.map((b) => ({ beat: b.n, opensWith: "x" })),
+            beatCoverage: beatsAsked(user).map((beat) => ({ beat, opensWith: "x" })),
             planChanges: [],
           });
         }
@@ -271,7 +316,7 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
             summary: "Revised summary.",
             keyReveals: ["Reveal"],
             unresolvedQuestions: ["Question"],
-            beatCoverage: plot.beats.map((b: { n: number }) => ({ beat: b.n, opensWith: "x" })),
+            beatCoverage: (/It tells beats/.test(user) ? beatsAsked(user) : plot.beats.map((b: { n: number }) => b.n)).map((beat: number) => ({ beat, opensWith: "x" })),
             changeLog: ids.map((issueId) => ({ issueId, change: "Fixed at the root." })),
           });
         }

@@ -8,18 +8,28 @@ export function plotBeatRange(durationSec: number): [number, number] {
   return [5, 8];
 }
 
+/** Beats per video when one story is split across several videos: room to breathe in each. */
+export function partBeatRange(durationSec: number, parts: number): [number, number] {
+  if (parts <= 1) return plotBeatRange(durationSec);
+  return durationSec <= 65 ? [2, 3] : [2, 4];
+}
+
 /**
  * Deterministic structure checks on a plot, fed back to the model on failure.
  * They catch what can be caught mechanically: missing causes, references to
  * nothing, and payoffs that rely on something introduced only when needed.
  */
-export function validatePlot(plot: Plot, opts: { durationSec: number }): string[] {
+export function validatePlot(plot: Plot, opts: { durationSec: number; parts?: number }): string[] {
   const issues: string[] = [];
-  const [minBeats, maxBeats] = plotBeatRange(opts.durationSec);
+  const parts = opts.parts ?? 1;
   const beats = plot.beats;
-  if (beats.length < minBeats || beats.length > maxBeats) {
-    issues.push(`Use ${minBeats}–${maxBeats} major beats for a ${opts.durationSec}s episode (you have ${beats.length}). Simplify rather than cram.`);
+  if (parts === 1) {
+    const [minBeats, maxBeats] = plotBeatRange(opts.durationSec);
+    if (beats.length < minBeats || beats.length > maxBeats) {
+      issues.push(`Use ${minBeats}–${maxBeats} major beats for a ${opts.durationSec}s episode (you have ${beats.length}). Simplify rather than cram.`);
+    }
   }
+  issues.push(...partIssues(plot, opts.durationSec, parts));
   const ruleIds = new Set(plot.worldRules.map((r) => r.id));
   const setups = new Map(plot.setups.map((s) => [s.id, s]));
 
@@ -68,6 +78,23 @@ export function validatePlot(plot: Plot, opts: { durationSec: number }): string[
   return issues;
 }
 
+function partIssues(plot: Plot, durationSec: number, count: number): string[] {
+  const issues: string[] = [];
+  const parts = plot.parts ?? [];
+  if (parts.length !== count) return [`Split the story into exactly ${count} part${count === 1 ? "" : "s"} (you have ${parts.length}).`];
+  const [min, max] = partBeatRange(durationSec, count);
+  const order = parts.flatMap((p) => p.beats);
+  if (order.join(",") !== plot.beats.map((b) => b.n).join(",")) issues.push("parts must cover every beat exactly once, in order, each part a consecutive run of beats.");
+  parts.forEach((p, i) => {
+    if (p.part !== i + 1) issues.push(`Parts must be numbered 1..${count}; position ${i + 1} is numbered ${p.part}.`);
+    if (count > 1 && (p.beats.length < min || p.beats.length > max)) issues.push(`Part ${i + 1} has ${p.beats.length} beats; give each video ${min}–${max} so it has room to breathe.`);
+    if (i < count - 1 && !p.cliffhanger.trim()) issues.push(`Part ${i + 1} needs a cliffhanger: a real turn from the plot that the next part picks up.`);
+    if (i > 0 && !p.newViewerLine.trim()) issues.push(`Part ${i + 1} needs a newViewerLine that orients someone who starts there.`);
+    if (!p.smallPayoff.trim()) issues.push(`Part ${i + 1} needs a smallPayoff so it satisfies on its own.`);
+  });
+  return issues;
+}
+
 /** The plot as compact text for prompts and evidence matching. */
 export function plotText(plot: Plot): string {
   const lines = [
@@ -83,6 +110,12 @@ export function plotText(plot: Plot): string {
     ),
     `Resolution (${plot.resolution.endingType}): ${plot.resolution.what} (from ${plot.resolution.enabledBy.join(", ")})`,
     `Deliberate mysteries: ${plot.deliberateMysteries.join(" | ") || "none"}`,
+    ...((plot.parts ?? []).length > 1
+      ? (plot.parts ?? []).map(
+          (p) =>
+            `Part ${p.part}: beats ${p.beats.join(", ")} | answers: ${p.smallPayoff}${p.cliffhanger ? ` | ends on: ${p.cliffhanger}` : ""}${p.newViewerLine ? ` | orients: ${p.newViewerLine}` : ""}`,
+        )
+      : []),
   ];
   return lines.join("\n");
 }
