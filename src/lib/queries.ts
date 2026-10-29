@@ -85,23 +85,19 @@ export async function getStory(storyId: string) {
   const story = await db.story.findUnique({
     where: { id: storyId },
     include: {
-      character: { select: { id: true, name: true, signatureColor: true } },
       channel: { select: { id: true, name: true, format: true } },
-      bibles: { orderBy: { version: "desc" } },
       episodes: {
         orderBy: { partNumber: "asc" },
         include: {
           currentVersion: {
             include: {
               renders: { where: { status: "SUCCEEDED" }, orderBy: { createdAt: "desc" }, take: 1 },
-              proposal: true,
             },
           },
           metrics: { orderBy: { recordedAt: "desc" } },
           jobs: { where: { status: { in: ACTIVE_JOB_STATUSES } }, select: { id: true, status: true, stage: true, progress: true } },
         },
       },
-      proposals: { where: { status: "PENDING" }, include: { episodeVersion: { include: { episode: { select: { partNumber: true, title: true, id: true } } } } } },
       concept: true,
     },
   });
@@ -116,7 +112,7 @@ export async function getEpisode(episodeId: string) {
     where: { id: episodeId },
     include: {
       story: { include: { episodes: { orderBy: { partNumber: "asc" }, select: { id: true, partNumber: true, status: true } } } },
-      versions: { orderBy: { version: "desc" }, select: { id: true, version: true, status: true, reason: true, createdAt: true, factCheckStatus: true } },
+      versions: { orderBy: { version: "desc" }, select: { id: true, version: true, status: true, reason: true, createdAt: true } },
       currentVersion: {
         include: {
           scenes: {
@@ -126,7 +122,6 @@ export async function getEpisode(episodeId: string) {
           voiceover: true,
           voiceovers: { orderBy: { version: "desc" }, take: 5 },
           renders: { orderBy: { createdAt: "desc" }, take: 10 },
-          proposal: true,
         },
       },
       jobs: { orderBy: { createdAt: "desc" }, take: 10 },
@@ -158,7 +153,7 @@ export async function listJobs(params: { status?: string }) {
     include: {
       story: { select: { id: true, title: true } },
       episode: { select: { id: true, partNumber: true, title: true } },
-      batch: { select: { id: true, requestedCount: true, mode: true } },
+      batch: { select: { id: true, requestedCount: true } },
     },
   });
   const costs = await db.costEntry.groupBy({ by: ["jobId"], where: { jobId: { in: jobs.map((j) => j.id) } }, _sum: { costUsd: true } });
@@ -187,37 +182,12 @@ export async function storyStatusCounts() {
   return Object.fromEntries(rows.map((r) => [r.status, r._count])) as Partial<Record<StoryStatus, number>>;
 }
 
-export async function listCharacters(params: { archived?: boolean } = {}) {
-  await connection();
-  return db.character.findMany({
-    where: { archivedAt: params.archived ? { not: null } : null },
-    orderBy: { updatedAt: "desc" },
-    include: { _count: { select: { stories: true } } },
-  });
-}
-
-export async function getCharacter(characterId: string) {
-  await connection();
-  const character = await db.character.findUnique({
-    where: { id: characterId },
-    include: {
-      stories: {
-        orderBy: { lastActivityAt: "desc" },
-        include: { _count: { select: { episodes: true } } },
-      },
-    },
-  });
-  if (!character) return null;
-  const spend = await db.costEntry.aggregate({ where: { OR: [{ characterId }, { story: { characterId } }] }, _sum: { costUsd: true } });
-  return { character, spentUsd: Number(spend._sum.costUsd ?? 0) };
-}
-
 export async function listChannels(params: { archived?: boolean } = {}) {
   await connection();
   return db.channel.findMany({
     where: { archivedAt: params.archived ? { not: null } : null },
     orderBy: { createdAt: "asc" },
-    include: { character: { select: { id: true, name: true, sheetUrl: true, signatureColor: true } }, _count: { select: { stories: { where: { archivedAt: null } } } } },
+    include: { _count: { select: { stories: { where: { archivedAt: null } } } } },
   });
 }
 
@@ -226,7 +196,6 @@ export async function getChannel(channelId: string) {
   return db.channel.findUnique({
     where: { id: channelId },
     include: {
-      character: { select: { id: true, name: true, sheetUrl: true, signatureColor: true, tagline: true } },
       stories: { where: { archivedAt: null }, orderBy: { lastActivityAt: "desc" }, take: 30, include: { _count: { select: { episodes: true } } } },
       batches: { orderBy: { createdAt: "desc" }, take: 8, include: { _count: { select: { concepts: true } } } },
     },

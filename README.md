@@ -1,6 +1,6 @@
 # The Invisible World Studio
 
-A private studio for producing narrated, illustrated, serialized story videos (TikTok / Shorts / Reels). It pitches and scores opening-episode concepts, writes and fact-reviews scripts, illustrates scenes, records narration, renders 1080×1920 MP4s, and keeps a canonical story bible so any storyline can continue to Part 2, 3, 4 and beyond.
+A private studio for producing narrated, stick-figure illustrated How It's Made style videos for TikTok channels (also Shorts and Reels). It pitches products, researches how each one is really made, writes a series of 3–5 fact-checked scripts from that research, illustrates the shots, records narration and renders 1080×1920 MP4s.
 
 The studio never publishes anything. Its output is a downloadable MP4 plus every editable production asset.
 
@@ -22,36 +22,32 @@ The studio never publishes anything. Its output is a downloadable MP4 plus every
 ## How it works
 
 ```
-Generate page ──► Batch ──► Trigger.dev "ideate-batch"
-                              │  pitch ~2N candidates (archetype, dramatic question, 3-line episode sketch)
-                              │  dedupe vs library (title / trigram / keyword similarity)
-                              │  score 9 editorial criteria incl. "becomes a coherent episode"; unworkable ideas rank last
-                              └► Story + Part 1 (DRAFT)
+Make Videos ──► Batch ──► Trigger.dev "ideate-batch"            (see docs/channels.md)
+                            │  a typed product, or "Surprise me": 6 pitches from the channel profile
+                            │  Surprise me drops repeats of the channel's own products; the reviewer keeps 3
+                            └► you pick one ("Write this story") ──► Story + Part 1
 
-"Write script" / "Generate Next Episode" ──► Trigger.dev "episode-job"   (see docs/story-quality.md)
-   1. Plot: two causal plots → editor's pick → logic audit → targeted repairs (≤2); blocking holes stop here
-   2. Hook: 4–6 candidates → judged against the plot → refined
-   3. Narration told from the plot, with matching reference stories as craft examples
-   4. Checks: independent logic audit (+ series continuity on Part 2+) and editorial review → targeted revisions (≤2)
-   5. Shots cut word-for-word from the narration, visual state, proposed bible update
-   ── Script gate: passed / needs attention (approve with override) / blocked (cannot be produced) ──
-   6. Illustrate scenes (OpenAI Images, style references, per-scene checks and retries)
-   7. Narrate (ElevenLabs with character timestamps)
-   8. Synchronize: scene boundaries + word-level captions from the real alignment
-   9. Render: Vercel Sandbox (Remotion) → MP4 uploaded to Vercel Blob
+"Write script" ──► Trigger.dev "episode-job"
+   1. Web research (OpenAI web search, cited) → research notes (stages, main route, sources, uncertain points)
+   2. Part plan: the stages split into 3–5 consecutive parts in factory order
+   3. Each part: narration from the notes only → fact, clarity and tone check against the notes → targeted revisions (≤2)
+   4. Shots cut word-for-word from each part's narration, with the visual state
+   ── Script gate, per part: passed / needs attention (approve with override) / blocked (cannot be produced) ──
+   5. Illustrate shots (OpenAI Images, style references, per-image checks and one redraw)
+   6. Narrate (ElevenLabs with character timestamps)
+   7. Synchronize: scene boundaries + word-level captions from the real alignment
+   8. Render: Vercel Sandbox (Remotion) → MP4 uploaded to Vercel Blob
 ```
 
 Key design rules:
 
 - **Every artifact is versioned and immutable.** Script versions, scene images, voiceovers and renders are separate rows; "current" pointers choose what is live. Approved versions are locked — any change forks a new draft version.
 - **Minimal regeneration.** An image change replaces one image and re-renders. A voiceover change re-syncs and re-renders. A script change forks a version and invalidates voiceover, timing, captions and render (see `src/lib/invalidation.ts`).
-- **Resumable jobs.** Each stage skips work whose artifact already exists, so retrying a failed job resumes rather than repaying for completed steps. A failed scene image never discards the others.
-- **Continuity only becomes canon on approval.** Each script proposes a bible update; it's applied as a new bible version only when you approve the episode.
-- **Selective memory for long series.** Continuations receive the canonical bible, the last ~10 approved episode summaries, and the latest episode in full. Older parts are represented by the bible's compressed arc summary.
-- **No unchecked scripts.** Every episode, Part 1 included, is audited for plot holes in a separate checking pass (its own prompt, and optionally its own model), with quoted evidence. Blocking holes can't reach media; the issues, ratings, hook candidates, plot and revision history are on the episode page, and the Story Quality page tracks them over time.
+- **Resumable jobs.** Each stage skips work whose artifact already exists, so retrying a failed job resumes rather than repaying for completed steps. The research is kept on the story, so rewrites never search again. A failed scene image never discards the others.
+- **Nothing beyond the research.** Every part is written only from the research notes and checked against them in a separate pass (its own prompt, and optionally its own model), with quoted evidence. A stated fact that contradicts the research blocks the script; the issues, research, sources and revision history are on the episode page, and the Script Quality page tracks them over time.
 - **Costs are estimates.** Every paid call records a `CostEntry` using the pricing on the Settings page. Batch budgets are hard stops checked before each paid step.
 
-Scores and ratings are AI editorial heuristics, not predictions of audience performance.
+Check results are AI judgements, not predictions of audience performance.
 
 ---
 
@@ -142,7 +138,7 @@ Deployment Protection only gates browsers. The internal render routes independen
 Settings → Narrator voices → **Load from ElevenLabs**, add the voice(s) you want, save. Then review **Provider pricing** and replace the placeholder rates with your actual plan's prices.
 
 ### 6. Smoke test
-Generate 1 concept in Concept mode (cents), open the batch, produce it, and watch Generation Jobs. A 75-second episode typically takes a few minutes, most of it rendering.
+On Make Videos, pitch a product (cents), pick a pitch and watch Generation Jobs while every part is researched and written. Approve Part 1's script to make its video; that takes a few minutes, most of it rendering.
 
 ---
 
@@ -163,7 +159,7 @@ pnpm lint
 pnpm test                               # unit tests (no DB needed)
 ```
 
-**Integration tests** run the real pipeline (ideation, writing, revisions, images, narration timing, rendering hand-off, approval, continuation, versioning, budgets) against a real database with deterministic fake providers that live only in `tests/`:
+**Integration tests** run the real pipeline (pitching, research, writing, fact-checks, revisions, images, narration timing, rendering hand-off, approval, versioning, budgets) against a real database with deterministic fake providers that live only in `tests/`:
 
 ```bash
 pnpm prisma dev -d --name iws-test      # note the printed postgres:// URL
@@ -171,11 +167,9 @@ DIRECT_URL=<url> DATABASE_URL=<url> pnpm prisma migrate deploy
 TEST_DATABASE_URL=<url> DATABASE_POOL_MAX=1 pnpm test
 ```
 
-**Story evaluation** (optional, real models, costs money): `pnpm story-eval audit` runs the logic auditor on the fixed benchmark in `tests/story-bench/` (stories with seeded holes plus sound ones) and reports detection and false-positive rates; `pnpm story-eval generate` writes scripts for fixed premises with the full pipeline for side-by-side reading. Results go to `evals/results/`.
-
 **Local prisma commands:** `prisma.config.ts` prefers `DIRECT_URL`, which `.env` points at production. Set `DIRECT_URL` as well as `DATABASE_URL` to the test database when migrating it.
 
-**Browser tests** (Playwright) seed a disposable database and exercise every page, including the approve → bible update → continuation-unlocked flow and the mobile layout:
+**Browser tests** (Playwright) seed a disposable database and exercise every page, including the script gate, dismissing an issue, approval and the mobile layout:
 
 ```bash
 pnpm build
@@ -188,8 +182,8 @@ The seed script truncates all tables and refuses to run against a `neon.tech` UR
 
 ## Operations
 
-- **A job failed.** Open Generation Jobs: the error, failed scenes, or continuity conflicts are shown. **Retry** resumes from the first missing artifact.
-- **"Material continuity conflicts remain."** Production stopped before media spend. Read the conflicts on the episode page, edit the story bible if the bible is wrong, or use **Rewrite & produce anyway**.
+- **A job failed.** Open Generation Jobs: the error or failed scenes are shown. **Retry** resumes from the first missing artifact.
+- **A script is blocked.** Its fact-check found a contradiction with the research, so nothing was spent on media. Read the issue and sources on the episode page, then **Fix flagged issues**, rewrite the line, or dismiss the issue if the checker is wrong.
 - **Budget limit reached.** Raise the batch budget by starting a new batch, or produce the remaining episodes individually from the batch page.
 - **Render failed in sandbox.** Check the Vercel function logs for `/api/internal/render/start`. Make sure `pnpm build` produced `remotion-bundle/` (it's included in the function via `outputFileTracingIncludes`).
 - **Captions or scenes out of sync.** Timing always derives from the voiceover's character alignment. Regenerate the voiceover to rebuild it.
@@ -200,17 +194,17 @@ The seed script truncates all tables and refuses to run against a `neon.tech` UR
 ## Project layout
 
 ```
-prisma/schema.prisma           Data model (stories, bibles, versions, scenes, assets, jobs, costs)
+prisma/schema.prisma           Data model (channels, stories, versions, scenes, assets, jobs, costs)
 src/app/                       Pages and server actions (actions.ts)
   api/internal/render/*        Secret-authenticated Vercel Sandbox render routes
 src/components/                App shell, shared UI, shadcn/ui
 src/lib/
   ai/                          Prompts, strict structured outputs with bounded retries
-  pipeline/                    Ideation, writing, illustrations, voiceover, render, versions, context
-  story/                       Script composition: plot checks, audits, revisions, references, quality metrics
+  pipeline/                    Channels and pitching, writing, illustrations, voiceover, render, versions
+  process/                     Script composition: research, plan, narration, fact-checks, revisions, quality metrics
   providers/                   OpenAI Images, ElevenLabs
   render/                      Render clients (Vercel Sandbox, local)
-  schemas/                     Zod schemas for every AI response and the story bible
+  schemas/                     Zod schemas for every AI response
   costs/                       Pricing, estimates, usage recording, budgets
   timing.ts                    Alignment → words → scene boundaries → captions
   invalidation.ts              Regeneration dependency rules

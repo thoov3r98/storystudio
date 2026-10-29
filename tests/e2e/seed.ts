@@ -5,9 +5,8 @@
  *   DATABASE_URL=<test db> pnpm tsx tests/e2e/seed.ts
  */
 import { db } from "@/lib/db";
-import { applyBibleUpdate, emptyBible } from "@/lib/schemas/story-bible";
-import { FAKE_PLOT, makeDraft } from "../integration/fakes";
-import type { QualityRecord } from "@/lib/schemas/story-plan";
+import { makeDraft } from "../integration/fakes";
+import type { QualityRecord } from "@/lib/schemas/quality";
 import { buildEpisodeTiming } from "@/lib/timing";
 
 if (!process.env.DATABASE_URL || /neon\.tech/.test(process.env.DATABASE_URL) || process.env.ALLOW_E2E_SEED !== "1") {
@@ -25,43 +24,27 @@ async function main() {
   await db.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(", ")} CASCADE`);
 
   await db.setting.create({ data: { key: "voices", value: [{ id: "test-voice", name: "Test Narrator", description: "" }] } });
-  const dave = await db.character.create({
-    data: {
-      name: "Test Dave",
-      tagline: "An ex-trucker who keeps ending up stranded",
-      brief: "A friendly ex-trucker",
-      personality: "Calm and stubborn.",
-      backstory: "Drove long-haul for twenty years.",
-      speakingStyle: "Slow and dry.",
-      visualDescription: "Big stick figure with a red cap.",
-      signatureColor: "#C62828",
-      voiceId: "test-voice",
-    },
-  });
+  const profile = (summary: string) => ({ summary, subjects: "s", voice: "Plain and factual.", structure: "In order.", avoid: ["Brand names"], surpriseMe: "Pick one.", examples: ["Crayons", "Pencils"] });
+  const channel = await db.channel.create({ data: { name: "How It's Made", brief: "How things are made.", format: "PROCESS_EXPLAINER", profile: profile("How everyday products are made."), voiceId: "test-voice" } });
+  await db.channel.create({ data: { name: "How Toys Are Made", brief: "How toys are made.", format: "PROCESS_EXPLAINER", profile: profile("How everyday toys are made."), voiceId: "test-voice" } });
 
-  const profile = (summary: string) => ({ summary, subjects: "s", voice: "Plain and factual.", structure: "In order.", avoid: ["Drama"], surpriseMe: "Pick one.", examples: ["The grid goes down", "Crayons"] });
-  await db.channel.create({ data: { name: "Dave vs the World", brief: "Dave gets through disasters.", format: "CHARACTER_STORY", profile: profile("Dave gets through big disasters."), characterId: dave.id, voiceId: "test-voice" } });
-  await db.channel.create({ data: { name: "How It's Made", brief: "How things are made.", format: "PROCESS_EXPLAINER", profile: profile("How everyday products are made."), voiceId: "test-voice" } });
-
-  const hook = "You land after ten hours.";
+  const hook = "This is how crayons are made.";
   const draft = makeDraft(hook, 1);
-  const bible1 = emptyBible({ premise: "Your checked bag vanishes into a hidden network.", styleKey: "stick-figure" });
 
   const story = await db.story.create({
     data: {
-      title: "Where Does Your Lost Luggage Actually Go?",
-      normalizedTitle: "lost luggage",
-      category: "travel-transportation",
-      premise: "Your checked bag vanishes into a hidden network.",
-      keywords: ["luggage", "airport"],
+      title: "How Crayons Are Made",
+      normalizedTitle: "how crayons are made",
+      premise: "How wax crayons are made in a factory.",
+      keywords: ["crayons", "wax"],
       status: "READY",
       voiceId: "test-voice",
       thumbnailUrl: svg(1),
-      bibles: { create: { version: 1, source: "concept", data: bible1 } },
+      channelId: channel.id,
     },
   });
   await db.story.create({
-    data: { title: "What Happens If Every Traffic Light Turns Green?", normalizedTitle: "traffic light turns green", category: "hypothetical-disasters", premise: "A fault turns every signal green.", keywords: ["traffic"], status: "CONCEPT" },
+    data: { title: "How Pencils Are Made", normalizedTitle: "how pencils are made", premise: "How wooden pencils are made.", keywords: ["pencils"], status: "CONCEPT", channelId: channel.id },
   });
 
   const episode = await db.episode.create({ data: { storyId: story.id, partNumber: 1, title: draft.title, status: "READY" } });
@@ -77,12 +60,11 @@ async function main() {
       episodeId: episode.id,
       version: 1,
       reason: "initial",
-      spec: { ...draft, scenes: undefined, storyId: story.id, partNumber: 1, narration, wordCount: 169, estimatedDurationSec: 72, factCheckStatus: "PASSED" },
+      spec: { ...draft, scenes: undefined, storyId: story.id, partNumber: 1, narration, wordCount: 169, estimatedDurationSec: 72 },
       narration,
       wordCount: 169,
       estimatedDurationSec: 72,
       summary: draft.summary,
-      factCheckStatus: "PASSED",
       styleKey: "stick-figure",
       timing,
       scenes: { create: draft.scenes.map((s) => ({ ...s, intendedDurationSec: 6 })) },
@@ -93,67 +75,55 @@ async function main() {
     const img = await db.sceneImage.create({ data: { sceneId: scene.id, version: 1, status: "SUCCEEDED", url: svg(scene.sceneNumber), prompt: scene.imagePrompt, model: "seed", quality: "low" } });
     await db.scene.update({ where: { id: scene.id }, data: { currentImageId: img.id } });
   }
-  await db.bibleUpdateProposal.create({ data: { storyId: story.id, episodeVersionId: version.id, baseBibleVersion: 1, update: draft.bibleUpdate } });
   await db.episode.update({ where: { id: episode.id }, data: { currentVersionId: version.id } });
   // A script waiting at the gate: written, nothing produced yet.
-  const chairDraft = makeDraft("The lift stopped halfway up.", 1);
-  const chairStory = await db.story.create({
+  const soapDraft = makeDraft("Every bar of soap starts as a vat of oil.", 1);
+  const soapStory = await db.story.create({
     data: {
-      title: "Stuck on the Last Chairlift",
-      normalizedTitle: "stuck on the last chairlift",
-      category: "survival-scenarios",
-      premise: "The lift stops with one rider left on the mountain.",
-      keywords: ["ski"],
+      title: "How Bar Soap Is Made",
+      normalizedTitle: "how bar soap is made",
+      premise: "How bars of soap are made in a factory.",
+      keywords: ["soap"],
       status: "CONCEPT",
-      bibles: { create: { version: 1, source: "concept", data: emptyBible({ premise: "The lift stops.", styleKey: "stick-figure" }) } },
+      channelId: channel.id,
     },
   });
-  const scripted = await db.episode.create({ data: { storyId: chairStory.id, partNumber: 1, title: chairDraft.title, status: "SCRIPTED" } });
-  const chairNarration = chairDraft.scenes.map((s) => s.narration).join(" ");
+  const scripted = await db.episode.create({ data: { storyId: soapStory.id, partNumber: 1, title: soapDraft.title, status: "SCRIPTED" } });
+  const soapNarration = soapDraft.scenes.map((s) => s.narration).join(" ");
   // The checks left one significant issue open, so approving needs an override (or a dismissal).
-  const evidence = chairNarration.split(" ").slice(6, 12).join(" ");
+  const evidence = soapNarration.split(" ").slice(6, 12).join(" ");
   const quality: QualityRecord = {
     pipelineVersion: 2,
     part: 1,
     status: "needs-attention",
-    plotRounds: [{ issues: [], changeLog: [] }],
     scriptRounds: [],
     issues: [
-      { id: "S3.1", stage: "script", verified: true, category: "motivation", severity: "significant", kind: "contradiction", location: "Scene 2", evidence, problem: "Ridge waves the patrol away for no clear reason.", repair: "Show he thinks they are leaving." },
+      { id: "S3.1", stage: "script", verified: true, category: "unsupported-claim", severity: "significant", kind: "contradiction", location: "Sentence 2", evidence, problem: "The research doesn't say the oil is heated to 200 degrees.", repair: "Say it is heated, without the number." },
     ],
-    mustFix: [],
-    editorial: null,
-    hooks: null,
-    plotPick: null,
-    references: ["The Last Bus (original example)"],
     dismissed: [],
     override: null,
-    metrics: { firstPass: false, plotRepairs: 0, scriptRevisions: 2, blockingFound: 0, significantFound: 2, unverifiedIssues: 0, durationMs: 190000, textCostUsd: 0.62 },
+    metrics: { firstPass: false, scriptRevisions: 2, blockingFound: 0, significantFound: 2, unverifiedIssues: 0, durationMs: 190000, textCostUsd: 0.62 },
   };
-  quality.scriptRounds = [{ issues: quality.issues, mustFix: [], changeLog: [], unresolvedPrevious: [] }];
-  const chairVersion = await db.episodeVersion.create({
+  quality.scriptRounds = [{ issues: quality.issues, changeLog: [], unresolvedPrevious: [] }];
+  const soapVersion = await db.episodeVersion.create({
     data: {
       episodeId: scripted.id,
       version: 1,
       reason: "initial",
-      spec: { ...chairDraft, scenes: undefined, storyId: chairStory.id, partNumber: 1, narration: chairNarration, wordCount: 169, estimatedDurationSec: 72, factCheckStatus: "PASSED", plot: FAKE_PLOT, quality },
+      spec: { ...soapDraft, scenes: undefined, storyId: soapStory.id, partNumber: 1, narration: soapNarration, wordCount: 169, estimatedDurationSec: 72, quality },
       qualityStatus: quality.status,
-      narration: chairNarration,
+      narration: soapNarration,
       wordCount: 169,
       estimatedDurationSec: 72,
-      summary: "The chairlift stops with Ridge on it as the hill closes.",
-      factCheckStatus: "PASSED",
+      summary: "Oil and lye are mixed and heated until they turn into soap.",
       styleKey: "stick-figure",
-      scenes: { create: chairDraft.scenes.map((s) => ({ ...s, intendedDurationSec: 6 })) },
+      scenes: { create: soapDraft.scenes.map((s) => ({ ...s, intendedDurationSec: 6 })) },
     },
   });
-  await db.episode.update({ where: { id: scripted.id }, data: { currentVersionId: chairVersion.id } });
-
-  // Pre-compute what approval would produce so the bible view has content to show.
-  void applyBibleUpdate;
+  await db.episode.update({ where: { id: scripted.id }, data: { currentVersionId: soapVersion.id } });
 
   const batch = await db.batch.create({
-    data: { mode: "CONCEPT", category: "mixed", requestedCount: 2, targetDurationSec: 75, styleKey: "stick-figure", voiceId: "test-voice", quality: "STANDARD", maxBudgetUsd: 10 },
+    data: { requestedCount: 3, targetDurationSec: 75, styleKey: "stick-figure-color", voiceId: "test-voice", quality: "STANDARD", maxBudgetUsd: 10, channelId: channel.id },
   });
   await db.job.create({ data: { type: "BATCH_IDEATION", batchId: batch.id, status: "FAILED", input: { batchId: batch.id }, error: { name: "MissingConfigError", message: "TRIGGER_SECRET_KEY is not configured." }, completedAt: new Date() } });
   await db.costEntry.create({ data: { provider: "OPENAI_TEXT", model: "seed", operation: "seed", usage: {}, costUsd: "0.42", storyId: story.id, episodeId: episode.id } });

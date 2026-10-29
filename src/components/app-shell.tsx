@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useState } from "react";
-import { BookOpen, Cog, LayoutDashboard, ListChecks, Menu, Sparkles, UsersRound, Gauge, Tv } from "lucide-react";
+import { BookOpen, Cog, LayoutDashboard, ListChecks, Menu, Sparkles, Gauge, Tv } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -13,9 +13,8 @@ const NAV = [
   { href: "/channels", label: "Channels", icon: Tv },
   { href: "/generate", label: "Make Videos", icon: Sparkles },
   { href: "/stories", label: "Story Library", icon: BookOpen },
-  { href: "/characters", label: "Characters", icon: UsersRound },
   { href: "/jobs", label: "Generation Jobs", icon: ListChecks },
-  { href: "/quality", label: "Story Quality", icon: Gauge },
+  { href: "/quality", label: "Script Quality", icon: Gauge },
   { href: "/settings", label: "Settings", icon: Cog },
 ];
 

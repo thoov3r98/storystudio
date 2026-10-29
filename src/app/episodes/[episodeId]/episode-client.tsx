@@ -78,8 +78,8 @@ export function RewriteSceneDialog({
           <DialogTitle>{opening ? "Rewrite the opening" : `Rewrite scene ${sceneNumber}`}</DialogTitle>
           <DialogDescription>
             {produced
-              ? "Creates a new script version and checks it again for plot holes. The voiceover, timing and captions are regenerated; this scene’s image is regenerated only if its visual changes."
-              : "Creates a new script version and checks it again for plot holes. Nothing is spent on media until you approve the script."}
+              ? "Creates a new script version and fact-checks it again. The voiceover, timing and captions are regenerated; this scene’s image is regenerated only if its visual changes."
+              : "Creates a new script version and fact-checks it again. Nothing is spent on media until you approve the script."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">

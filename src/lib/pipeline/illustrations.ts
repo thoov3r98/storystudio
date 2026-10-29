@@ -7,21 +7,13 @@ import { fetchAsset, paths, uploadAsset } from "@/lib/storage";
 import { imageCost, textCost } from "@/lib/costs/pricing";
 import { assertWithinBudget, recordCost, type CostContext } from "@/lib/costs/record";
 import { getDefaults, getPricing, getModels } from "@/lib/settings";
-import { QUALITY_PRESETS, VIDEO_FORMATS, videoFormat } from "@/lib/constants";
+import { IMAGE_SIZE, QUALITY_PRESETS } from "@/lib/constants";
 import { assertNotCanceled, setJobStage } from "@/lib/jobs";
-import { loadCanonicalBible } from "./context";
 import type { PipelineDeps } from "./deps";
 
 const IMAGE_TIMEOUT_MS = 4 * 60_000;
 const IMAGE_ATTEMPTS = 3;
 const IMAGE_CONCURRENCY = 4;
-
-/** Scene character lists may use a first name ("Ridge") or the full name ("Ridge Mason"). */
-function isHero(name: string, heroName: string): boolean {
-  const a = name.trim().toLowerCase();
-  const b = heroName.trim().toLowerCase();
-  return a === b || a.split(/\s+/)[0] === b.split(/\s+/)[0];
-}
 
 export class SceneImagesIncompleteError extends Error {
   constructor(public readonly failedScenes: { sceneNumber: number; error: string }[]) {
@@ -34,15 +26,11 @@ export class SceneImagesIncompleteError extends Error {
 }
 
 /**
- * Style references for consistency: the first two successful images from the
- * story's earliest approved episode, or from this version if none exist yet.
- * Reference images are passed to the image edit endpoint so line weight and
- * figure proportions carry across scenes and episodes.
+ * Style references for consistency: the first two successful images of this
+ * version. They are passed to the image edit endpoint so line weight and
+ * figure proportions carry across scenes.
  */
-async function styleReferences(storyId: string, versionId: string, excludeSceneNumbers: number[]): Promise<string[]> {
-  const story = await db.story.findUniqueOrThrow({ where: { id: storyId }, select: { visualReferences: { where: { kind: "style", imageUrl: { not: null } } } } });
-  const pinned = story.visualReferences.map((r) => r.imageUrl!).slice(0, 2);
-  if (pinned.length) return pinned;
+async function styleReferences(versionId: string, excludeSceneNumbers: number[]): Promise<string[]> {
   const own = await db.scene.findMany({
     where: { episodeVersionId: versionId, currentImageId: { not: null }, sceneNumber: { notIn: excludeSceneNumbers } },
     include: { currentImage: true },
@@ -67,27 +55,17 @@ export async function generateSceneImages(input: {
 }) {
   const version = await db.episodeVersion.findUniqueOrThrow({
     where: { id: input.versionId },
-    include: { episode: { include: { story: { include: { character: true } } } }, scenes: { orderBy: { sceneNumber: "asc" } } },
+    include: { episode: { include: { story: true } }, scenes: { orderBy: { sceneNumber: "asc" } } },
   });
   const story = version.episode.story;
-  const format = videoFormat(story.videoFormat);
-  const hero = story.character ? { name: story.character.name, visualDescription: story.character.visualDescription } : null;
   const quality = QUALITY_PRESETS[story.quality].imageQuality;
   const pricing = await getPricing();
   const defaults = await getDefaults();
-  const bible = await loadCanonicalBible(story.id);
   const targets = version.scenes.filter((s) => (input.sceneNumbers ? input.sceneNumbers.includes(s.sceneNumber) : !s.currentImageId));
   if (targets.length === 0) return { generated: 0 };
 
-  const proposal = await db.bibleUpdateProposal.findUnique({ where: { episodeVersionId: version.id } });
-  const proposedChars = ((proposal?.update as { addCharacters?: { name: string; visualDescription: string }[] } | null)?.addCharacters ?? []);
-  const characterSheet = [...bible.data.characters, ...proposedChars];
-
-  // The character sheet leads (for shots the hero is in) so they stay on-model; style references follow.
-  const sheet = story.character?.sheetUrl ? await fetchAsset(story.character.sheetUrl).catch(() => null) : null;
-  const styleUrls = defaults.useStyleReferences ? await styleReferences(story.id, version.id, targets.map((t) => t.sceneNumber)) : [];
-  const styleRefs = (await Promise.all(styleUrls.map((u) => fetchAsset(u).catch(() => null)))).filter((b): b is Buffer => Boolean(b));
-  const references = [...(sheet ? [sheet] : []), ...styleRefs].slice(0, 3);
+  const styleUrls = defaults.useStyleReferences ? await styleReferences(version.id, targets.map((t) => t.sceneNumber)) : [];
+  const refs = (await Promise.all(styleUrls.map((u) => fetchAsset(u).catch(() => null)))).filter((b): b is Buffer => Boolean(b));
 
   const spec = version.spec as { visualState?: VisualState } | null;
   const visualState = spec?.visualState ?? null;
@@ -98,9 +76,6 @@ export async function generateSceneImages(input: {
     if (input.jobId) await assertNotCanceled(input.jobId);
     await assertWithinBudget(input.cost, pricing.imagePerImage[quality]);
 
-    // The character sheet only goes in when the hero is in the shot; otherwise the model tends to draw them anyway.
-    const heroInShot = !hero || scene.characters.some((c) => isHero(c, hero.name));
-    const refs = heroInShot ? references : styleRefs.slice(0, 3);
     const at = version.scenes.findIndex((s) => s.id === scene.id);
     const shot: ShotContext = {
       summary: version.summary,
@@ -114,12 +89,7 @@ export async function generateSceneImages(input: {
       buildImagePrompt({
         styleKey: version.styleKey,
         scene,
-        characterSheet,
-        visualNotes: bible.data.visualStyle.notes,
         hasReference: refs.length > 0,
-        format,
-        hero: sheet && heroInShot ? hero : null,
-        absentHero: hero && !heroInShot ? hero.name : null,
         shot,
         fix,
       });
@@ -131,7 +101,7 @@ export async function generateSceneImages(input: {
 
     const draw = async (p: string, attempt: number) => {
       const result = await withRetry(
-        () => withTimeout(`Scene ${scene.sceneNumber} illustration`, IMAGE_TIMEOUT_MS, (signal) => input.deps.images.generate({ prompt: p, quality, references: refs, size: VIDEO_FORMATS[format].imageSize, signal })),
+        () => withTimeout(`Scene ${scene.sceneNumber} illustration`, IMAGE_TIMEOUT_MS, (signal) => input.deps.images.generate({ prompt: p, quality, references: refs, size: IMAGE_SIZE, signal })),
         { attempts: IMAGE_ATTEMPTS, baseDelayMs: 2000, shouldRetry: (e) => !/content.policy|safety|moderation/i.test(String((e as Error)?.message)) },
       );
       const cost = imageCost(pricing, quality, result.usage);
@@ -150,9 +120,7 @@ export async function generateSceneImages(input: {
         model: fastModel,
         prompt: imageReviewPrompt({
           scene: `This image is narrated by: "${scene.narration}"\nIntended shot: ${scene.imagePrompt}. ${scene.composition}.${scene.continuity ? `\nContinuity: ${scene.continuity}` : ""}`,
-          rules: visualState ? [visualState.heroSituation, `Time and light: ${visualState.timeAndLight}`, ...visualState.rules] : [],
-          expected: scene.characters,
-          absent: hero && !heroInShot ? [hero.name] : [],
+          rules: visualState ? [visualState.heroSituation, ...visualState.rules] : [],
         }),
       });
       if (!r) return null;

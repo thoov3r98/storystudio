@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export const CHANNEL_FORMATS = {
-  CHARACTER_STORY: { label: "Character story", description: "A recurring character's stories, planned as multi-part series." },
   PROCESS_EXPLAINER: { label: "How it's made", description: "A real process explained step by step, researched on the web first." },
 } as const;
 export type ChannelFormat = keyof typeof CHANNEL_FORMATS;
@@ -11,7 +10,7 @@ export const ChannelProfileSchema = z.object({
   summary: z.string().describe("The channel in one plain sentence."),
   subjects: z.string().describe("What its videos are about, concretely."),
   voice: z.string().describe("How the narration sounds: who narrates, tense, tone, and what it never does."),
-  structure: z.string().describe("How each story or series is shaped: how parts open, what each covers, how they end."),
+  structure: z.string().describe("How each series is shaped: how parts open, what each covers, how they end."),
   avoid: z.array(z.string()).describe("Specific things this channel's videos never do."),
   surpriseMe: z.string().describe("How to pick a fresh idea when the producer asks to be surprised."),
   examples: z.array(z.string()).describe("Three to six example video ideas, a few words each."),
@@ -21,8 +20,6 @@ export type ChannelProfile = z.infer<typeof ChannelProfileSchema>;
 /** What the channel designer returns from the producer's prompt. */
 export const ChannelDesignSchema = z.object({
   name: z.string().describe("The channel's name: the producer's, if they gave one."),
-  format: z.enum(["CHARACTER_STORY", "PROCESS_EXPLAINER"]).describe("CHARACTER_STORY for a recurring character's stories; PROCESS_EXPLAINER for factual step-by-step explainers of how real things are made or work."),
-  perspective: z.enum(["FIRST_PERSON", "THIRD_PERSON"]).describe("FIRST_PERSON only if the character narrates their own stories; otherwise THIRD_PERSON (an unseen narrator)."),
   minParts: z.number().int().describe("Fewest videos per story, 1–5."),
   maxParts: z.number().int().describe("Most videos per story, minParts–6."),
   profile: ChannelProfileSchema,
@@ -50,8 +47,6 @@ The channel's rules outrank any general craft note or story-type guide that diff
 export const ChannelEditSchema = z
   .object({
     name: z.string().trim().min(2).max(80),
-    characterId: z.string().nullable(),
-    perspective: z.enum(["FIRST_PERSON", "THIRD_PERSON"]),
     voiceId: z.string().nullable(),
     styleKey: z.string().min(1),
     targetDurationSec: z.number().int(),
@@ -77,8 +72,8 @@ export const PitchSchema = z.object({
   premise: z.string().describe("One or two plain sentences, the way you'd say it out loud."),
   logline: z.string().describe("The idea in one plain sentence."),
   keywords: z.array(z.string()).describe("4–8 lowercase keywords."),
-  openingSituation: z.string().describe("The first moment the series opens on, in one plain sentence."),
-  arc: z.string().describe("Three to five short sentences: the arc across the parts (or the real manufacturing stages, in order)."),
+  openingSituation: z.string().describe("What the product starts as, where the series opens, in one plain sentence."),
+  arc: z.string().describe("Three to five short sentences: the real manufacturing stages, in order."),
 });
 export type Pitch = z.infer<typeof PitchSchema>;
 

@@ -6,7 +6,6 @@ export type CostContext = {
   storyId?: string | null;
   episodeId?: string | null;
   batchId?: string | null;
-  characterId?: string | null;
   /** Hard ceiling for spend attributed to `budgetScope`. */
   budgetUsd?: number | null;
   budgetScope?: "batch" | "job";
@@ -37,7 +36,6 @@ export async function recordCost(
       storyId: ctx.storyId ?? null,
       episodeId: ctx.episodeId ?? null,
       batchId: ctx.batchId ?? null,
-      characterId: ctx.characterId ?? null,
     },
   });
 }

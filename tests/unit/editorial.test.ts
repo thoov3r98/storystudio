@@ -1,28 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { CRITERIA, type CriteriaScores, normalizeScores, totalScore, validateScores } from "@/lib/schemas/concept";
 import { validateDraft } from "@/lib/pipeline/writing";
 import type { EpisodeDraft } from "@/lib/schemas/episode";
-import { estimateBatchCost, estimateEpisodeCost } from "@/lib/costs/estimate";
+import { estimateEpisodeCost, estimateIdeationCost } from "@/lib/costs/estimate";
 import { DEFAULT_PRICING, textCost } from "@/lib/costs/pricing";
 import { countWords, estimateSpokenDuration } from "@/lib/text";
 import { buildEpisodeProps } from "@/lib/pipeline/render-props";
 import { buildImagePrompt } from "@/lib/providers/images";
-
-function scores(n: number): CriteriaScores {
-  return Object.fromEntries(CRITERIA.map((c) => [c.key, { score: n, rationale: "r" }])) as CriteriaScores;
-}
-
-describe("scoring", () => {
-  it("computes a weighted mean on the 1–10 scale", () => {
-    expect(totalScore(scores(7))).toBe(7);
-  });
-
-  it("clamps out-of-range scores and reports them", () => {
-    const s = { ...scores(5), curiosity: { score: 14, rationale: "" } };
-    expect(validateScores(s)).toHaveLength(1);
-    expect(normalizeScores(s).curiosity.score).toBe(10);
-  });
-});
 
 function draft(sceneWords: number, scenes: number, hook = "You land after ten hours."): EpisodeDraft {
   const filler = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(" ");
@@ -43,21 +26,6 @@ function draft(sceneWords: number, scenes: number, hook = "You land after ten ho
       objects: [],
       motionPreset: "still",
     })),
-    keyReveals: [],
-    unresolvedQuestions: [],
-    bibleUpdate: {
-      addCharacters: [],
-      updateCharacters: [],
-      addLocations: [],
-      addTimelineEvents: [],
-      addMysteries: [],
-      openThreads: [],
-      resolveThreads: [],
-      addRevealedInformation: [],
-      addConstraints: [],
-      addRecurringVisuals: [],
-      arcSummary: "",
-    },
   };
 }
 
@@ -99,11 +67,11 @@ describe("text metrics", () => {
 describe("cost estimates", () => {
   const models = { main: "gpt-5.5", fast: "gpt-5.4-mini" };
 
-  it("concept mode costs far less than full production", () => {
-    const concept = estimateBatchCost(DEFAULT_PRICING, models, { requested: 20, durationSec: 75, quality: "STANDARD", fullProduction: false });
-    const full = estimateBatchCost(DEFAULT_PRICING, models, { requested: 20, durationSec: 75, quality: "STANDARD", fullProduction: true });
-    expect(concept.total).toBe(concept.ideation.total);
-    expect(full.total).toBeGreaterThan(concept.total * 5);
+  it("pitching costs far less than writing and making a video", () => {
+    const pitches = estimateIdeationCost(DEFAULT_PRICING, models, "STANDARD");
+    const episode = estimateEpisodeCost(DEFAULT_PRICING, models, { durationSec: 75, quality: "STANDARD" });
+    expect(pitches.total).toBeGreaterThan(0);
+    expect(episode.total).toBeGreaterThan(pitches.total * 5);
   });
 
   it("premium episodes cost more than draft", () => {
@@ -181,16 +149,15 @@ describe("buildEpisodeProps", () => {
 });
 
 describe("buildImagePrompt", () => {
-  it("combines global style, safe area, characters and a no-text rule", () => {
+  it("combines global style, safe area, key objects and a no-text rule", () => {
     const prompt = buildImagePrompt({
       styleKey: "stick-figure",
-      scene: { imagePrompt: "A traveler at an empty carousel", composition: "wide shot", characters: ["You"], objects: ["carousel"] },
-      characterSheet: [{ name: "You", visualDescription: "backpack and round glasses" }],
+      scene: { imagePrompt: "Hot wax pouring into a crayon mould", composition: "close-up", objects: ["mould"] },
       hasReference: true,
     });
     expect(prompt).toMatch(/stick-figure/);
-    expect(prompt).toMatch(/bottom quarter/);
-    expect(prompt).toMatch(/backpack and round glasses/);
+    expect(prompt).toMatch(/Landscape 3:2/);
+    expect(prompt).toMatch(/KEY OBJECTS: mould/);
     expect(prompt).toMatch(/no text/i);
     expect(prompt).toMatch(/reference image/);
   });

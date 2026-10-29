@@ -20,10 +20,10 @@ import {
   ResearchNotesSchema,
   validateProcessPlan,
 } from "@/lib/schemas/process";
-import { LogicAuditSchema, type QualityRecord, type RecordedIssue } from "@/lib/schemas/story-plan";
+import { LogicAuditSchema, type QualityRecord, type RecordedIssue } from "@/lib/schemas/quality";
 import { type EpisodeDraft, SceneBreakdownSchema } from "@/lib/schemas/episode";
-import { changeLogIssues, type ComposeDeps, firstSentence, makeRunner, MAX_SCRIPT_REVISIONS, narrationLengthIssues, type Run, validateDraft } from "@/lib/story/compose";
-import { issueBrief, needsRevision, qualityStatus, recordIssues } from "@/lib/story/review";
+import { changeLogIssues, firstSentence, makeRunner, MAX_SCRIPT_REVISIONS, narrationLengthIssues, type Run, type ScriptDeps, validateDraft } from "./script";
+import { issueBrief, needsRevision, qualityStatus, recordIssues } from "./review";
 
 /*
  * Process explainers ("How it's made"). Research first, then the plan and
@@ -40,7 +40,7 @@ export type ProcessInput = ProcessPromptInput & {
   parts: [number, number];
 };
 
-export type ProcessDeps = Omit<ComposeDeps, "references"> & { research: ResearchClient };
+export type ProcessDeps = ScriptDeps & { research: ResearchClient };
 
 export type ProcessResult = { draft: EpisodeDraft; plan: ProcessPlan; part: number; quality: QualityRecord };
 
@@ -111,7 +111,7 @@ async function refine(run: Run, input: ProcessInput, notes: ResearchRecord, p: P
   let state = start;
   const rounds: Round[] = [];
   let revisions = 0;
-  let pending = initial ? issueBrief(initial, []) : null;
+  let pending = initial ? issueBrief(initial) : null;
   let changeLog: Round["changeLog"] = [];
   for (;;) {
     if (pending?.length) {
@@ -130,15 +130,15 @@ async function refine(run: Run, input: ProcessInput, notes: ResearchRecord, p: P
       revisions++;
     }
     const checked = await audit(run, input, notes, p, state, earlier, pending ?? undefined, rounds.length + 1);
-    rounds.push({ issues: checked.issues, mustFix: [], changeLog, unresolvedPrevious: checked.unresolvedPrevious });
-    if (!needsRevision(checked.issues, []) || revisions >= MAX_SCRIPT_REVISIONS) break;
-    pending = issueBrief(checked.issues, []);
+    rounds.push({ issues: checked.issues, changeLog, unresolvedPrevious: checked.unresolvedPrevious });
+    if (!needsRevision(checked.issues) || revisions >= MAX_SCRIPT_REVISIONS) break;
+    pending = issueBrief(checked.issues);
   }
   return { state, rounds, revisions };
 }
 
 async function breakdown(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, s: PartState): Promise<EpisodeDraft> {
-  const fixed = { title: s.title, storyNarration: s.narration, selectedHook: firstSentence(s.narration), summary: s.summary, keyReveals: [], unresolvedQuestions: [] };
+  const fixed = { title: s.title, storyNarration: s.narration, selectedHook: firstSentence(s.narration), summary: s.summary };
   const b = await run({
     prompt: processBreakdownPrompt({ ...partInput(input, notes, p, s.part, []), narration: s.narration, title: s.title }),
     schema: SceneBreakdownSchema,
@@ -157,20 +157,13 @@ function quality(part: number, rounds: Round[], revisions: number, startedAt: nu
   return {
     pipelineVersion: 2,
     part,
-    status: qualityStatus({ issues: last.issues, mustFix: [] }),
-    plotRounds: [],
+    status: qualityStatus({ issues: last.issues }),
     scriptRounds: rounds,
     issues: last.issues,
-    mustFix: [],
-    editorial: null,
-    hooks: null,
-    plotPick: null,
-    references: [],
     dismissed: [],
     override: null,
     metrics: {
-      firstPass: rounds.length > 0 && !needsRevision(rounds[0].issues, []),
-      plotRepairs: 0,
+      firstPass: rounds.length > 0 && !needsRevision(rounds[0].issues),
       scriptRevisions: revisions,
       blockingFound: all.filter((i) => i.severity === "blocking").length,
       significantFound: all.filter((i) => i.severity === "significant").length,
@@ -277,10 +270,9 @@ export async function recheckProcessPart(
   const checked = await audit(run, input, saved.research, saved.plan, { part: saved.part, title: saved.title, narration: saved.narration, summary: saved.summary }, saved.earlier, undefined, saved.quality.scriptRounds.length + 1);
   return {
     ...saved.quality,
-    status: qualityStatus({ issues: checked.issues, mustFix: [] }),
-    scriptRounds: [...saved.quality.scriptRounds, { issues: checked.issues, mustFix: [], changeLog: [], unresolvedPrevious: [] }],
+    status: qualityStatus({ issues: checked.issues }),
+    scriptRounds: [...saved.quality.scriptRounds, { issues: checked.issues, changeLog: [], unresolvedPrevious: [] }],
     issues: checked.issues,
-    mustFix: [],
     dismissed: [],
     override: null,
     metrics: { ...saved.quality.metrics, textCostUsd: Math.round((saved.quality.metrics.textCostUsd + spent.usd) * 10000) / 10000 },

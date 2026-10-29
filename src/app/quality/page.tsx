@@ -4,13 +4,12 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { CheckCircle2, ShieldAlert, Sparkles, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader, PageSkeleton, Section, StatCard, relativeTime } from "@/components/studio";
 import { db } from "@/lib/db";
 import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
-import { groupOutcomes, type ScriptRow, summarize } from "@/lib/story/metrics";
+import { groupOutcomes, type ScriptRow, summarize } from "@/lib/process/metrics";
 
-export const metadata: Metadata = { title: "Story Quality" };
+export const metadata: Metadata = { title: "Script Quality" };
 
 export default function QualityPage() {
   return (
@@ -52,50 +51,39 @@ async function QualityContent() {
     if (!spec.quality) return [];
     const approved = Boolean(v.voiceoverId || v._count.renders || spec.quality.override);
     const m = v.episode.metrics[0];
-    const hooks = spec.quality.hooks;
     const row: ScriptRow = {
       quality: spec.quality,
-      archetype: spec.plot?.archetype ?? null,
+      story: v.episode.story.title,
       approved,
       rejected: !approved && v.status === "SUPERSEDED",
       humanRating: v.humanRating,
-      hookStyle: hooks ? (hooks.candidates.candidates[hooks.pick.chosenIndex]?.style ?? null) : null,
       performance: m && v.episode.currentVersionId === v.id ? { views: m.views, completionRate: m.completionRate, earlyRetention: m.earlyRetention, rewatchRate: m.rewatchRate } : null,
     };
     return [{ v, row }];
   });
 
   const s = summarize(rows.map((r) => r.row));
-  const byArchetype = groupOutcomes(
+  const byProduct = groupOutcomes(
     rows.map((r) => r.row),
-    (r) => r.archetype,
-  );
-  const byHook = groupOutcomes(
-    rows.map((r) => r.row),
-    (r) => r.hookStyle,
+    (r) => r.story,
   );
 
   return (
     <>
       <PageHeader
-        title="Story Quality"
-        description="How the script checks are doing, and what you decided. AI ratings are editorial judgements; only your decisions and platform numbers are outcomes."
-        actions={
-          <Button asChild variant="outline">
-            <Link href="/quality/references">Reference stories</Link>
-          </Button>
-        }
+        title="Script Quality"
+        description="How the script checks are doing, and what you decided. Only your decisions and platform numbers are outcomes."
       />
 
       {rows.length === 0 ? (
-        <EmptyState title="No checked scripts yet" description="Scripts written from now on are planned, audited and edited. Their results appear here." />
+        <EmptyState title="No checked scripts yet" description="Each script is fact-checked against its research. Results appear here." />
       ) : (
         <div className="space-y-10">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Scripts checked" value={s.scripts} icon={Sparkles} hint={`${s.verdicts.passed} passed · ${s.verdicts.needsAttention} need attention · ${s.verdicts.blocked} blocked`} />
-            <StatCard label="Passed first review" value={fmt(s.firstPassPct, 0, "%")} icon={CheckCircle2} tone="success" hint={`Avg ${fmt(s.avgRevisionCycles)} repair/revision cycles`} />
+            <StatCard label="Passed first review" value={fmt(s.firstPassPct, 0, "%")} icon={CheckCircle2} tone="success" hint={`Avg ${fmt(s.avgRevisionCycles)} revision cycles`} />
             <StatCard
-              label="Logic issues found per script"
+              label="Issues found per script"
               value={`${fmt(s.blockingPerScript)} / ${fmt(s.significantPerScript)}`}
               icon={ShieldAlert}
               tone="warning"
@@ -103,18 +91,14 @@ async function QualityContent() {
             />
             <StatCard label="Your approval rate" value={fmt(s.approvalPct, 0, "%")} icon={Star} hint={`${s.approved} approved · ${s.rejected} replaced · rating ${fmt(s.avgHumanRating)} (${s.rated} rated)`} />
           </div>
-          <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 text-sm sm:grid-cols-3">
             <Fact label="Dismissed by you as wrong" value={`${s.dismissed} (${fmt(s.falsePositivePct, 0, "%")} of open issues)`} />
             <Fact label="Approved with an override" value={String(s.overrides)} />
-            <Fact label="Hooks rated strong for curiosity" value={fmt(s.strongHookPct, 0, "%")} />
             <Fact label="Avg writing time · cost" value={`${fmt((s.avgDurationSec ?? 0) / 60)} min · $${fmt(s.avgCostUsd, 2)}`} />
           </div>
 
-          <Section title="By story type" description="Enter TikTok numbers on an episode (story page → Enter metrics) to compare. A handful of videos is not a trend.">
-            <OutcomeTable groups={byArchetype} />
-          </Section>
-          <Section title="By hook style">
-            <OutcomeTable groups={byHook} />
+          <Section title="By product" description="Enter TikTok numbers on an episode (story page → Enter metrics) to compare. A handful of videos is not a trend.">
+            <OutcomeTable groups={byProduct} />
           </Section>
 
           <Section title="Recent scripts">
@@ -138,7 +122,7 @@ async function QualityContent() {
                           {v.episode.story.title}
                         </Link>
                         <div className="text-xs text-muted-foreground">
-                          Part {v.episode.partNumber} · {row.archetype ?? "—"} · {relativeTime(v.createdAt)}
+                          Part {v.episode.partNumber} · {relativeTime(v.createdAt)}
                         </div>
                       </td>
                       <td className="p-3">
@@ -147,7 +131,7 @@ async function QualityContent() {
                       <td className="p-3 tabular-nums">
                         {row.quality.metrics.blockingFound}/{row.quality.metrics.significantFound}
                       </td>
-                      <td className="p-3 tabular-nums">{row.quality.metrics.plotRepairs + row.quality.metrics.scriptRevisions}</td>
+                      <td className="p-3 tabular-nums">{row.quality.metrics.scriptRevisions}</td>
                       <td className="p-3 text-xs">
                         {row.approved ? "approved" : row.rejected ? "replaced" : "—"}
                         {row.humanRating ? ` · ${row.humanRating}★` : ""}
@@ -162,17 +146,6 @@ async function QualityContent() {
             </div>
           </Section>
 
-          <Section title="Benchmark" description="Measure changes to prompts or models against a fixed set of stories.">
-            <div className="rounded-xl border bg-card p-4 text-sm">
-              <p>
-                <code className="rounded bg-muted px-1">pnpm story-eval audit</code> runs the logic auditor on the fixed benchmark (stories with seeded holes and clean ones) and reports what it caught and what it wrongly flagged.
-              </p>
-              <p className="mt-2">
-                <code className="rounded bg-muted px-1">pnpm story-eval generate</code> writes scripts for fixed premises with the real pipeline and saves them for side-by-side reading. Both use real models and cost money; results go to{" "}
-                <code className="rounded bg-muted px-1">evals/results/</code>.
-              </p>
-            </div>
-          </Section>
         </div>
       )}
     </>
@@ -194,7 +167,7 @@ function OutcomeTable({ groups }: { groups: ReturnType<typeof groupOutcomes> }) 
       <table className="w-full text-sm">
         <thead className="border-b text-left text-xs text-muted-foreground">
           <tr>
-            <th className="p-3 font-medium">Type</th>
+            <th className="p-3 font-medium">Product</th>
             <th className="p-3 font-medium">Scripts</th>
             <th className="p-3 font-medium">Approved</th>
             <th className="p-3 font-medium">Your rating</th>

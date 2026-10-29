@@ -150,7 +150,7 @@ export function ModelsPricingForm(props: { models: Models; pricing: Pricing; ima
       }
     >
       <div className="rounded-xl border bg-card p-5">
-        <ModelRow role="Writing" description="Concepts, plots, hooks and scripts at Standard and Premium quality." model={models.main} onModel={(v) => pickText("main", v)} suggestions={SUGGESTIONS.text}>
+        <ModelRow role="Writing" description="Pitches, research notes, plans and scripts at Standard and Premium quality." model={models.main} onModel={(v) => pickText("main", v)} suggestions={SUGGESTIONS.text}>
           <Money label="Input" unit="per 1M tokens" value={main.inputPerMTok} onChange={(v) => setMain({ ...main, inputPerMTok: v })} />
           <Money label="Cached input" unit="per 1M tokens" value={main.cachedInputPerMTok} onChange={(v) => setMain({ ...main, cachedInputPerMTok: v })} />
           <Money label="Output" unit="per 1M tokens" value={main.outputPerMTok} onChange={(v) => setMain({ ...main, outputPerMTok: v })} />
@@ -163,8 +163,8 @@ export function ModelsPricingForm(props: { models: Models; pricing: Pricing; ima
         </ModelRow>
 
         <ModelRow
-          role="Story reviewer"
-          description="Audits plots and scripts for logic holes and edits them at Standard and Premium. Leave empty to use the Writing model; a different model or family gives a more independent read."
+          role="Script checker"
+          description="Picks pitches and fact-checks scripts against the research at Standard and Premium. Leave empty to use the Writing model; a different model or family gives a more independent read."
           model={models.reviewer ?? ""}
           onModel={(v) => pickText("reviewer", v)}
           suggestions={SUGGESTIONS.text}

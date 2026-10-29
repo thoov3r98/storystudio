@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Factory, UserRound } from "lucide-react";
+import { Factory } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { EmptyState, PageHeader, PageSkeleton, Thumb } from "@/components/studio";
+import { EmptyState, PageHeader, PageSkeleton } from "@/components/studio";
 import { listChannels } from "@/lib/queries";
 import { CHANNEL_FORMATS, parseProfile } from "@/lib/schemas/channel";
 import { CreateChannelForm } from "./channel-forms";
@@ -34,13 +34,11 @@ async function ChannelList() {
     <div className="grid gap-4 sm:grid-cols-2">
       {channels.map((c) => {
         const profile = parseProfile(c.profile);
-        const Icon = c.format === "PROCESS_EXPLAINER" ? Factory : UserRound;
         return (
           <div key={c.id} className="flex flex-col overflow-hidden rounded-xl border bg-card">
-            {c.character?.sheetUrl ? <Thumb src={c.character.sheetUrl} alt="" className="aspect-[3/1] rounded-none border-0 border-b object-cover" /> : null}
             <div className="flex flex-1 flex-col gap-2 p-4">
               <div className="flex items-center gap-2">
-                <Icon className="size-4 text-muted-foreground" />
+                <Factory className="size-4 text-muted-foreground" />
                 <Link href={`/channels/${c.id}`} className="font-medium hover:underline">
                   {c.name}
                 </Link>
@@ -48,7 +46,6 @@ async function ChannelList() {
               <p className="text-sm text-muted-foreground">{profile.summary}</p>
               <div className="flex flex-wrap gap-1.5 text-xs">
                 <Badge variant="outline">{CHANNEL_FORMATS[c.format].label}</Badge>
-                {c.character ? <Badge variant="outline">Stars {c.character.name}</Badge> : null}
                 <Badge variant="outline">
                   {c.minParts === c.maxParts ? c.minParts : `${c.minParts}–${c.maxParts}`} parts · {c.targetDurationSec}s
                 </Badge>

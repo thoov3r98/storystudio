@@ -1,15 +1,15 @@
-import type { QualityRecord } from "@/lib/schemas/story-plan";
+import type { QualityRecord } from "@/lib/schemas/quality";
 
 /** One script version written by the checked pipeline, with what the producer did with it. */
 export type ScriptRow = {
   quality: QualityRecord;
-  archetype: string | null;
+  /** The story (product) the script belongs to. */
+  story: string;
   /** Approved at the gate: media was made, or the producer overrode open issues. */
   approved: boolean;
   /** Replaced by another version without ever being approved. */
   rejected: boolean;
   humanRating: number | null;
-  hookStyle: string | null;
   performance: { views: number | null; completionRate: number | null; earlyRetention: number | null; rewatchRate: number | null } | null;
 };
 
@@ -25,11 +25,10 @@ export function summarize(rows: ScriptRow[]) {
   const serious = rows.flatMap((r) => r.quality.issues.filter((i) => i.severity !== "minor"));
   const dismissed = rows.reduce((n, r) => n + r.quality.dismissed.length, 0);
   const status = (s: string) => rows.filter((r) => r.quality.status === s).length;
-  const curiosity = rows.map((r) => r.quality.hooks?.pick.reviews.find((x) => x.index === r.quality.hooks?.pick.chosenIndex)?.curiosity).filter(Boolean);
   return {
     scripts: rows.length,
     firstPassPct: pct(rows.filter((r) => r.quality.metrics.firstPass).length, rows.length),
-    avgRevisionCycles: mean(rows.map((r) => r.quality.metrics.plotRepairs + r.quality.metrics.scriptRevisions)),
+    avgRevisionCycles: mean(rows.map((r) => r.quality.metrics.scriptRevisions)),
     blockingPerScript: mean(rows.map((r) => r.quality.metrics.blockingFound)),
     significantPerScript: mean(rows.map((r) => r.quality.metrics.significantFound)),
     verdicts: { passed: status("passed"), needsAttention: status("needs-attention"), blocked: status("blocked") },
@@ -42,13 +41,12 @@ export function summarize(rows: ScriptRow[]) {
     rejected: decided.filter((r) => r.rejected).length,
     avgHumanRating: mean(rows.flatMap((r) => (r.humanRating ? [r.humanRating] : []))),
     rated: rows.filter((r) => r.humanRating).length,
-    strongHookPct: pct(curiosity.filter((c) => c === "strong" || c === "excellent").length, curiosity.length),
     avgDurationSec: mean(rows.map((r) => r.quality.metrics.durationMs / 1000)),
     avgCostUsd: mean(rows.map((r) => r.quality.metrics.textCostUsd)),
   };
 }
 
-/** Outcomes grouped by a story property (archetype, hook style), for comparing against real performance. */
+/** Outcomes grouped by a story property (such as the product), for comparing against real performance. */
 export function groupOutcomes(rows: ScriptRow[], key: (r: ScriptRow) => string | null) {
   const groups = new Map<string, ScriptRow[]>();
   for (const r of rows) {

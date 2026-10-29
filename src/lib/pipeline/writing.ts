@@ -1,23 +1,18 @@
 import { db } from "@/lib/db";
 import { generateStructured } from "@/lib/ai/structured";
-import { sceneRewritePrompt, type WriterInput } from "@/lib/ai/prompts";
-import type { Plot, QualityRecord } from "@/lib/schemas/story-plan";
+import { sceneRewritePrompt } from "@/lib/ai/process-prompts";
+import type { QualityRecord } from "@/lib/schemas/quality";
 import { type EpisodeDraft, type EpisodeSpecRecord, SceneNarrationRewriteSchema } from "@/lib/schemas/episode";
 import { countWords, DEFAULT_WORDS_PER_SECOND, estimateSpokenDuration, joinNarration } from "@/lib/text";
 import { getAudioMix, getPricing, getModels, scriptModels, voiceWordsPerSecond } from "@/lib/settings";
 import { assertWithinBudget, type CostContext } from "@/lib/costs/record";
 import { setJobStage } from "@/lib/jobs";
-import { type ComposeDeps, type ComposeInput, type ComposeResult, composePart, composeScript, composeStory, recheckScript, reviseComposed, type ScriptState } from "@/lib/story/compose";
-import { partBrief } from "@/lib/ai/story-prompts";
-import { BUILT_IN_REFERENCES, type ReferenceStory } from "@/lib/story/references";
 import { composeProcess, composeProcessPart, type ProcessDeps, type ProcessInput, type ProcessResult, recheckProcessPart, researchProcess, reviseProcessPart } from "@/lib/process/compose";
 import { type ProcessSpec, type ResearchRecord, ResearchRecordSchema } from "@/lib/schemas/process";
-import { approvedHistory, loadCanonicalBible, selectContinuationContext } from "./context";
 import type { PipelineDeps } from "./deps";
-import { toNarrator } from "./characters";
 import { channelGuide } from "./channels";
 
-export { validateDraft } from "@/lib/story/compose";
+export { validateDraft } from "@/lib/process/script";
 
 type WriteContext = {
   episodeId: string;
@@ -27,128 +22,20 @@ type WriteContext = {
 };
 
 async function loadEpisodeSetup(episodeId: string) {
-  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { story: { include: { character: true, channel: true } } } });
+  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { story: { include: { channel: true } } } });
   const story = episode.story;
-  const bible = await loadCanonicalBible(story.id);
+  if (!story.channel) throw new Error("This story belongs to no channel, so it can't be written.");
   const models = await getModels();
   const pricing = await getPricing();
   // The render-time speed-up shortens the video, so scripts are sized for the faster rate.
   const { narrationSpeed } = await getAudioMix();
   const wps = ((story.voiceId ? await voiceWordsPerSecond(story.voiceId) : null) ?? DEFAULT_WORDS_PER_SECOND) * narrationSpeed;
-  const channel = story.channel ? channelGuide(story.channel) : null;
-  return { episode, story, bible, pricing, wps, channel, ...scriptModels(story.quality, models) };
+  return { episode, story, channel: story.channel, guide: channelGuide(story.channel), pricing, wps, ...scriptModels(story.quality, models) };
 }
 
 type Setup = Awaited<ReturnType<typeof loadEpisodeSetup>>;
 
-/** Built-in examples plus the producer's own active reference stories. */
-export async function loadReferences(): Promise<ReferenceStory[]> {
-  const rows = await db.referenceStory.findMany({ where: { active: true }, orderBy: { createdAt: "desc" }, take: 50 });
-  return [
-    ...rows.map((r) => ({ ...r, archetype: r.archetype as ReferenceStory["archetype"], source: "producer" as const })),
-    ...BUILT_IN_REFERENCES,
-  ];
-}
-
-async function composeContext(ctx: WriteContext, setup: Setup, direction?: string | null): Promise<{ input: ComposeInput; deps: ComposeDeps }> {
-  const { episode, story, bible } = setup;
-  const history = episode.partNumber > 1 ? await approvedHistory(story.id, episode.partNumber) : [];
-  const selected = selectContinuationContext(history);
-  const writerInput: WriterInput = {
-    storyId: story.id,
-    title: story.title,
-    premise: story.premise,
-    partNumber: episode.partNumber,
-    durationSec: story.targetDurationSec,
-    wordsPerSecond: setup.wps,
-    // The channel decides who narrates, whatever the character's own default is.
-    narrator: story.character ? { ...toNarrator(story.character), perspective: story.channel?.perspective ?? story.character.perspective } : null,
-    bible: bible.data,
-    previousEpisodes: selected.previousEpisodes,
-    latestEpisode: selected.latestEpisode,
-    direction,
-    channel: setup.channel,
-  };
-  return {
-    input: {
-      ...writerInput,
-      seed: (story.storySeed ?? null) as ComposeInput["seed"],
-      series: episode.partNumber > 1 ? { bible: bible.data, previousSummaries: history.map((h) => `Part ${h.partNumber}: ${h.summary}`) } : null,
-    },
-    deps: {
-      text: ctx.deps.text,
-      pricing: setup.pricing,
-      writer: setup.writer,
-      reviewer: setup.reviewer,
-      references: await loadReferences(),
-      cost: ctx.cost,
-      checkBudget: (usd) => assertWithinBudget(ctx.cost, usd),
-      onStage: ctx.jobId ? (label, progress) => setJobStage(ctx.jobId!, "WRITING_STORY", label, progress * 0.3) : undefined,
-    },
-  };
-}
-
 export type WriteResult = { versionId: string; quality: QualityRecord; parts?: number };
-
-/** The saved multi-part plan for this story, if Part 1 was written as one: the plot and each part's current script. */
-async function loadStoryPlan(storyId: string) {
-  const episodes = await db.episode.findMany({ where: { storyId }, orderBy: { partNumber: "asc" }, include: { currentVersion: true } });
-  const plot = episodes.map((e) => (e.currentVersion?.spec as EpisodeSpecRecord | undefined)?.plot).find((p) => (p?.parts?.length ?? 0) > 1);
-  return plot ? { plot, episodes } : null;
-}
-
-/**
- * Writes a complete new script version for an episode with the planned,
- * verified pipeline (see docs/story-quality.md) and stops at the script gate.
- * For a multi-part story, writing Part 1 plans the whole story and writes
- * every part (each its own episode, each stopping at the gate); rewriting a
- * later part keeps the plan. Bible updates are stored as pending proposals.
- */
-export async function writeEpisode(ctx: WriteContext & { reason: string; direction?: string | null; replanStory?: boolean }): Promise<WriteResult> {
-  const setup = await loadEpisodeSetup(ctx.episodeId);
-  if (setup.story.channel?.format === "PROCESS_EXPLAINER") return writeProcess(ctx, setup);
-  const { episode, story } = setup;
-  const parts = story.plannedParts;
-  // Channel stories: the planner picks how many parts within the channel's range.
-  const partsRange: [number, number] | undefined = story.channel && story.channel.maxParts > 1 ? [story.channel.minParts, story.channel.maxParts] : undefined;
-  const { input, deps } = await composeContext(ctx, setup, ctx.direction);
-  const plan = parts > 1 ? await loadStoryPlan(story.id) : null;
-
-  // One part of an already planned story: rewrite it from the saved plan.
-  if (plan && !(episode.partNumber === 1 && ctx.replanStory) && episode.partNumber <= (plan.plot.parts?.length ?? 0)) {
-    const earlier = plan.episodes.filter((e) => e.partNumber < episode.partNumber).map((e) => e.currentVersion?.narration ?? "");
-    const saved = plan.episodes.find((e) => e.currentVersion)?.currentVersion?.spec as EpisodeSpecRecord;
-    const result = await composePart({ ...input, partNumber: 1, parts: plan.plot.parts.length }, deps, {
-      plot: plan.plot,
-      part: episode.partNumber,
-      earlier,
-      plotRounds: saved.quality?.plotRounds ?? [],
-    });
-    return saveComposed(setup, episode, result, ctx.reason);
-  }
-
-  // A new story, or replanning one: plan every part together.
-  if (parts > 1 && episode.partNumber === 1) {
-    const produced = plan?.episodes.filter((e) => !["DRAFT", "SCRIPTED", "FAILED"].includes(e.status)) ?? [];
-    if (produced.length) throw new Error(`Part ${produced[0].partNumber} has already been produced, so the story can't be replanned. Rewrite individual parts instead.`);
-    const results = await composeStory({ ...input, parts, partsRange }, deps);
-    await settlePartCount(story.id, results.length);
-    let first: WriteResult | null = null;
-    for (const result of results) {
-      const n = result.quality.part;
-      const target =
-        n === 1
-          ? episode
-          : ((await db.episode.findFirst({ where: { storyId: story.id, partNumber: n } })) ?? (await db.episode.create({ data: { storyId: story.id, partNumber: n, title: result.draft.title } })));
-      const saved = await saveComposed(setup, target, result, ctx.reason);
-      first ??= saved;
-    }
-    return { ...first!, parts: results.length };
-  }
-
-  const result = await composeScript(input, deps);
-  return saveComposed(setup, episode, result, ctx.reason);
-}
 
 /**
  * Once the planner has chosen how many parts a story has, its episodes match:
@@ -159,15 +46,12 @@ async function settlePartCount(storyId: string, count: number) {
   await db.story.update({ where: { id: storyId }, data: { plannedParts: count } });
 }
 
-// ── Process explainers ────────────────────────────────────────────────
-
 function processContext(ctx: WriteContext, setup: Setup): { input: ProcessInput; deps: ProcessDeps } {
-  const { story } = setup;
-  const channel = story.channel!;
+  const { story, channel } = setup;
   const seed = (story.storySeed ?? null) as { beatSketch?: string | null } | null;
   return {
     input: {
-      channel: setup.channel!,
+      channel: setup.guide,
       title: story.title,
       premise: story.premise,
       durationSec: story.targetDurationSec,
@@ -201,11 +85,13 @@ async function loadProcessPlan(storyId: string) {
 }
 
 /**
- * Process explainers: Part 1 researches the product (once; the notes are kept
- * on the story), plans every part and writes them all. A later part, or Part 1
- * without replanning, is rewritten from the saved research and plan.
+ * Writes scripts and stops at the script gate. Part 1 researches the product
+ * (once; the notes are kept on the story), plans every part and writes them
+ * all, each its own episode. A later part, or Part 1 without replanning, is
+ * rewritten from the saved research and plan.
  */
-async function writeProcess(ctx: WriteContext & { reason: string; replanStory?: boolean }, setup: Setup): Promise<WriteResult> {
+export async function writeEpisode(ctx: WriteContext & { reason: string; replanStory?: boolean }): Promise<WriteResult> {
+  const setup = await loadEpisodeSetup(ctx.episodeId);
   const { episode, story } = setup;
   const { input, deps } = processContext(ctx, setup);
   const saved = await loadProcessPlan(story.id);
@@ -258,42 +144,12 @@ export async function reviseEpisode(ctx: WriteContext): Promise<WriteResult> {
   const setup = await loadEpisodeSetup(ctx.episodeId);
   const version = await db.episodeVersion.findUniqueOrThrow({ where: { id: setup.episode.currentVersionId ?? "" } });
   const spec = version.spec as EpisodeSpecRecord;
-  if (spec.process) {
-    const { input, deps } = processContext(ctx, setup);
-    const result = await reviseProcessPart(input, deps, await processPartState(setup, spec, version.narration));
-    return saveProcessPart(setup, setup.episode, result, "revise-issues");
-  }
-  if (!spec.plot || !spec.quality) throw new Error("This script was written before the quality checks. Regenerate it instead.");
-  const { input, deps } = await composeContext(ctx, setup);
-  const state = await scriptState(setup.story.id, spec, version.narration);
-  const result = await reviseComposed({ ...input, parts: spec.plot.parts?.length ?? 1 }, deps, { state, quality: spec.quality });
-  return saveComposed(setup, setup.episode, result, "revise-issues");
+  const { input, deps } = processContext(ctx, setup);
+  const result = await reviseProcessPart(input, deps, await processPartState(setup, spec, version.narration));
+  return saveProcessPart(setup, setup.episode, result, "revise-issues");
 }
 
-/** Rebuilds a saved script's working state, including what earlier parts of the story told. */
-async function scriptState(storyId: string, spec: EpisodeSpecRecord, narration: string): Promise<ScriptState> {
-  const plot = spec.plot!;
-  const part = spec.quality?.part ?? 1;
-  let earlier: string[] = [];
-  if ((plot.parts?.length ?? 0) > 1 && part > 1) {
-    const eps = await db.episode.findMany({ where: { storyId, partNumber: { lt: part } }, orderBy: { partNumber: "asc" }, include: { currentVersion: { select: { narration: true } } } });
-    earlier = eps.map((e) => e.currentVersion?.narration ?? "");
-  }
-  return {
-    plot,
-    part,
-    brief: partBrief(plot, part, earlier),
-    hook: spec.selectedHook,
-    hookPromise: spec.quality?.hooks?.pick.promise ?? "",
-    title: spec.title,
-    narration,
-    summary: spec.summary,
-    keyReveals: spec.keyReveals,
-    unresolvedQuestions: spec.unresolvedQuestions,
-  };
-}
-
-type Composed = Pick<ComposeResult, "draft" | "quality"> & { plot?: Plot; process?: ProcessSpec };
+type Composed = Pick<ProcessResult, "draft" | "quality"> & { process: ProcessSpec };
 
 async function saveComposed(setup: Setup, episode: { id: string; partNumber: number; currentVersionId: string | null }, result: Composed, reason: string): Promise<WriteResult> {
   const { story } = setup;
@@ -306,8 +162,6 @@ async function saveComposed(setup: Setup, episode: { id: string; partNumber: num
     parentVersionId: episode.currentVersionId,
     draft: result.draft,
     wps: setup.wps,
-    baseBibleVersion: setup.bible.version,
-    plot: result.plot,
     process: result.process,
     quality: result.quality,
   });
@@ -325,9 +179,7 @@ async function persistVersion(input: {
   parentVersionId: string | null;
   draft: EpisodeDraft;
   wps: number;
-  baseBibleVersion: number;
-  plot?: Plot;
-  process?: ProcessSpec;
+  process: ProcessSpec;
   quality: QualityRecord;
 }): Promise<string> {
   const narration = joinNarration(input.draft.scenes);
@@ -341,8 +193,6 @@ async function persistVersion(input: {
     narration,
     wordCount,
     estimatedDurationSec,
-    factCheckStatus: "PASSED",
-    plot: input.plot,
     process: input.process,
     quality: input.quality,
   };
@@ -363,8 +213,6 @@ async function persistVersion(input: {
         wordCount,
         estimatedDurationSec,
         summary: input.draft.summary,
-        // Fact checking is off; versions are written as passed so nothing waits on it.
-        factCheckStatus: "PASSED",
         qualityStatus: input.quality.status,
         styleKey: input.styleKey,
         scenes: {
@@ -382,14 +230,6 @@ async function persistVersion(input: {
           })),
         },
       },
-    });
-
-    await tx.bibleUpdateProposal.updateMany({
-      where: { storyId: input.storyId, status: "PENDING", episodeVersion: { episodeId: input.episodeId } },
-      data: { status: "SUPERSEDED", resolvedAt: new Date() },
-    });
-    await tx.bibleUpdateProposal.create({
-      data: { storyId: input.storyId, episodeVersionId: version.id, baseBibleVersion: input.baseBibleVersion, update: input.draft.bibleUpdate },
     });
 
     return version.id;
@@ -413,13 +253,13 @@ export async function rewriteScene(ctx: WriteContext & { sceneNumber: number; in
     pricing: setup.pricing,
     model: setup.writer,
     ...sceneRewritePrompt({
+      channel: setup.guide,
       title: setup.episode.title,
       sceneNumber: scene.sceneNumber,
       before: version.scenes[idx - 1]?.narration ?? "",
       current: scene.narration,
       after: version.scenes[idx + 1]?.narration ?? "",
       instruction: ctx.instruction,
-      bible: setup.bible.data,
     }),
     schema: SceneNarrationRewriteSchema,
     schemaName: "scene_rewrite",
@@ -449,18 +289,12 @@ export async function rewriteScene(ctx: WriteContext & { sceneNumber: number; in
   return { versionId: newVersionId, imagePromptChanged };
 }
 
-/** A hand edit can open a plot hole, so the edited script is checked again (logic and editorial) and its gate status updated. */
+/** A hand edit can introduce a mistake, so the edited script is fact-checked again and its gate status updated. */
 async function recheckVersion(ctx: WriteContext, setup: Setup, versionId: string) {
   const version = await db.episodeVersion.findUniqueOrThrow({ where: { id: versionId } });
   const spec = version.spec as EpisodeSpecRecord;
-  if (spec.process && spec.quality) {
-    const { input, deps } = processContext(ctx, setup);
-    const quality = await recheckProcessPart(input, deps, await processPartState(setup, spec, version.narration));
-    await db.episodeVersion.update({ where: { id: versionId }, data: { spec: { ...spec, quality }, qualityStatus: quality.status } });
-    return;
-  }
-  if (!spec.plot || !spec.quality) return;
-  const { input, deps } = await composeContext(ctx, setup);
-  const quality = await recheckScript({ ...input, parts: spec.plot.parts?.length ?? 1 }, deps, await scriptState(setup.story.id, spec, version.narration), spec.quality);
+  if (!spec.process || !spec.quality) return;
+  const { input, deps } = processContext(ctx, setup);
+  const quality = await recheckProcessPart(input, deps, await processPartState(setup, spec, version.narration));
   await db.episodeVersion.update({ where: { id: versionId }, data: { spec: { ...spec, quality }, qualityStatus: quality.status } });
 }

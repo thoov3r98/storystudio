@@ -2,14 +2,12 @@ import { db } from "@/lib/db";
 import { generateStructured } from "@/lib/ai/structured";
 import { channelDesignPrompt, pitchPickPrompt, pitchPrompt } from "@/lib/ai/channel-prompts";
 import { type ChannelGuide, ChannelDesignSchema, parseProfile, PitchBatchSchema, PitchPickSchema } from "@/lib/schemas/channel";
-import { emptyBible } from "@/lib/schemas/story-bible";
 import { DEFAULT_STYLE } from "@/lib/constants";
 import { normalizeTitle } from "@/lib/text";
 import { dedupeCandidates } from "@/lib/similarity";
 import { getModels, getPricing, getVoices } from "@/lib/settings";
 import { assertWithinBudget, type CostContext } from "@/lib/costs/record";
 import { setJobStage, assertNotCanceled } from "@/lib/jobs";
-import { withCharacter } from "./characters";
 import type { PipelineDeps } from "./deps";
 import type { Channel, Story } from "@/generated/prisma/client";
 
@@ -42,9 +40,8 @@ export async function createChannelFromBrief(input: { brief: string; deps: Pipel
     data: {
       name: design.name.trim(),
       brief: input.brief,
-      format: design.format,
+      format: "PROCESS_EXPLAINER",
       profile: design.profile,
-      perspective: design.perspective,
       minParts: design.minParts,
       maxParts: design.maxParts,
       voiceId: voices[0]?.id ?? null,
@@ -55,7 +52,7 @@ export async function createChannelFromBrief(input: { brief: string; deps: Pipel
 
 /** Pitches ideas for a channel from the producer's idea (or "Surprise me") and keeps the best few for the producer to choose from. */
 export async function runChannelIdeation(input: { batchId: string; jobId: string; deps: PipelineDeps }) {
-  const batch = await db.batch.findUniqueOrThrow({ where: { id: input.batchId }, include: { channel: { include: { character: true } } } });
+  const batch = await db.batch.findUniqueOrThrow({ where: { id: input.batchId }, include: { channel: true } });
   const channel = batch.channel;
   if (!channel) throw new Error("This batch was made before channels and can't be run again. Start a new one from Generate.");
   const guide = channelGuide(channel);
@@ -78,7 +75,6 @@ export async function runChannelIdeation(input: { batchId: string; jobId: string
       idea: batch.customDirection,
       count: PITCHES_WRITTEN,
       avoidTitles: existing.slice(0, 150).map((s) => s.title),
-      hero: channel.format === "CHARACTER_STORY" ? (channel.character?.name ?? null) : null,
       parts: [channel.minParts, channel.maxParts],
     }),
     schema: PitchBatchSchema,
@@ -122,9 +118,7 @@ export async function runChannelIdeation(input: { batchId: string; jobId: string
         normalizedTitle: normalizeTitle(r.pitch.title),
         premise: r.pitch.premise,
         logline: r.pitch.openingSituation ? `${r.pitch.logline} Opening: ${r.pitch.openingSituation}` : r.pitch.logline,
-        category: channel.name,
         keywords: r.pitch.keywords.map((k) => k.toLowerCase()),
-        factMode: channel.format === "PROCESS_EXPLAINER" ? ("FACTUAL" as const) : ("FICTIONAL" as const),
         seriesPotential: r.pitch.arc,
         storySeed: { beatSketch: r.pitch.arc },
         scores: r.reason ? { summary: r.reason } : undefined,
@@ -137,7 +131,6 @@ export async function runChannelIdeation(input: { batchId: string; jobId: string
         normalizedTitle: normalizeTitle(d.candidate.title),
         premise: d.candidate.premise,
         logline: d.candidate.logline,
-        category: channel.name,
         keywords: d.candidate.keywords,
         seriesPotential: d.candidate.arc,
         status: "DUPLICATE" as const,
@@ -151,43 +144,26 @@ export async function runChannelIdeation(input: { batchId: string; jobId: string
 
 /** Turns a chosen pitch into a story of its channel, with Part 1 ready to write. */
 export async function storyFromPitch(conceptId: string): Promise<Story & { episodes: { id: string }[] }> {
-  const concept = await db.concept.findUniqueOrThrow({ where: { id: conceptId }, include: { batch: { include: { channel: { include: { character: true } } } }, story: { include: { episodes: true } } } });
+  const concept = await db.concept.findUniqueOrThrow({ where: { id: conceptId }, include: { batch: { include: { channel: true } }, story: { include: { episodes: true } } } });
   if (concept.story) return concept.story;
   const channel = concept.batch.channel;
   if (!channel) throw new Error("This pitch was made before channels.");
-  const character = channel.format === "CHARACTER_STORY" ? channel.character : null;
-  const bible = emptyBible({ premise: concept.premise, styleKey: channel.styleKey });
   const story = await db.story.create({
     data: {
       title: concept.title,
       normalizedTitle: concept.normalizedTitle,
-      category: channel.name,
       premise: concept.premise,
       logline: concept.logline,
       storySeed: concept.storySeed ?? undefined,
       keywords: concept.keywords,
-      factMode: concept.factMode,
       styleKey: channel.styleKey,
-      voiceId: channel.voiceId ?? character?.voiceId ?? concept.batch.voiceId,
-      characterId: character?.id ?? null,
+      voiceId: channel.voiceId ?? concept.batch.voiceId,
       channelId: channel.id,
       targetDurationSec: channel.targetDurationSec,
       // The planner picks the real count within the channel's range when it writes Part 1.
       plannedParts: channel.maxParts,
       quality: channel.quality,
       conceptId: concept.id,
-      bibles: {
-        create: {
-          version: 1,
-          source: "concept",
-          data:
-            channel.format === "PROCESS_EXPLAINER"
-              ? { ...bible, tone: "Calm and strictly factual.", narrativePerspective: "Unseen narrator, third person, present tense." }
-              : character
-                ? withCharacter(bible, character, channel.perspective)
-                : bible,
-        },
-      },
       episodes: { create: { partNumber: 1, title: concept.title } },
     },
     include: { episodes: true },

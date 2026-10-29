@@ -109,7 +109,6 @@ async function StoriesContent({ searchParams }: { searchParams: PageProps<"/stor
                   <span>
                     {s._count.episodes} episode{s._count.episodes === 1 ? "" : "s"}
                   </span>
-                  {s.hasUnresolvedThreads ? <span className="text-violet-700">Open threads</span> : <span>No open threads</span>}
                 </div>
                 <div className="mt-1.5 text-[11px] text-muted-foreground">
                   Created {s.createdAt.toLocaleDateString()} · active {relativeTime(s.lastActivityAt)}

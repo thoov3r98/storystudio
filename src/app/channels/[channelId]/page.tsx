@@ -6,7 +6,7 @@ import { Clapperboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader, PageSkeleton, StoryStatusBadge, Thumb, relativeTime } from "@/components/studio";
 import { ActionButton } from "@/components/client-helpers";
-import { getChannel, listCharacters } from "@/lib/queries";
+import { getChannel } from "@/lib/queries";
 import { getVoices } from "@/lib/settings";
 import { CHANNEL_FORMATS, parseProfile } from "@/lib/schemas/channel";
 import { setChannelArchived } from "@/app/actions";
@@ -24,7 +24,7 @@ export default function ChannelPage(props: PageProps<"/channels/[channelId]">) {
 
 async function ChannelContent({ params }: { params: PageProps<"/channels/[channelId]">["params"] }) {
   const { channelId } = await params;
-  const [c, voices, characters] = await Promise.all([getChannel(channelId), getVoices(), listCharacters()]);
+  const [c, voices] = await Promise.all([getChannel(channelId), getVoices()]);
   if (!c) notFound();
   return (
     <>
@@ -54,13 +54,9 @@ async function ChannelContent({ params }: { params: PageProps<"/channels/[channe
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         <ChannelEditor
           channelId={c.id}
-          format={c.format}
           voices={voices}
-          characters={characters.map((ch) => ({ id: ch.id, name: ch.name }))}
           initial={{
             name: c.name,
-            characterId: c.characterId,
-            perspective: c.perspective,
             voiceId: c.voiceId,
             styleKey: c.styleKey,
             targetDurationSec: c.targetDurationSec,

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
 import type { Metadata } from "next";
-import { Factory, UserRound } from "lucide-react";
+import { Factory } from "lucide-react";
 import { EmptyState, PageHeader, PageSkeleton } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { listChannels } from "@/lib/queries";
@@ -45,12 +45,10 @@ async function GenerateContent({ searchParams }: { searchParams: PageProps<"/gen
   }
   const selected = channels.find((c) => c.id === sp.channel) ?? channels[0];
   const profile = parseProfile(selected.profile);
-  const missingCharacter = selected.format === "CHARACTER_STORY" && !selected.character;
   return (
     <div className="space-y-8">
       <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Channel">
         {channels.map((c) => {
-          const Icon = c.format === "PROCESS_EXPLAINER" ? Factory : UserRound;
           const active = c.id === selected.id;
           return (
             <Link
@@ -61,29 +59,17 @@ async function GenerateContent({ searchParams }: { searchParams: PageProps<"/gen
               className={cn("rounded-xl border bg-card p-4 transition-colors", active ? "border-primary ring-2 ring-primary/15" : "hover:border-foreground/20")}
             >
               <div className="flex items-center gap-2 font-medium">
-                <Icon className="size-4" /> {c.name}
+                <Factory className="size-4" /> {c.name}
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{parseProfile(c.profile).summary}</p>
             </Link>
           );
         })}
       </div>
-      {missingCharacter ? (
-        <EmptyState
-          title={`${selected.name} has no character yet`}
-          description="Choose who stars in its stories on the channel page."
-          action={
-            <Button asChild>
-              <Link href={`/channels/${selected.id}`}>Open channel</Link>
-            </Button>
-          }
-        />
-      ) : (
-        <GenerateForm
-          key={selected.id}
-          channel={{ id: selected.id, name: selected.name, format: selected.format, examples: profile.examples, minParts: selected.minParts, maxParts: selected.maxParts, hero: selected.character?.name ?? null }}
-        />
-      )}
+      <GenerateForm
+        key={selected.id}
+        channel={{ id: selected.id, name: selected.name, examples: profile.examples, minParts: selected.minParts, maxParts: selected.maxParts }}
+      />
     </div>
   );
 }

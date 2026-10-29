@@ -12,9 +12,9 @@ import { ensureEditableVersion, refreshStoryStatus } from "./versions";
 import type { PipelineDeps } from "./deps";
 
 export const EpisodeActionSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("produce"), direction: z.string().nullish() }),
-  /** On Part 1 of a multi-part story, `replanStory` plans and rewrites every part (only before any part is produced). */
-  z.object({ action: z.literal("regenerate-script"), direction: z.string().nullish(), replanStory: z.boolean().optional() }),
+  z.object({ action: z.literal("produce") }),
+  /** On Part 1, `replanStory` plans and rewrites every part from the saved research (only before any part is produced). */
+  z.object({ action: z.literal("regenerate-script"), replanStory: z.boolean().optional() }),
   /** Fix the issues flagged on the current script with targeted revisions. */
   z.object({ action: z.literal("revise-script") }),
   z.object({ action: z.literal("rewrite-scene"), sceneNumber: z.number().int(), instruction: z.string().nullish() }),
@@ -53,13 +53,13 @@ async function assertScriptApproved(episodeId: string, acceptOpenNotes: boolean)
   if (!v || !v.qualityStatus || v.qualityStatus === "passed") return;
   const spec = v.spec as EpisodeSpecRecord;
   if (v.qualityStatus === "blocked") {
-    throw new ScriptGateError("This script has blocking plot problems. Fix the flagged issues, rewrite the lines, regenerate it, or dismiss an issue you judge to be wrong. Nothing was spent on media.");
+    throw new ScriptGateError("This script has blocking problems. Fix the flagged issues, rewrite the lines, regenerate it, or dismiss an issue you judge to be wrong. Nothing was spent on media.");
   }
   if (v.qualityStatus === "needs-attention") {
     if (spec.quality?.override) return;
     if (!acceptOpenNotes) throw new ScriptGateError("This script has open issues from the checks. Review them, then approve with the override to make the video anyway.");
     if (spec.quality) {
-      const open = spec.quality.issues.filter((i) => i.severity !== "minor" && !spec.quality!.dismissed.some((d) => d.issueId === i.id)).length + spec.quality.mustFix.length;
+      const open = spec.quality.issues.filter((i) => i.severity !== "minor" && !spec.quality!.dismissed.some((d) => d.issueId === i.id)).length;
       await db.episodeVersion.update({ where: { id: v.id }, data: { spec: { ...spec, quality: { ...spec.quality, override: { at: new Date().toISOString(), open } } } } });
     }
   }
@@ -136,9 +136,9 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
   const req = payload.request;
   const { jobId } = payload;
 
-  const write = async (reason: string, direction?: string | null, replanStory?: boolean) => {
-    await setJobStage(jobId, "WRITING_STORY", "Planning, writing and checking the script", 0.02);
-    return writeEpisode({ ...ctx, jobId, reason, direction, replanStory });
+  const write = async (reason: string, replanStory?: boolean) => {
+    await setJobStage(jobId, "WRITING_STORY", "Researching, writing and checking the scripts", 0.02);
+    return writeEpisode({ ...ctx, jobId, reason, replanStory });
   };
   // A changed script only goes on to media when it passed its checks; otherwise it waits at the gate.
   const continueIfPassed = async (status: string | null) => {
@@ -153,13 +153,13 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
       // Script gate: a new script always stops for review before anything is spent on images,
       // narration or rendering. Approving it ("render") makes the video.
       if (!episode.currentVersionId) {
-        await write("initial", req.direction);
+        await write("initial");
         return { scripted: true };
       }
       return produceDownstream(episode.id, jobId, cost, deps);
     }
     case "regenerate-script": {
-      const result = await write("regenerate-script", req.direction, req.replanStory);
+      const result = await write("regenerate-script", req.replanStory);
       // Replanning rewrites every part, so all of them wait at the gate.
       return continueIfPassed(result.parts ? null : result.quality.status);
     }

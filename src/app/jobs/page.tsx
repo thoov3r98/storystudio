@@ -60,7 +60,7 @@ async function JobsContent({ searchParams }: { searchParams: PageProps<"/jobs">[
         ))}
       </nav>
       {jobs.length === 0 ? (
-        <EmptyState title="No jobs" description="Jobs appear here when you generate concepts or produce episodes." />
+        <EmptyState title="No jobs" description="Jobs appear here when you pitch ideas or make videos." />
       ) : (
         <div className="space-y-2">
           {jobs.map((j) => {
@@ -68,7 +68,7 @@ async function JobsContent({ searchParams }: { searchParams: PageProps<"/jobs">[
             const target = j.episode
               ? { href: `/episodes/${j.episode.id}`, label: `${j.story?.title ?? "Episode"} · Part ${j.episode.partNumber}` }
               : j.batch
-                ? { href: `/batches/${j.batch.id}`, label: `Batch of ${j.batch.requestedCount} (${j.batch.mode === "CONCEPT" ? "concepts" : "production"})` }
+                ? { href: `/batches/${j.batch.id}`, label: "Pitches" }
                 : j.story
                   ? { href: `/stories/${j.story.id}`, label: j.story.title }
                   : null;

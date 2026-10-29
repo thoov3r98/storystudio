@@ -10,7 +10,6 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Section } from "@/components/studio";
 import { useAction } from "@/components/client-helpers";
-import { ILLUSTRATION_STYLES, QUALITY_PRESETS, TARGET_DURATIONS } from "@/lib/constants";
 import type { AudioMix, Defaults, Voice, VoiceSettings } from "@/lib/settings";
 import { addAudioAsset, importElevenLabsVoices, saveAudioMix, saveDefaults, saveVoices, saveVoiceSettings } from "@/app/actions";
 
@@ -193,56 +192,11 @@ export function SettingsForms(props: {
         </Card>
       </Section>
 
-      <Section title="Defaults" description="Pre-filled on the Generate page and used by the pipeline.">
+      <Section title="Defaults" description="Used by the pipeline. Style, length and quality are set on each channel.">
         <Card>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Illustration style</Label>
-              <Select value={defaults.styleKey} onValueChange={(v) => setDefaults({ ...defaults, styleKey: v })}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(ILLUSTRATION_STYLES).map(([k, s]) => (
-                    <SelectItem key={k} value={k}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Duration</Label>
-              <Select value={String(defaults.durationSec)} onValueChange={(v) => setDefaults({ ...defaults, durationSec: Number(v) })}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TARGET_DURATIONS.map((d) => (
-                    <SelectItem key={d} value={String(d)}>
-                      {d} seconds
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Quality</Label>
-              <Select value={defaults.quality} onValueChange={(v) => setDefaults({ ...defaults, quality: v as Defaults["quality"] })}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(QUALITY_PRESETS).map(([k, q]) => (
-                    <SelectItem key={k} value={k}>
-                      {q.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Default batch budget (USD)</Label>
+              <Label>Budget per pitch batch (USD)</Label>
               <Input type="number" min={1} value={defaults.maxBatchBudgetUsd} onChange={(e) => setDefaults({ ...defaults, maxBatchBudgetUsd: Number(e.target.value) })} />
             </div>
           </div>

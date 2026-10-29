@@ -30,7 +30,7 @@ export const ILLUSTRATION_STYLES = {
     spec: [
       "Bold, clean stick-figure cartoon illustration in the style of animated story channels.",
       "Thick, consistent black ink outlines, round heads, simple expressive poses and clear facial expressions.",
-      "Flat colour highlights only on what matters: the main character's signature clothing colour and the scene's key objects (fire, water, vehicles, danger, the item being used); everything else stays black line on an off-white (#FAFAF7) background.",
+      "Flat colour highlights only on what matters: the scene's key objects (the material, the product, the machine part doing the work); everything else stays black line on an off-white (#FAFAF7) background.",
       "Simple readable settings with a few key props; at most three figures; one clear action.",
       "No gradients, no shading, no photorealism, no 3D, no logos, no text, letters, numbers or captions anywhere in the image.",
     ].join(" "),
@@ -41,7 +41,7 @@ export const ILLUSTRATION_STYLES = {
     spec: [
       "Simple stick-figure cartoon illustration, fully coloured in like a neat colouring-book page.",
       "Thick, consistent black ink outlines, round heads, simple expressive poses and clear facial expressions.",
-      "Every area is filled with flat colour: clothing, objects, buildings, ground and sky or walls. Use a soft, friendly palette of a few muted colours per scene, with the main character's signature clothing colour always the same.",
+      "Every area is filled with flat colour: clothing, objects, buildings, ground and sky or walls. Use a soft, friendly palette of a few muted colours per scene.",
       "Simple readable settings with a few key props; at most three figures; one clear action.",
       "No gradients, no shading, no textures, no photorealism, no 3D, no logos, no text, letters, numbers or captions anywhere in the image.",
     ].join(" "),
@@ -85,30 +85,13 @@ export function styleSpec(key: string): string {
   return (ILLUSTRATION_STYLES[key as StyleKey] ?? ILLUSTRATION_STYLES[DEFAULT_STYLE]).spec;
 }
 
-/**
- * Video layouts. "bands": a 3:2 landscape illustration between a coloured title band
- * (series name + part) and a coloured caption band. "full": legacy full-frame portrait art.
- */
-export const VIDEO_FORMATS = {
-  bands: {
-    imageSize: "1536x1024",
-    safeArea:
-      "Landscape 3:2 frame, shown in full. Keep the main subject and action near the centre with breathing room on every side; no empty space reserved for captions.",
-  },
-  full: {
-    imageSize: "1024x1536",
-    safeArea:
-      "Vertical 2:3 frame. Keep the main subject in the upper two-thirds; leave the bottom quarter mostly empty background for captions. Keep important details away from the right edge.",
-  },
-} as const;
-export type VideoFormat = keyof typeof VIDEO_FORMATS;
-
-export function videoFormat(value: string | null | undefined): VideoFormat {
-  return value === "full" ? "full" : "bands";
-}
+/** Every illustration is a 3:2 landscape image shown in full between the title band and the caption band. */
+export const IMAGE_SIZE = "1536x1024";
+export const SAFE_AREA =
+  "Landscape 3:2 frame, shown in full. Keep the main subject and action near the centre with breathing room on every side; no empty space reserved for captions.";
 
 /**
- * Band colours for series without a character; picked stably from the story id.
+ * Band colours, picked stably from the story id.
  * The bands fill two-thirds of the frame, so they are muted and dark enough for white text.
  */
 export const BAND_PALETTE = ["#4A5D6B", "#3F5E5A", "#5B5E3C", "#5A4660", "#7A4E3E", "#3E4F6E", "#6B5A45"] as const;
@@ -119,38 +102,6 @@ export function bandColorFor(storyId: string): string {
   return BAND_PALETTE[h % BAND_PALETTE.length];
 }
 
-/** A muted, dark band colour with the same hue as `hex` (e.g. a bright orange becomes a dusty rust-brown). */
-export function mutedBandColor(hex: string): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return BAND_PALETTE[0];
-  const n = parseInt(m[1], 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const d = max - min;
-  let hue = 0;
-  if (d > 0) hue = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  hue = (hue * 60 + 360) % 360;
-  const light = (max + min) / 2;
-  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * light - 1));
-  return hslToHex(hue, Math.min(sat, 0.3), 0.3);
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
-  const to = (v: number) => Math.round((v + l - c / 2) * 255).toString(16).padStart(2, "0");
-  return `#${to(r)}${to(g)}${to(b)}`.toUpperCase();
-}
-
-/** The band colour for a story: the character's override, else a muted version of their signature colour, else the palette. */
-export function storyBandColor(storyId: string, character?: { signatureColor: string; bandColor: string | null } | null): string {
-  if (character?.bandColor) return character.bandColor;
-  if (character) return mutedBandColor(character.signatureColor);
-  return bandColorFor(storyId);
-}
-
 export const MOTION_PRESETS = ["slow-zoom-in", "slow-zoom-out", "pan-left", "pan-right", "pan-up", "still"] as const;
 export type MotionPreset = (typeof MOTION_PRESETS)[number];
 
@@ -159,7 +110,7 @@ export const QUALITY_PRESETS: Record<
   { label: string; description: string; writerModel: "main" | "fast"; reviewerModel: "main" | "fast"; imageQuality: "low" | "medium" | "high" }
 > = {
   DRAFT: { label: "Draft", description: "Fast model, low-quality images. For trying ideas.", writerModel: "fast", reviewerModel: "fast", imageQuality: "low" },
-  STANDARD: { label: "Standard", description: "Main model writes, fast model reviews, medium images.", writerModel: "main", reviewerModel: "fast", imageQuality: "medium" },
+  STANDARD: { label: "Standard", description: "Main model writes and checks, medium images.", writerModel: "main", reviewerModel: "main", imageQuality: "medium" },
   PREMIUM: { label: "Premium", description: "Main model everywhere, high-quality images.", writerModel: "main", reviewerModel: "main", imageQuality: "high" },
 };
 
@@ -211,6 +162,3 @@ export const VIDEO = {
   tailMs: 900,
   compositionId: "InvisibleWorldEpisode",
 } as const;
-
-/** How many candidate concepts to generate per requested episode. */
-export const CANDIDATE_MULTIPLIER = 2;

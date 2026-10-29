@@ -4,8 +4,6 @@
 // - Every generated artifact (script version, scene image, voiceover, render) is
 //   an immutable row. "Current" pointers select which row is live, so history is
 //   never overwritten.
-// - Story continuity lives in StoryBible versions. Only bibles created from an
-//   approved episode (or edited by hand) are canonical.
 // - Money is stored as Decimal(12, 6) USD.
 
 generator client {
@@ -28,19 +26,13 @@ enum StoryStatus {
   ARCHIVED
 }
 
-enum FactMode {
-  FACTUAL
-  HYPOTHETICAL
-  FICTIONAL
-  MIXED
-}
 
 enum EpisodeStatus {
   DRAFT // concept/hooks only, no script yet
   SCRIPTED // script exists, not yet produced
   IN_PRODUCTION
   READY // MP4 rendered, awaiting approval
-  APPROVED // continuity applied to story bible
+  APPROVED // locked: changes fork a new version
   PUBLISHED // manually published by the user
   FAILED
 }
@@ -51,36 +43,9 @@ enum VersionStatus {
   SUPERSEDED
 }
 
-enum FactCheckStatus {
-  PENDING
-  PASSED // no unsupported claims presented as fact
-  NEEDS_REVIEW // claims flagged for manual verification
-  MANUALLY_APPROVED
-}
 
-enum ClaimClassification {
-  ESTABLISHED_FACT
-  PLAUSIBLE_EXAMPLE
-  FICTIONAL
-  NEEDS_VERIFICATION
-}
 
-enum ClaimStatus {
-  UNVERIFIED
-  SUPPORTED // model-attested as widely documented; still not independently verified
-  FLAGGED
-  REVISED
-  MANUALLY_VERIFIED
-  REJECTED
-}
 
-enum HookType {
-  RELATABLE
-  SURPRISING_FACT
-  IMMEDIATE_DANGER
-  QUESTION
-  OTHER
-}
 
 enum AssetStatus {
   PENDING
@@ -89,10 +54,6 @@ enum AssetStatus {
   FAILED
 }
 
-enum BatchMode {
-  CONCEPT
-  FULL_PRODUCTION
-}
 
 enum Quality {
   DRAFT
@@ -110,8 +71,6 @@ enum ConceptStatus {
 enum JobType {
   BATCH_IDEATION
   EPISODE_PRODUCTION
-  CONTINUATION
-  REGENERATE_HOOKS
   REGENERATE_SCRIPT
   REGENERATE_SCENE_NARRATION
   REGENERATE_IMAGE
@@ -142,26 +101,15 @@ enum Provider {
   VERCEL_SANDBOX
 }
 
-enum ProposalStatus {
-  PENDING
-  APPLIED
-  REJECTED
-  SUPERSEDED
-}
 
 enum AudioAssetKind {
   MUSIC
   SFX
 }
 
-enum NarrationPerspective {
-  FIRST_PERSON
-  THIRD_PERSON
-}
 
-/// How a channel's videos are made: a character's story, or a factual process explained step by step.
+/// How a channel's videos are made. Only process explainers ("How it's made") for now.
 enum ChannelFormat {
-  CHARACTER_STORY
   PROCESS_EXPLAINER
 }
 
@@ -176,10 +124,6 @@ model Channel {
   format            ChannelFormat
   /// Generated from the brief, then editable: subjects, voice, story shape, things to avoid, Surprise me guidance.
   profile           Json
-  /// The recurring hero of a character-story channel.
-  characterId       String?
-  character         Character?           @relation(fields: [characterId], references: [id], onDelete: SetNull)
-  perspective       NarrationPerspective @default(THIRD_PERSON)
   voiceId           String?
   styleKey          String               @default("stick-figure-color")
   targetDurationSec Int                  @default(75)
@@ -195,38 +139,6 @@ model Channel {
   batches Batch[]
 }
 
-// ───────────────────────────── Characters ──────────────────────────
-
-/// A recurring narrator/hero that series are built around.
-model Character {
-  id                String               @id @default(cuid())
-  name              String
-  tagline           String
-  /// The producer's original one-line description.
-  brief             String
-  personality       String
-  backstory         String
-  /// How the character talks when narrating.
-  speakingStyle     String
-  /// How to draw them: stick-figure build, clothing, props, signature colour item.
-  visualDescription String
-  /// Hex colour of the character's clothing accent (their signature item).
-  signatureColor    String               @default("#E0362C")
-  /// Video band colour; null derives a muted version of signatureColor.
-  bandColor         String?
-  perspective       NarrationPerspective @default(FIRST_PERSON)
-  voiceId           String?
-  /// Character reference sheet, passed to every scene illustration.
-  sheetUrl          String?
-  archivedAt        DateTime?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-
-  stories  Story[]
-  batches  Batch[]
-  channels Channel[]
-  costs    CostEntry[]
-}
 
 // ───────────────────────────── Stories ─────────────────────────────
 
@@ -234,14 +146,12 @@ model Story {
   id                   String      @id @default(cuid())
   title                String
   normalizedTitle      String
-  category             String
   premise              String
   logline              String?
-  /// Archetype, dramatic question and beat sketch from the pitch; guides plot planning.
+  /// The pitch's sketch of the stages (`beatSketch`); a lead for the researcher, never a source.
   storySeed            Json?
   keywords             String[]
   status               StoryStatus @default(CONCEPT)
-  factMode             FactMode    @default(MIXED)
   styleKey             String      @default("stick-figure")
   voiceId              String?
   targetDurationSec    Int         @default(75)
@@ -249,15 +159,10 @@ model Story {
   plannedParts         Int         @default(1)
   quality              Quality     @default(STANDARD)
   thumbnailUrl         String?
-  /// "bands": 3:2 landscape art between coloured title/caption bands. "full": legacy full-frame portrait art.
-  videoFormat          String      @default("bands")
-  characterId          String?
-  character            Character?  @relation(fields: [characterId], references: [id], onDelete: SetNull)
   channelId            String?
   channel              Channel?    @relation(fields: [channelId], references: [id], onDelete: SetNull)
   /// Process explainers: the web research every part is written from (see src/lib/process).
   research             Json?
-  hasUnresolvedThreads Boolean     @default(true)
   archivedAt           DateTime?
   lastActivityAt       DateTime    @default(now())
   createdAt            DateTime    @default(now())
@@ -266,11 +171,7 @@ model Story {
   conceptId String?  @unique
   concept   Concept? @relation(fields: [conceptId], references: [id], onDelete: SetNull)
 
-  bibles           StoryBible[]
   episodes         Episode[]
-  proposals        BibleUpdateProposal[]
-  visualReferences VisualReference[]
-  claims           FactClaim[]
   jobs             Job[]
   costs            CostEntry[]
 
@@ -280,50 +181,8 @@ model Story {
   @@index([channelId])
 }
 
-/// Versioned story bible. `data` is validated by StoryBibleSchema (src/lib/schemas/story-bible.ts).
-model StoryBible {
-  id              String   @id @default(cuid())
-  storyId         String
-  story           Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
-  version         Int
-  data            Json
-  /// Where this version came from: "concept", "episode-approval", "manual-edit".
-  source          String
-  sourceEpisodeId String?
-  note            String?
-  createdAt       DateTime @default(now())
 
-  @@unique([storyId, version])
-}
 
-/// Continuity changes proposed by an unapproved episode. Applied only when the episode is approved.
-model BibleUpdateProposal {
-  id               String         @id @default(cuid())
-  storyId          String
-  story            Story          @relation(fields: [storyId], references: [id], onDelete: Cascade)
-  episodeVersionId String         @unique
-  episodeVersion   EpisodeVersion @relation(fields: [episodeVersionId], references: [id], onDelete: Cascade)
-  baseBibleVersion Int
-  /// StoryBibleUpdateSchema payload.
-  update           Json
-  status           ProposalStatus @default(PENDING)
-  createdAt        DateTime       @default(now())
-  resolvedAt       DateTime?
-}
-
-model VisualReference {
-  id          String   @id @default(cuid())
-  storyId     String
-  story       Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
-  name        String
-  /// "character" | "object" | "location" | "style"
-  kind        String
-  description String
-  imageUrl    String?
-  createdAt   DateTime @default(now())
-
-  @@unique([storyId, name])
-}
 
 // ───────────────────────────── Episodes ─────────────────────────────
 
@@ -344,7 +203,6 @@ model Episode {
   updatedAt         DateTime        @updatedAt
 
   versions EpisodeVersion[]    @relation("EpisodeVersions")
-  hooks    Hook[]
   metrics  PerformanceMetric[]
   jobs     Job[]
   costs    CostEntry[]
@@ -369,9 +227,6 @@ model EpisodeVersion {
   wordCount            Int
   estimatedDurationSec Float
   summary              String
-  factCheckStatus      FactCheckStatus @default(PENDING)
-  factReview           Json?
-  continuityReview     Json?
   /// Script gate verdict from the quality checks: passed, needs-attention or blocked. Null on versions written before them.
   qualityStatus        String?
   /// The producer's 1–5 rating of the story.
@@ -387,28 +242,10 @@ model EpisodeVersion {
   scenes     Scene[]
   voiceovers Voiceover[]          @relation("VersionVoiceovers")
   renders    Render[]
-  claims     FactClaim[]
-  proposal   BibleUpdateProposal?
 
   @@unique([episodeId, version])
 }
 
-model Hook {
-  id         String   @id @default(cuid())
-  episodeId  String
-  episode    Episode  @relation(fields: [episodeId], references: [id], onDelete: Cascade)
-  type       HookType
-  text       String
-  scores     Json
-  totalScore Float
-  rationale  String
-  isPrimary  Boolean  @default(false)
-  /// Generation round, so regenerated hooks don't erase earlier alternatives.
-  round      Int      @default(1)
-  createdAt  DateTime @default(now())
-
-  @@index([episodeId])
-}
 
 model Scene {
   id                  String         @id @default(cuid())
@@ -503,23 +340,6 @@ model Render {
   @@index([episodeVersionId])
 }
 
-model FactClaim {
-  id               String              @id @default(cuid())
-  storyId          String
-  story            Story               @relation(fields: [storyId], references: [id], onDelete: Cascade)
-  episodeVersionId String
-  episodeVersion   EpisodeVersion      @relation(fields: [episodeVersionId], references: [id], onDelete: Cascade)
-  claim            String
-  classification   ClaimClassification
-  status           ClaimStatus         @default(UNVERIFIED)
-  reasoning        String
-  references       String[]
-  resolutionNote   String?
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-
-  @@index([episodeVersionId])
-}
 
 model PerformanceMetric {
   id              String   @id @default(cuid())
@@ -546,8 +366,6 @@ model PerformanceMetric {
 
 model Batch {
   id                String     @id @default(cuid())
-  mode              BatchMode
-  category          String
   customDirection   String?
   requestedCount    Int
   targetDurationSec Int
@@ -555,10 +373,7 @@ model Batch {
   voiceId           String
   quality           Quality
   maxBudgetUsd      Decimal    @db.Decimal(12, 6)
-  autoSelect        Boolean    @default(false)
   estimatedCostUsd  Decimal    @default(0) @db.Decimal(12, 6)
-  characterId       String?
-  character         Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
   channelId         String?
   channel           Channel?   @relation(fields: [channelId], references: [id], onDelete: SetNull)
   createdAt         DateTime   @default(now())
@@ -575,13 +390,10 @@ model Concept {
   normalizedTitle  String
   premise          String
   logline          String
-  category         String
   keywords         String[]
-  factMode         FactMode @default(MIXED)
   seriesPotential  String
   storySeed        Json?
   scores           Json?
-  totalScore       Float?
   rank             Int?
   status           ConceptStatus @default(CANDIDATE)
   duplicateOfTitle String?
@@ -640,8 +452,6 @@ model CostEntry {
   episodeId   String?
   episode     Episode?   @relation(fields: [episodeId], references: [id], onDelete: SetNull)
   batchId     String?
-  characterId String?
-  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
   createdAt   DateTime   @default(now())
 
   @@index([batchId])
@@ -669,19 +479,3 @@ model AudioAsset {
   createdAt   DateTime       @default(now())
 }
 
-/// A reference script the writer learns craft from (not copied). Built-in examples live in code.
-model ReferenceStory {
-  id         String   @id @default(cuid())
-  title      String
-  text       String
-  archetype  String
-  hookStyle  String
-  structure  String   @default("")
-  tone       String   @default("")
-  pacing     String   @default("")
-  endingType String   @default("")
-  qualities  String[]
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-}

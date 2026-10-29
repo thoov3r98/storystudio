@@ -13,14 +13,13 @@ import { reconcileStaleJobs } from "@/lib/enqueue";
 import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
 import { estimateEpisodeCost, formatUsd } from "@/lib/costs/estimate";
 import { getModels, getPricing } from "@/lib/settings";
-import type { ContinuityReview, EpisodeSpecRecord } from "@/lib/schemas/episode";
+import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
 import { ResearchRecordSchema } from "@/lib/schemas/process";
 import type { EpisodeTiming } from "@/lib/timing";
 import { downloadUrl, previewUrl } from "@/lib/urls";
 import { ApproveEpisodeButton } from "@/app/stories/[storyId]/story-client";
 import { EpisodeActionButton, RewriteSceneDialog, SceneImageHistory, VersionRestoreButton } from "./episode-client";
 import { ScriptChecks } from "./script-checks";
-import type { RecordedIssue } from "@/lib/schemas/story-plan";
 
 export const metadata: Metadata = { title: "Episode" };
 
@@ -49,7 +48,6 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
   const activeJob = episode.jobs.find((j) => ACTIVE_JOB_STATUSES.includes(j.status));
   const latestRenderAttempt = v?.renders[0];
   const locked = v?.status === "APPROVED";
-  const continuity = (v?.continuityReview ?? null) as ContinuityReview | null;
   const busy = Boolean(activeJob);
   // Script gate: what approving the script will spend on images, narration and rendering.
   const awaitingReview = Boolean(v) && episode.status === "SCRIPTED";
@@ -60,10 +58,10 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
   const mediaCost = media ? formatUsd(media.images + media.speech + media.render) : "";
   const quality = spec?.quality;
   const gate = awaitingReview ? (v?.qualityStatus ?? "passed") : null;
-  const openItems = quality ? quality.issues.filter((i) => i.severity !== "minor" && !quality.dismissed.some((d) => d.issueId === i.id)).length + quality.mustFix.length : 0;
+  const openItems = quality ? quality.issues.filter((i) => i.severity !== "minor" && !quality.dismissed.some((d) => d.issueId === i.id)).length : 0;
   const approveScript =
     gate === "blocked" ? (
-      <Button disabled>Blocked by plot issues</Button>
+      <Button disabled>Blocked by script issues</Button>
     ) : gate === "needs-attention" ? (
       <EpisodeActionButton
         episodeId={episode.id}
@@ -83,16 +81,10 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         confirm={`Generates the illustrations, narration, captions and edit, then renders the MP4. Estimated ${mediaCost}.`}
       />
     );
-  // One story planned across several videos.
-  const partsPlanned = spec?.plot?.parts?.length ?? spec?.process?.plan.parts.length ?? 1;
+  // One product explained across several videos.
+  const partsPlanned = spec?.process?.plan.parts.length ?? 1;
   const multiPart = partsPlanned > 1;
   const anyPartProduced = episode.story.episodes.some((e) => !["DRAFT", "SCRIPTED", "FAILED"].includes(e.status));
-  // A plot that failed its logic check stops before any narration is written; show why.
-  const lastJob = episode.jobs[0];
-  const plotFailure =
-    !busy && lastJob?.status === "FAILED" && (lastJob.error as { name?: string } | null)?.name === "StoryQualityError"
-      ? ((lastJob.error as { issues?: RecordedIssue[] }).issues ?? [])
-      : null;
 
   return (
     <>
@@ -139,7 +131,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                 </a>
               </Button>
             ) : null}
-            {episode.status === "READY" ? <ApproveEpisodeButton episodeId={episode.id} hasProposal={v?.proposal?.status === "PENDING"} /> : null}
+            {episode.status === "READY" ? <ApproveEpisodeButton episodeId={episode.id} /> : null}
           </>
         }
       />
@@ -177,7 +169,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
               <div className="font-medium">Script ready for your review</div>
               <p className="text-muted-foreground">
                 {gate === "blocked"
-                  ? "The checks found a plot problem a viewer would notice, so it can't be made into a video yet. See Script checks below."
+                  ? "The checks found a mistake a viewer would notice, so it can't be made into a video yet. See Script checks below."
                   : gate === "needs-attention"
                     ? `The checks left ${openItems} open item${openItems === 1 ? "" : "s"} (see Script checks). Fix them, rewrite a line, or approve anyway to make the video (${mediaCost}).`
                     : `Read it below. Rewrite a line, the opening or the whole script, or approve it to make the video (${mediaCost} for images, narration and render).`}
@@ -192,24 +184,10 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         <div className="mb-8 rounded-xl border border-red-200 bg-red-50/60 p-4 text-sm text-red-800">Last render failed: {latestRenderAttempt.error}</div>
       ) : null}
 
-      {plotFailure ? (
-        <div className="mb-8 rounded-xl border border-red-200 bg-red-50/60 p-4 text-sm text-red-900">
-          <div className="font-medium">The plot didn&apos;t pass its logic check, so no script was written</div>
-          <p className="mt-1 text-xs">Nothing was spent on narration or media. Write the script again for a new plot, or add direction.</p>
-          <ul className="mt-2 ml-4 list-disc space-y-1">
-            {plotFailure.map((i) => (
-              <li key={i.id}>
-                {i.location}: {i.problem} <span className="text-xs opacity-75">(evidence: “{i.evidence}”)</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
       {!v ? (
         <div className="rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
-          No script yet. <span className="font-medium text-foreground">Write script</span> plans the plot, checks its logic, develops the hook and writes the script. Nothing is spent on images,
-          narration or rendering until you approve it.
+          No script yet. <span className="font-medium text-foreground">Write script</span> researches the product, plans the parts, and writes and fact-checks every script. Nothing is spent on
+          images, narration or rendering until you approve it.
         </div>
       ) : (
         <div className="grid gap-10 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -288,7 +266,6 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
           <div className="min-w-0 space-y-10">
             <ScriptChecks
               quality={quality}
-              plot={spec?.plot}
               process={spec?.process}
               research={ResearchRecordSchema.safeParse(episode.story.research).data ?? null}
               versionId={v.id} episodeId={episode.id} humanRating={v.humanRating} busy={busy} atGate={awaitingReview} />
@@ -308,8 +285,8 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                     continueProduction={false}
                     confirm={
                       multiPart
-                        ? `Rewrites Part ${episode.partNumber} from the story's plan (new hook, narration and checks) and stops for your review. The other parts are unchanged; nothing is spent on media.`
-                        : "Plans, writes and checks a new script version and stops for your review; nothing is spent on media until you approve it. The current version is kept in history."
+                        ? `Rewrites Part ${episode.partNumber} from the saved research and plan, fact-checks it and stops for your review. The other parts are unchanged; nothing is spent on media.`
+                        : "Writes and fact-checks a new script version and stops for your review; nothing is spent on media until you approve it. The current version is kept in history."
                     }
                   />
                   {multiPart && episode.partNumber === 1 && !anyPartProduced ? (
@@ -321,7 +298,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                       size="sm"
                       variant="outline"
                       continueProduction={false}
-                      confirm={`Plans the whole story again and rewrites all ${partsPlanned} parts as new versions. Use it when the story itself isn't working. Nothing is spent on media.`}
+                      confirm={`Plans the parts again from the saved research and rewrites all ${partsPlanned} as new versions. Use it when the split into parts isn't working. Nothing is spent on media.`}
                     />
                   ) : null}
                 </div>
@@ -343,23 +320,6 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                   <summary className="cursor-pointer text-sm font-medium">Full narration</summary>
                   <p className="mt-2 text-sm leading-relaxed whitespace-pre-line">{v.narration}</p>
                 </details>
-                <div className="grid gap-4 text-sm sm:grid-cols-2">
-                  {(
-                    [
-                      ["Key reveals", spec?.keyReveals],
-                      ["Unresolved questions", spec?.unresolvedQuestions],
-                    ] as const
-                  ).map(([label, items]) => (
-                    <div key={label}>
-                      <div className="text-xs font-medium text-muted-foreground">{label}</div>
-                      <ul className="mt-1 ml-4 list-disc space-y-1">
-                        {(items ?? []).map((i, k) => (
-                          <li key={k}>{i}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
               </div>
             </Section>
 
@@ -372,7 +332,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                   return (
                     <div key={s.id} className="flex flex-col gap-4 rounded-xl border bg-card p-4 sm:flex-row">
                       <div className="w-full shrink-0 sm:w-40">
-                        <div className="aspect-[2/3] overflow-hidden rounded-lg border bg-[#FAFAF7]">
+                        <div className="aspect-[3/2] overflow-hidden rounded-lg border bg-[#FAFAF7]">
                           {img?.url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={img.url} alt={`Scene ${s.sceneNumber}`} className="h-full w-full object-cover" loading="lazy" />
@@ -409,7 +369,6 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                         </p>
                         <p className="text-xs text-muted-foreground">
                           <span className="font-medium">Composition:</span> {s.composition}
-                          {s.characters.length ? ` · Characters: ${s.characters.join(", ")}` : ""}
                           {s.objects.length ? ` · Objects: ${s.objects.join(", ")}` : ""}
                         </p>
                         <div className="flex flex-wrap gap-2 pt-1">
@@ -430,24 +389,6 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                 })}
               </div>
             </Section>
-
-            {continuity ? (
-              <Section title="Continuity check" description={`Verdict: ${continuity.verdict.replace("-", " ")}`}>
-                <div className="space-y-2">
-                  {continuity.issues.length === 0 ? <p className="text-sm text-muted-foreground">No continuity issues found.</p> : null}
-                  {continuity.issues.map((i, k) => (
-                    <div key={k} className={`rounded-xl border p-3 text-sm ${i.severity === "material" ? "border-red-200 bg-red-50/50" : "bg-card"}`}>
-                      <span className="text-xs font-medium">
-                        {i.severity} · {i.type}
-                        {i.sceneNumber ? ` · scene ${i.sceneNumber}` : ""}
-                      </span>
-                      <p className="mt-1">{i.description}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Suggested fix: {i.suggestedFix}</p>
-                    </div>
-                  ))}
-                </div>
-              </Section>
-            ) : null}
 
             <Section title="Jobs for this episode">
               <ul className="divide-y rounded-xl border bg-card text-sm">

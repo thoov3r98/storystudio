@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Loader2, Plus, Save, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +14,8 @@ import type { ChannelProfile } from "@/lib/schemas/channel";
 import type { Voice } from "@/lib/settings";
 
 const BRIEF_EXAMPLES = [
-  "A grandma who tries a different job every week and tells us how it went. Warm, funny, everyday life.",
   "How famous foods are made in the factory, step by step, strictly factual.",
+  "How everyday toys are made, from raw plastic to the shop shelf. Calm and plain.",
 ];
 
 export function CreateChannelForm() {
@@ -27,7 +26,7 @@ export function CreateChannelForm() {
       <div>
         <Label htmlFor="brief">Describe a new channel</Label>
         <p className="text-xs text-muted-foreground">
-          What the videos are about, who (if anyone) they star, and how they should sound. Its profile is written from this, and you can edit all of it.
+          What the videos explain and how they should sound. Every channel is researched step-by-step explainers. Its profile is written from this, and you can edit all of it.
         </p>
       </div>
       <Textarea id="brief" value={brief} onChange={(e) => setBrief(e.target.value)} rows={5} placeholder={`e.g. ${BRIEF_EXAMPLES[0]}`} />
@@ -48,8 +47,6 @@ export function CreateChannelForm() {
 
 type Editable = {
   name: string;
-  characterId: string | null;
-  perspective: "FIRST_PERSON" | "THIRD_PERSON";
   voiceId: string | null;
   styleKey: string;
   targetDurationSec: number;
@@ -88,24 +85,11 @@ function ListEditor({ id, items, onChange, placeholder }: { id: string; items: s
   );
 }
 
-export function ChannelEditor({
-  channelId,
-  format,
-  initial,
-  voices,
-  characters,
-}: {
-  channelId: string;
-  format: "CHARACTER_STORY" | "PROCESS_EXPLAINER";
-  initial: Editable;
-  voices: Voice[];
-  characters: { id: string; name: string }[];
-}) {
+export function ChannelEditor({ channelId, initial, voices }: { channelId: string; initial: Editable; voices: Voice[] }) {
   const [c, setC] = useState(initial);
   const a = useAction();
   const set = <K extends keyof Editable>(k: K, v: Editable[K]) => setC({ ...c, [k]: v });
   const setProfile = <K extends keyof ChannelProfile>(k: K, v: ChannelProfile[K]) => setC({ ...c, profile: { ...c.profile, [k]: v } });
-  const story = format === "CHARACTER_STORY";
   const save = () =>
     a.run(
       () =>
@@ -125,43 +109,6 @@ export function ChannelEditor({
           <Field label="Name" htmlFor="ch-name">
             <Input id="ch-name" value={c.name} onChange={(e) => set("name", e.target.value)} />
           </Field>
-          {story ? (
-            <Field label="Character" hint="The hero of every story on this channel.">
-              <Select value={c.characterId ?? ""} onValueChange={(v) => set("characterId", v || null)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose a character" />
-                </SelectTrigger>
-                <SelectContent>
-                  {characters.map((ch) => (
-                    <SelectItem key={ch.id} value={ch.id}>
-                      {ch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {characters.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  <Link href="/characters" className="underline">
-                    Design a character
-                  </Link>{" "}
-                  first.
-                </p>
-              ) : null}
-            </Field>
-          ) : null}
-          {story ? (
-            <Field label="Who narrates">
-              <Select value={c.perspective} onValueChange={(v) => set("perspective", v as Editable["perspective"])}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="THIRD_PERSON">An unseen narrator (third person)</SelectItem>
-                  <SelectItem value="FIRST_PERSON">The character (first person)</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          ) : null}
           <Field label="Narrator voice">
             <Select value={c.voiceId ?? ""} onValueChange={(v) => set("voiceId", v || null)}>
               <SelectTrigger className="w-full">
@@ -199,7 +146,7 @@ export function ChannelEditor({
               ))}
             </div>
           </Field>
-          <Field label="Videos per story" hint="The planner picks how many within this range, based on how much there is to tell.">
+          <Field label="Videos per product" hint="The planner picks how many within this range, based on how much there is to tell.">
             <div className="flex items-center gap-2">
               <Select value={String(c.minParts)} onValueChange={(v) => set("minParts", Number(v))}>
                 <SelectTrigger className="w-20" aria-label="Fewest parts">
@@ -259,7 +206,7 @@ export function ChannelEditor({
         <Field label="Voice" hint="Who narrates, the tone, and what the narration never does." htmlFor="ch-voice">
           <Textarea id="ch-voice" rows={4} value={c.profile.voice} onChange={(e) => setProfile("voice", e.target.value)} />
         </Field>
-        <Field label="Shape" hint="How each story runs across its parts, and the clarity rules." htmlFor="ch-structure">
+        <Field label="Shape" hint="How each series runs across its parts, and the clarity rules." htmlFor="ch-structure">
           <Textarea id="ch-structure" rows={5} value={c.profile.structure} onChange={(e) => setProfile("structure", e.target.value)} />
         </Field>
         <Field label="Never" htmlFor="ch-avoid">

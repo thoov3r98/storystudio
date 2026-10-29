@@ -1,7 +1,7 @@
 /*
  * Deterministic fake providers for integration tests ONLY. They return
- * schema-valid data so the real pipeline, database writes, versioning and
- * continuity logic can be exercised without network calls or spend.
+ * schema-valid data so the real pipeline, database writes and versioning
+ * can be exercised without network calls or spend.
  */
 import type { StructuredTextClient } from "@/lib/ai/structured";
 import type { ImageProvider } from "@/lib/providers/images";
@@ -11,90 +11,22 @@ import type { PipelineDeps } from "@/lib/pipeline/deps";
 import type { EpisodeDraft } from "@/lib/schemas/episode";
 
 
-const SUBJECTS = ["luggage", "water", "elevators", "subway", "mail", "ports", "power", "satellites", "bridges", "sewers", "trains", "hospitals", "shipping", "airports", "tunnels", "dams", "trucks", "ferries", "cables", "grain"];
+const PRODUCTS = ["Pencils", "Glass bottles", "Tennis balls", "Chocolate bars", "Toothpaste", "Sneakers", "Paper cups", "Marbles", "Candles", "Soap", "Gummy bears"];
 
 export type FakeTextOptions = {
-  /** Plot logic audit: a blocking hole that a repair fixes, or one that never goes away. */
-  plotAudit?: "pass" | "blocking-once" | "blocking-always";
-  /** Script logic audit: a significant issue fixed by one revision, a blocking one that persists, or a series contradiction. */
-  scriptAudit?: "pass" | "significant-once" | "blocking-always" | "series-conflict";
-  /** Editorial review: a must-fix note on the first read, or on every read. */
-  editorial?: "ready" | "must-fix-once" | "must-fix-always";
-  /** Process explainer fact-check: an unsupported claim that one revision fixes. */
-  processAudit?: "pass" | "significant-once";
+  /** Fact-check: an unsupported claim that one revision fixes or that never goes away, or a contradiction that never goes away. */
+  processAudit?: "pass" | "significant-once" | "significant-always" | "blocking-always";
 };
 
-/** A valid five-beat causal plot (setups planted before use, every beat caused). */
-export const FAKE_PLOT = {
-  archetype: "survival",
-  dramaticQuestion: "Will the traveller get the bag back before the flight?",
-  heroGoal: "Get the bag back",
-  openingState: "In the arrivals hall after a ten-hour flight, holding a baggage tag.",
-  worldRules: [{ id: "R1", rule: "Bags with tags can be tracked at the service desk." }],
-  setups: [{ id: "S1", what: "The baggage tag in their pocket", plantedInBeat: 0 }],
-  beats: [
-    { n: 1, link: "start", event: "The carousel stops and the bag never comes.", cause: "Opening.", enabledBy: [], heroWants: "Their bag", heroKnows: "Nothing yet", state: "Arrivals hall", changes: "The bag is missing" },
-    { n: 2, link: "but", event: "The service desk queue is an hour long.", cause: "A full flight landed.", enabledBy: ["B1"], heroWants: "Help", heroKnows: "The bag is missing", state: "In the queue", changes: "Time is running out" },
-    { n: 3, link: "therefore", event: "They read the tag number to a gate agent instead.", cause: "They have the tag.", enabledBy: ["B2", "S1", "R1"], heroWants: "To track it", heroKnows: "The tag can be tracked", state: "At a gate", changes: "The bag is located" },
-    { n: 4, link: "but", event: "The bag is on another plane.", cause: "Mis-sorted.", enabledBy: ["B3"], heroWants: "The bag", heroKnows: "Where it is", state: "At the gate", changes: "A new problem" },
-    { n: 5, link: "therefore", event: "They rebook onto that plane.", cause: "It goes home too.", enabledBy: ["B4"], heroWants: "To go home with it", heroKnows: "Its flight", state: "Boarding", changes: "They follow the bag" },
-  ],
-  resolution: { what: "They board the plane their bag is on.", enabledBy: ["B5", "S1"], endingType: "irony" },
-  deliberateMysteries: [],
-  parts: [{ part: 1, beats: [1, 2, 3, 4, 5], smallPayoff: "Where the bag went", cliffhanger: "", newViewerLine: "" }],
-};
-
-/** One story planned across `count` videos, three beats each. */
-export function fakeStoryPlot(count: number) {
-  const n = count * 3;
-  const beats = Array.from({ length: n }, (_, i) => ({
-    ...FAKE_PLOT.beats[i % 5],
-    n: i + 1,
-    link: i === 0 ? "start" : i % 2 ? "but" : "therefore",
-    event: `Event ${i + 1} of the long story.`,
-    enabledBy: i === 0 ? [] : [`B${i}`, ...(i === 2 ? ["S1"] : [])],
-  }));
-  return {
-    ...FAKE_PLOT,
-    dramaticQuestion: `A ${count}-part story`,
-    beats,
-    resolution: { ...FAKE_PLOT.resolution, enabledBy: [`B${n}`, "S1"] },
-    parts: Array.from({ length: count }, (_, p) => ({
-      part: p + 1,
-      beats: [p * 3 + 1, p * 3 + 2, p * 3 + 3],
-      smallPayoff: `What part ${p + 1} answers`,
-      cliffhanger: p < count - 1 ? `Turn at the end of part ${p + 1}` : "",
-      newViewerLine: p > 0 ? `You lost your bag; now part ${p + 1}.` : "",
-    })),
-  };
-}
-
-/** Beat numbers the prompt asks this narration to tell: the part's own, or every beat in the plot. */
-const beatsAsked = (user: string) => {
-  const own = /It tells beats ([\d, ]+) only/.exec(user)?.[1];
-  return own ? own.split(",").map((x) => Number(x.trim())) : [...user.matchAll(/^B(\d+) \[/gm)].map((m) => Number(m[1]));
-};
-
-const AUDIT_ISSUE = (severity: string, evidence: string, category = "causal-gap") => ({
-  category,
+const AUDIT_ISSUE = (severity: string, evidence: string) => ({
+  category: "unsupported-claim",
   severity,
   kind: "contradiction",
-  location: "Beat 3",
+  location: "Sentence 2",
   evidence,
-  problem: "It isn't clear why this happens.",
-  repair: "Show the cause earlier.",
+  problem: "The research doesn't say this.",
+  repair: "Say only what the research gives.",
 });
-
-const EDITORIAL = (mustFix: boolean, narration: string) => {
-  const quote = narration.split(" ").slice(0, 5).join(" ");
-  const rate = (criterion: string) => ({ criterion, rating: "strong", evidence: quote, note: "n" });
-  return {
-    narrative: ["premise", "dramatic-question", "every-beat-matters", "earned-escalation", "believable-reactions", "economy", "freshness", "ending", "worth-the-time"].map(rate),
-    retention: ["first-line", "instant-clarity", "curiosity-gap", "starts-late", "hook-delivered", "steady-change", "payoff"].map(rate),
-    mustFix: mustFix ? [{ area: "narrative", evidence: quote, problem: "The opening drags.", fix: "Cut to the moment the bag is missing." }] : [],
-    suggestions: [],
-  };
-};
 
 const between = (text: string, start: string, end?: string) => {
   const a = text.indexOf(start);
@@ -104,64 +36,35 @@ const between = (text: string, start: string, end?: string) => {
   return text.slice(from, b < 0 ? undefined : b).trim();
 };
 
-/** Issue ids listed in a revision or repair prompt ("- S1.1: ..."). */
-const issueIds = (user: string) => [...user.matchAll(/^- ([A-Z]\d+\.\d+|E\d+): /gm)].map((m) => m[1]);
+/** Issue ids listed in a revision prompt ("- S1.1: ..."). */
+const issueIds = (user: string) => [...user.matchAll(/^- ([A-Z]\d+\.\d+): /gm)].map((m) => m[1]);
 
-/** Cuts narration into shots the way makeDraft does: the hook travels with its first sentence. */
-function cutScenes(narration: string, hero: string) {
+/** Cuts narration into shots the way makeDraft does: the opening travels with its first sentence. */
+function cutScenes(narration: string) {
   const sentences = narration.split(/(?<=\.)\s+/);
   const shots = sentences.length > 12 ? [`${sentences[0]} ${sentences[1]}`, ...sentences.slice(2)] : sentences;
   return shots.map((n, i) => ({
     sceneNumber: i + 1,
     narration: n,
-    imagePrompt: `A stick figure in scene ${i + 1}`,
+    imagePrompt: `A machine at work in scene ${i + 1}`,
     composition: "wide shot",
-    continuity: `Still in the terminal, scene ${i + 1}`,
-    characters: i === 4 ? [] : [hero],
-    objects: ["suitcase"],
-    motionPreset: "slow-zoom-in",
+    continuity: `On the factory floor, scene ${i + 1}`,
+    characters: [] as string[],
+    objects: ["mould"],
+    motionPreset: "slow-zoom-in" as const,
   }));
 }
 
-function emptyUpdate(part: number) {
-  return {
-    addCharacters: part === 1 ? [{ name: "You", role: "traveler", description: "A tired passenger", visualDescription: "backpack, round glasses", firstAppearedPart: 1 }] : [],
-    updateCharacters: [],
-    addLocations: [{ name: `Location ${part}`, description: "A place" }],
-    addTimelineEvents: [{ part, order: 1, event: `Event of part ${part}` }],
-    addMysteries: [],
-    openThreads: [{ id: `thread-${part}`, description: `Open question from part ${part}` }],
-    resolveThreads: part > 1 ? [{ id: `thread-${part - 1}`, resolution: "Answered" }] : [],
-    addRevealedInformation: [`Reveal ${part}`],
-    addConstraints: [],
-    addRecurringVisuals: [],
-    arcSummary: `Summary through part ${part}.`,
-  };
-}
-
-export function makeDraft(hook: string, part: number, sceneCount = 12, hero = "You"): EpisodeDraft {
-  const words = (n: number, seed: number) => Array.from({ length: n }, (_, i) => `beat${seed}w${i}`).join(" ");
+export function makeDraft(hook: string, part: number, sceneCount = 12): EpisodeDraft {
+  const words = (n: number, seed: number) => Array.from({ length: n }, (_, i) => `step${seed}w${i}`).join(" ");
   const narrations = Array.from({ length: sceneCount }, (_, i) => (i === 0 ? `${hook} ${words(10, i)}.` : `${words(14, i)}.`));
   return {
     title: `Episode part ${part}`,
     storyNarration: narrations.join(" "),
     selectedHook: hook,
     summary: `Part ${part} summary.`,
-    visualState: { setting: "A busy airport hall", timeAndLight: "Evening, bright indoor light", weather: "Indoors", heroSituation: "On foot in the terminal", heroLook: "Backpack", rules: ["The traveller stays inside the terminal"] },
-    scenes: Array.from({ length: sceneCount }, (_, i) => ({
-      sceneNumber: i + 1,
-      narration: narrations[i],
-      imagePrompt: `A stick figure in scene ${i + 1}`,
-      composition: "wide shot",
-      continuity: `Still in the terminal, scene ${i + 1}`,
-      // Scene 5 is a cutaway without the hero.
-      characters: i === 4 ? [] : [hero],
-      objects: ["suitcase"],
-      motionPreset: "slow-zoom-in",
-    })),
-    keyReveals: [`Reveal ${part}`],
-    unresolvedQuestions: [`Question ${part}`],
-    bibleUpdate: emptyUpdate(part),
+    visualState: { setting: "A crayon factory", timeAndLight: "Bright factory lighting", weather: "Indoors", heroSituation: "Liquid wax at the start, solid crayons by the end", heroLook: "Workers in hairnets", rules: ["No text on any machine"] },
+    scenes: cutScenes(narrations.join(" ")),
   };
 }
 
@@ -169,7 +72,7 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
   const calls: Record<string, number> = {};
   const prompts: Record<string, string[]> = {};
   const models: Record<string, string> = {};
-  let conceptCounter = 0;
+  let pitchCounter = 0;
   return {
     calls,
     prompts,
@@ -182,48 +85,36 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
       const out = (parsed: unknown) => ({ parsed, usage, model: "fake-model" });
 
       switch (schemaName) {
-        case "character_profile":
-          return out({
-            name: "Big Dave",
-            tagline: "An ex-trucker who keeps ending up stranded",
-            personality: "Calm, stubborn and funny under pressure.",
-            backstory: "Drove long-haul for twenty years and fixes most things with duct tape.",
-            speakingStyle: "Slow, dry, plain-spoken.",
-            visualDescription: "Big round stick figure with a beard, red flannel shirt and a trucker cap.",
-            signatureColor: "#C62828",
-          });
         case "channel_design":
           return out({
-            name: "Grandma Tries It",
-            format: "CHARACTER_STORY",
-            perspective: "THIRD_PERSON",
+            name: "How Toys Are Made",
             minParts: 2,
             maxParts: 3,
             profile: {
-              summary: "A grandma tries a new job every week.",
-              subjects: "Everyday jobs.",
-              voice: "Warm, plain, third person.",
-              structure: "One job per story, in time order.",
-              avoid: ["Drama"],
-              surpriseMe: "Pick a job she hasn't tried.",
-              examples: ["Barista", "Bus driver", "Lifeguard"],
+              summary: "How everyday toys are made.",
+              subjects: "One toy per series.",
+              voice: "Calm, plain, third person.",
+              structure: "Factory order, one or two stages per part.",
+              avoid: ["Brand names"],
+              surpriseMe: "Pick a toy not covered yet.",
+              examples: ["Marbles", "Yo-yos", "Rubber ducks"],
             },
           });
         case "pitch_batch": {
           const n = Number(/Pitch exactly (\d+)/.exec(user)?.[1] ?? 6);
           return out({
             pitches: Array.from({ length: n }, () => {
-              const i = conceptCounter++;
-              const subject = SUBJECTS[i % SUBJECTS.length];
-              // The 4th pitch repeats the channel's existing "lost luggage" story.
-              const title = i === 3 ? "Where Does Lost Luggage Go?" : `The ${subject} problem ${i}`;
+              const i = pitchCounter++;
+              const product = PRODUCTS[i % PRODUCTS.length];
+              // The 4th pitch repeats the channel's existing "How Crayons Are Made" story.
+              const title = i === 3 ? "How Crayons Are Made" : `${product} from start to finish ${i}`;
               return {
                 title,
-                premise: i === 3 ? "Your lost suitcase travels through hidden baggage systems at the airport." : `Unique premise about ${subject} number ${i} and zebra${i} quartz${i}.`,
+                premise: i === 3 ? "How wax crayons are made in a factory." : `How ${product.toLowerCase()} number ${i} are made, zebra${i} quartz${i}.`,
                 logline: `Logline ${i}`,
-                keywords: [subject, `k${i}`],
-                openingSituation: `It starts with ${subject}`,
-                arc: "It starts. It builds. It ends well.",
+                keywords: [product.toLowerCase(), `k${i}`],
+                openingSituation: `It starts as raw ${product.toLowerCase()} material`,
+                arc: "Raw material. Shaping. Finishing. Packing.",
               };
             }),
           });
@@ -262,16 +153,16 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
         }
         case "process_narration": {
           const part = Number(/Narration for Part (\d+)/i.exec(system)?.[1] ?? 1);
-          const d = makeDraft(part === 1 ? "This is how crayons are made." : `Crayons, part ${part}.`, part, 12, "worker");
+          const d = makeDraft(part === 1 ? "This is how crayons are made." : `Crayons, part ${part}.`, part);
           return out({ title: `How crayons are made, part ${part}`, storyNarration: d.storyNarration, summary: `Part ${part} of crayons.` });
         }
         case "process_audit": {
           const narration = between(user, "SCRIPT\n");
           const quote = narration.split(" ").slice(6, 12).join(" ");
-          const fail = opts.processAudit === "significant-once" && calls.process_audit === 1;
+          const fail = opts.processAudit === "blocking-always" || opts.processAudit === "significant-always" || (opts.processAudit === "significant-once" && calls.process_audit === 1);
           return out({
             intendedUnknowns: [],
-            issues: fail ? [{ ...AUDIT_ISSUE("significant", quote, "unsupported-claim"), location: "Sentence 2" }] : [],
+            issues: fail ? [AUDIT_ISSUE(opts.processAudit === "blocking-always" ? "blocking" : "significant", quote)] : [],
             previousIssues: user.includes("EARLIER ISSUES") ? issueIds(user).map((id) => ({ id, resolved: !fail, note: "" })) : [],
           });
         }
@@ -281,119 +172,13 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
           sentences[2] = sentences[2].replace(/\.$/, " revised.");
           return out({ title: "Revised crayons", storyNarration: sentences.join(" "), summary: "Revised.", changeLog: issueIds(user).map((issueId) => ({ issueId, change: "Kept to the research." })) });
         }
-        case "plot_candidates": {
-          // A range ("3–5-part story") leaves the count to the planner; the fake picks one below the most.
-          const [, fewest, most] = /for this (\d+)(?:–(\d+))?-part story/.exec(user) ?? ["", "1"];
-          const count = most ? Math.max(Number(fewest), Number(most) - 1) : Number(fewest);
-          const plot = count > 1 ? fakeStoryPlot(count) : FAKE_PLOT;
-          return out({ plots: [plot, { ...plot, dramaticQuestion: count > 1 ? `Second ${count}-part plot` : "Second plot" }] });
-        }
-        case "plot_pick":
-          return out({ reviews: [0, 1].map((index) => ({ index, strengths: "s", weaknesses: "w" })), chosenIndex: 1, reason: "Clearer cause and effect." });
-        case "plot_audit": {
-          const n = calls.plot_audit;
-          const fail = opts.plotAudit === "blocking-always" || (opts.plotAudit === "blocking-once" && n === 1);
-          return out({
-            intendedUnknowns: [],
-            issues: fail ? [AUDIT_ISSUE("blocking", "They read the tag number to a gate agent instead", "knowledge")] : [],
-            previousIssues: user.includes("EARLIER ISSUES") ? issueIds(user).map((id) => ({ id, resolved: !fail, note: "" })) : [],
-          });
-        }
-        case "plot_repair": {
-          const plot = JSON.parse(between(user, "CURRENT PLOT", "Return a diagnosis"));
-          const ids = issueIds(user);
-          return out({ diagnosis: ids.map((issueId) => ({ issueId, rootBeat: 2, rootCause: "c" })), plot, changeLog: ids.map((issueId) => ({ issueId, change: "Planted the cause in beat 2." })) });
-        }
-        case "hook_candidates": {
-          const parts = (/For each of these parts: ([\d, ]+),/.exec(user)?.[1] ?? "1").split(",").map((x) => Number(x.trim()));
-          return out({
-            parts: parts.map((part) => ({
-              part,
-              dramaticQuestion: "Will they get the bag?",
-              strongestMoment: "The carousel stops",
-              candidates: [
-                { style: "relatable-problem", text: part === 1 ? "You land after ten hours." : `Part ${part} opens here.`, promise: "A travel problem", paidOffIn: "B1" },
-                { style: "specific-mystery", text: "Your bag is on a plane you are not.", promise: "Where the bag went", paidOffIn: "B4" },
-                { style: "immediate-danger", text: "The carousel stops.", promise: "Trouble", paidOffIn: "B1" },
-                { style: "contradiction", text: "The tag says Lisbon.", promise: "A mix-up", paidOffIn: "B3" },
-              ],
-            })),
-          });
-        }
-        case "hook_pick": {
-          const parts = [...user.matchAll(/^PART (\d+) CANDIDATES/gm)].map((m) => Number(m[1]));
-          return out({
-            parts: parts.map((part) => ({
-              part,
-              reviews: [0, 1, 2, 3].map((index) => ({ index, clarity: "strong", curiosity: "strong", specificity: "strong", deliveredByPlot: true, note: "n" })),
-              chosenIndex: 0,
-              hook: part === 1 ? "You land after ten hours." : `Part ${part} opens here.`,
-              promise: "A travel problem you'll solve",
-            })),
-          });
-        }
-        case "story_narration": {
-          const hook = /CHOSEN HOOK \(open with exactly this\): (.+)/.exec(user)?.[1] ?? "You land after ten hours.";
-          const part = Number(/^Part: (\d+)/m.exec(user)?.[1] ?? 1);
-          const hero = /NARRATOR AND HERO: (.+?) —/.exec(user)?.[1];
-          const d = makeDraft(hook, part, 12, hero);
-          return out({
-            title: d.title,
-            storyNarration: d.storyNarration,
-            summary: d.summary,
-            keyReveals: d.keyReveals,
-            unresolvedQuestions: d.unresolvedQuestions,
-            beatCoverage: beatsAsked(user).map((beat) => ({ beat, opensWith: "x" })),
-            planChanges: [],
-          });
-        }
-        case "script_audit": {
-          const narration = between(user, "NARRATION\n");
-          const quote = narration.split(" ").slice(6, 12).join(" ");
-          const n = calls.script_audit;
-          const issues =
-            opts.scriptAudit === "blocking-always"
-              ? [AUDIT_ISSUE("blocking", quote)]
-              : opts.scriptAudit === "series-conflict" && user.includes("SERIES SO FAR")
-                ? [AUDIT_ISSUE("blocking", quote, "series-continuity")]
-                : opts.scriptAudit === "significant-once" && n === 1
-                  ? [AUDIT_ISSUE("significant", quote)]
-                  : [];
-          return out({ intendedUnknowns: [], issues, previousIssues: user.includes("EARLIER ISSUES") ? issueIds(user).map((id) => ({ id, resolved: issues.length === 0, note: "" })) : [] });
-        }
-        case "editorial_review": {
-          const narration = between(user, "SCRIPT\n");
-          const mustFix = opts.editorial === "must-fix-always" || (opts.editorial === "must-fix-once" && calls.editorial_review === 1);
-          return out(EDITORIAL(mustFix, narration));
-        }
-        case "script_revision": {
-          const plot = JSON.parse(between(user, "CURRENT PLOT", "CURRENT NARRATION"));
-          const narration = between(user, "CURRENT NARRATION");
-          const sentences = narration.split(/(?<=\.)\s+/);
-          sentences[2] = sentences[2].replace(/\.$/, " revised.");
-          const ids = issueIds(user);
-          return out({
-            diagnosis: ids.map((issueId) => ({ issueId, rootBeat: 2, rootCause: "c" })),
-            plot,
-            title: "Revised episode",
-            storyNarration: sentences.join(" "),
-            summary: "Revised summary.",
-            keyReveals: ["Reveal"],
-            unresolvedQuestions: ["Question"],
-            beatCoverage: (/It tells beats/.test(user) ? beatsAsked(user) : plot.beats.map((b: { n: number }) => b.n)).map((beat: number) => ({ beat, opensWith: "x" })),
-            changeLog: ids.map((issueId) => ({ issueId, change: "Fixed at the root." })),
-          });
-        }
         case "scene_breakdown": {
           const narration = between(user, "FINAL NARRATION", "\u0000").replace(/^— ".*"\n/, "");
-          const part = Number(/^Part: (\d+)/m.exec(user)?.[1] ?? 1);
-          const hero = /NARRATOR AND HERO: (.+?) —/.exec(user)?.[1] ?? "You";
-          const d = makeDraft("x", part, 12, hero);
-          return out({ visualState: d.visualState, scenes: cutScenes(narration, hero), bibleUpdate: d.bibleUpdate });
+          return out({ visualState: makeDraft("x", 1).visualState, scenes: cutScenes(narration) });
         }
         case "scene_rewrite": {
-          const current = /CURRENT scene \d+ narration: (.*)/.exec(user)?.[1] ?? "x";
-          return out({ narration: current.replace(/\.$/, " rewritten."), imagePrompt: "A different stick figure scene", composition: "close-up", rationale: "r" });
+          const current = /CURRENT shot \d+ narration: (.*)/.exec(user)?.[1] ?? "x";
+          return out({ narration: current.replace(/\.$/, " rewritten."), imagePrompt: "A different machine at work", composition: "close-up", rationale: "r" });
         }
         default:
           throw new Error(`fakeText: unhandled schema ${schemaName}`);
@@ -414,11 +199,11 @@ export function fakeImages(
     // Passes every image, except the first image of each scene listed in rejectOnce.
     async review({ prompt }: { png: Buffer; prompt: string; model: string }) {
       provider.reviews++;
-      const scene = [...(opts.rejectOnce ?? [])].find((n) => prompt.includes(`scene ${n}"`) || prompt.includes(`beat${Number(n) - 1}w`));
+      const scene = [...(opts.rejectOnce ?? [])].find((n) => prompt.includes(`scene ${n}"`) || prompt.includes(`step${Number(n) - 1}w`));
       const reject = scene !== undefined && !rejected.has(scene);
       if (reject) rejected.add(scene);
       return {
-        review: { pass: !reject, containsText: false, styleViolations: reject ? ["Hero is standing on the ground"] : [], matchesScene: !reject, notes: "" },
+        review: { pass: !reject, containsText: false, styleViolations: reject ? ["The crayons are already boxed at the melting step"] : [], matchesScene: !reject, notes: "" },
         usage: { inputTokens: 500, cachedInputTokens: 0, outputTokens: 50 },
         model: "fake-model",
       };

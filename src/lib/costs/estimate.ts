@@ -1,4 +1,4 @@
-import { CANDIDATE_MULTIPLIER, QUALITY_PRESETS, sceneCountRange } from "@/lib/constants";
+import { QUALITY_PRESETS, sceneCountRange } from "@/lib/constants";
 import type { Quality } from "@/generated/prisma/enums";
 import { type Pricing, imageCost, renderCost, speechCost, textCost } from "./pricing";
 
@@ -9,22 +9,19 @@ import { type Pricing, imageCost, renderCost, speechCost, textCost } from "./pri
  */
 
 export const TOKEN_HEURISTICS = {
-  ideationPerConcept: { input: 250, output: 380 },
-  evaluationPerConcept: { input: 520, output: 600 },
-  /** Script pipeline (see docs/story-quality.md), per 75 s episode. Output includes reasoning tokens. */
-  plotCandidates: { input: 4500, output: 3500 },
-  plotPick: { input: 3500, output: 500 },
-  plotAudit: { input: 3000, output: 1000 },
-  plotRepair: { input: 3500, output: 1800 },
-  hookCandidates: { input: 2500, output: 900 },
-  hookPick: { input: 2500, output: 700 },
+  /** Pitching: six pitches written, three kept. */
+  pitches: { input: 2500, output: 4000 },
+  pitchPick: { input: 4500, output: 600 },
+  /** Script pipeline (see docs/channels.md). Output includes reasoning tokens. */
+  research: { input: 15000, output: 6000 },
+  researchSearches: 8,
+  researchNotes: { input: 8000, output: 4000 },
+  plan: { input: 6000, output: 1500 },
   narration: { input: 7000, output: 1400 },
-  scriptAudit: { input: 4000, output: 1000 },
-  editorialReview: { input: 2200, output: 1500 },
-  scriptRevision: { input: 6000, output: 3000 },
+  scriptAudit: { input: 7000, output: 1000 },
+  scriptRevision: { input: 7000, output: 1800 },
   sceneBreakdown: { input: 5500, output: 3800 },
-  /** Expected plot repairs and script revisions per episode. */
-  expectedPlotRepairs: 0.5,
+  /** Expected script revisions per part. */
   expectedRevisions: 0.8,
   /** Share of images the check sends back for one redraw. */
   expectedRedraws: 0.2,
@@ -40,7 +37,7 @@ export type Calibration = {
 export type EpisodeEstimateInput = {
   durationSec: number;
   quality: Quality;
-  /** Writing a multi-part story writes every part at once; `text` covers all of them, media is for one part. */
+  /** Writing Part 1 researches, plans and writes every part at once; `text` then covers all of them, media is for one part. */
   parts?: number;
 };
 
@@ -50,28 +47,21 @@ function sum(b: Omit<CostBreakdown, "total">): CostBreakdown {
   return { ...b, total: b.text + b.images + b.speech + b.render };
 }
 
-export function estimateIdeationCost(pricing: Pricing, models: ModelNames, requested: number, quality: Quality, cal: Calibration = { textFactor: 1 }): CostBreakdown {
+export function estimateIdeationCost(pricing: Pricing, models: ModelNames, quality: Quality, cal: Calibration = { textFactor: 1 }): CostBreakdown {
   const preset = QUALITY_PRESETS[quality];
-  const candidates = requested * CANDIDATE_MULTIPLIER;
   const writer = preset.writerModel === "main" ? models.main : models.fast;
-  const reviewer = preset.reviewerModel === "main" ? models.main : models.fast;
+  const reviewer = quality === "DRAFT" ? models.fast : models.reviewer?.trim() || models.main;
   const h = TOKEN_HEURISTICS;
-  const text =
-    (textCost(pricing, writer, { inputTokens: candidates * h.ideationPerConcept.input, outputTokens: candidates * h.ideationPerConcept.output }) +
-      textCost(pricing, reviewer, { inputTokens: candidates * h.evaluationPerConcept.input, outputTokens: candidates * h.evaluationPerConcept.output })) *
-    cal.textFactor;
+  const text = (textCost(pricing, writer, { inputTokens: h.pitches.input, outputTokens: h.pitches.output }) + textCost(pricing, reviewer, { inputTokens: h.pitchPick.input, outputTokens: h.pitchPick.output })) * cal.textFactor;
   return sum({ text, images: 0, speech: 0, render: 0 });
 }
 
 export function estimateEpisodeCost(pricing: Pricing, models: ModelNames, input: EpisodeEstimateInput, cal: Calibration = { textFactor: 1 }): CostBreakdown {
   const preset = QUALITY_PRESETS[input.quality];
   const writer = preset.writerModel === "main" ? models.main : models.fast;
-  const reviewer = preset.reviewerModel === "main" ? models.main : models.fast;
   const h = TOKEN_HEURISTICS;
   const scale = input.durationSec / 75;
   const p = input.parts ?? 1;
-  // The plan for several parts is longer; everything after it happens once per part.
-  const plan = p > 1 ? 1.8 : 1;
   // Matches scriptModels() in settings: checking uses the strongest model except at Draft.
   const checker = input.quality === "DRAFT" ? models.fast : models.reviewer?.trim() || models.main;
   const calls = (model: string, steps: [{ input: number; output: number }, number][]) =>
@@ -79,27 +69,22 @@ export function estimateEpisodeCost(pricing: Pricing, models: ModelNames, input:
       inputTokens: steps.reduce((t, [c, n]) => t + c.input * n, 0),
       outputTokens: steps.reduce((t, [c, n]) => t + c.output * n * scale, 0),
     });
+  // Research and the plan happen once per story; everything after them once per part.
+  const research = p > 1 ? 1 : 0;
   let text =
     calls(writer, [
-      [h.plotCandidates, plan],
-      [h.plotRepair, h.expectedPlotRepairs * plan],
-      [h.hookCandidates, p],
+      [h.research, research],
+      [h.researchNotes, research],
+      [h.plan, research],
       [h.narration, p],
       [h.scriptRevision, h.expectedRevisions * p],
       [h.sceneBreakdown, p],
-    ]) +
-    calls(checker, [
-      [h.plotPick, plan],
-      [h.plotAudit, (1 + h.expectedPlotRepairs) * plan],
-      [h.hookPick, p],
-      [h.scriptAudit, (1 + h.expectedRevisions) * p],
-      [h.editorialReview, (1 + h.expectedRevisions) * p],
-    ]);
-  text *= cal.textFactor;
+    ]) + calls(checker, [[h.scriptAudit, (1 + h.expectedRevisions) * p]]);
+  text = text * cal.textFactor + research * h.researchSearches * pricing.webSearchPerCall;
 
   const [, maxScenes] = sceneCountRange(input.durationSec);
   // Budget for the upper scene count, the check's redraws and ~10% retries.
-  const checks = textCost(pricing, reviewer === models.fast ? reviewer : models.fast, { inputTokens: 1200, outputTokens: 150 }) * maxScenes * (1 + h.expectedRedraws);
+  const checks = textCost(pricing, models.fast, { inputTokens: 1200, outputTokens: 150 }) * maxScenes * (1 + h.expectedRedraws);
   const images = imageCost(pricing, preset.imageQuality).costUsd * maxScenes * (1.1 + h.expectedRedraws) + checks;
 
   // ~5.6 characters per spoken word including spaces/punctuation, ~2.5 words/sec.
@@ -110,19 +95,6 @@ export function estimateEpisodeCost(pricing: Pricing, models: ModelNames, input:
   const render = renderCost(pricing, 4, input.durationSec * 2.5 + 120);
 
   return sum({ text, images, speech, render });
-}
-
-export function estimateBatchCost(
-  pricing: Pricing,
-  models: ModelNames,
-  input: { requested: number; durationSec: number; quality: Quality; fullProduction: boolean; parts?: number },
-  cal?: Calibration,
-): { ideation: CostBreakdown; perEpisode: CostBreakdown; total: number } {
-  const ideation = estimateIdeationCost(pricing, models, input.requested, input.quality, cal);
-  // Per story: every part's script, plus media for Part 1 (later parts are made one at a time).
-  const perEpisode = estimateEpisodeCost(pricing, models, { durationSec: input.durationSec, quality: input.quality, parts: input.parts }, cal);
-  const total = ideation.total + (input.fullProduction ? perEpisode.total * input.requested : 0);
-  return { ideation, perEpisode, total };
 }
 
 export function formatUsd(n: number | string | { toString(): string }, digits = 2): string {

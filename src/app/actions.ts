@@ -17,19 +17,14 @@ import {
   VoiceSettingsSchema,
   writeSetting,
 } from "@/lib/settings";
-import { StoryBibleSchema } from "@/lib/schemas/story-bible";
-import { continuationBlockers, loadCanonicalBible } from "@/lib/pipeline/context";
 import { approveEpisode as approve, ensureEditableVersion, forkVersion, refreshStoryStatus } from "@/lib/pipeline/versions";
 import { listElevenLabsVoices } from "@/lib/providers/speech";
 import { normalizeTitle } from "@/lib/text";
-import { CharacterEditSchema } from "@/lib/schemas/character";
-import { createCharacterFromBrief, drawCharacterSheet } from "@/lib/pipeline/characters";
 import { createChannelFromBrief, PITCHES_SHOWN, storyFromPitch } from "@/lib/pipeline/channels";
 import { ChannelEditSchema } from "@/lib/schemas/channel";
 import { productionDeps } from "@/lib/pipeline/deps";
 import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
-import { ARCHETYPES, ENDING_TYPES, HOOK_STYLES } from "@/lib/schemas/story-plan";
-import { withDismissal } from "@/lib/story/review";
+import { withDismissal } from "@/lib/process/review";
 
 export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -42,40 +37,6 @@ async function attempt<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
     if (err instanceof z.ZodError) return { ok: false, error: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
-}
-
-// ───────────────────────────── Characters ───────────────────────────
-
-/** Designs a character from a brief, then opens it so the producer can edit and draw it. */
-export async function createCharacter(brief: string): Promise<ActionResult<{ characterId: string }>> {
-  let characterId = "";
-  const result = await attempt(async () => {
-    const text = z.string().trim().min(3, "Describe the character in a sentence or two.").max(1000).parse(brief);
-    const character = await createCharacterFromBrief({ brief: text, deps: productionDeps });
-    characterId = character.id;
-    return { characterId };
-  });
-  if (result.ok) redirect(`/characters/${characterId}`);
-  return result;
-}
-
-export async function updateCharacter(characterId: string, input: unknown) {
-  return attempt(async () => {
-    const data = CharacterEditSchema.parse(input);
-    await db.character.update({ where: { id: characterId }, data });
-  });
-}
-
-export async function drawCharacter(characterId: string) {
-  return attempt(async () => {
-    await drawCharacterSheet({ characterId, deps: productionDeps });
-  });
-}
-
-export async function setCharacterArchived(characterId: string, archived: boolean) {
-  return attempt(async () => {
-    await db.character.update({ where: { id: characterId }, data: { archivedAt: archived ? new Date() : null } });
-  });
 }
 
 // ───────────────────────────── Channels ─────────────────────────────
@@ -115,15 +76,12 @@ export async function pitchIdeas(channelId: string, idea: string | null): Promis
   let batchId = "";
   const result = await attempt(async () => {
     const text = z.string().trim().max(2000).nullable().parse(idea) || null;
-    const channel = await db.channel.findUniqueOrThrow({ where: { id: channelId }, include: { character: true } });
+    const channel = await db.channel.findUniqueOrThrow({ where: { id: channelId } });
     if (channel.archivedAt) throw new Error("This channel is archived.");
-    if (channel.format === "CHARACTER_STORY" && !channel.character) throw new Error(`Choose ${channel.name}'s character on the channel page first.`);
-    const voiceId = channel.voiceId ?? channel.character?.voiceId ?? (await getVoices())[0]?.id;
+    const voiceId = channel.voiceId ?? (await getVoices())[0]?.id;
     if (!voiceId) throw new Error("Add a narrator voice in Settings first.");
     const batch = await db.batch.create({
       data: {
-        mode: "CONCEPT",
-        category: channel.name,
         customDirection: text,
         requestedCount: PITCHES_SHOWN,
         targetDurationSec: channel.targetDurationSec,
@@ -131,7 +89,6 @@ export async function pitchIdeas(channelId: string, idea: string | null): Promis
         voiceId,
         quality: channel.quality,
         maxBudgetUsd: (await getDefaults()).maxBatchBudgetUsd.toFixed(2),
-        characterId: channel.characterId,
         channelId: channel.id,
       },
     });
@@ -161,53 +118,10 @@ export async function writePitch(conceptId: string): Promise<ActionResult<{ stor
 
 // ───────────────────────────── Stories ─────────────────────────────
 
-export async function generateNextEpisode(storyId: string, direction?: string) {
-  return attempt(async () => {
-    const blockers = await continuationBlockers(storyId);
-    if (blockers.length) throw new Error(blockers.join(" "));
-    const last = await db.episode.findFirstOrThrow({ where: { storyId }, orderBy: { partNumber: "desc" } });
-    const story = await db.story.findUniqueOrThrow({ where: { id: storyId } });
-    const episode = await db.episode.create({ data: { storyId, partNumber: last.partNumber + 1, title: `${story.title} — Part ${last.partNumber + 1}` } });
-    try {
-      await enqueueEpisodeJob({
-        episodeId: episode.id,
-        type: "CONTINUATION",
-        continueProduction: true,
-        request: { action: "produce", direction: direction?.trim() || null },
-      });
-    } catch (err) {
-      await db.episode.delete({ where: { id: episode.id } });
-      throw err;
-    }
-    await db.story.update({ where: { id: storyId }, data: { status: "CONTINUING", lastActivityAt: new Date() } });
-    return { episodeId: episode.id };
-  });
-}
-
 export async function updateStoryTitle(storyId: string, title: string) {
   return attempt(async () => {
     const t = z.string().trim().min(3).max(200).parse(title);
     await db.story.update({ where: { id: storyId }, data: { title: t, normalizedTitle: normalizeTitle(t), lastActivityAt: new Date() } });
-  });
-}
-
-export async function updateStoryBible(storyId: string, json: string, note: string) {
-  return attempt(async () => {
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(json);
-    } catch {
-      throw new Error("The story bible is not valid JSON.");
-    }
-    const data = StoryBibleSchema.parse(parsedJson);
-    const current = await loadCanonicalBible(storyId);
-    await db.storyBible.create({
-      data: { storyId, version: current.version + 1, data, source: "manual-edit", note: note.trim() || "Manual edit" },
-    });
-    await db.story.update({
-      where: { id: storyId },
-      data: { premise: data.premise, hasUnresolvedThreads: data.unresolvedThreads.some((t) => t.status === "open"), lastActivityAt: new Date() },
-    });
   });
 }
 
@@ -232,8 +146,8 @@ export async function setArchivedMany(storyIds: string[], archived: boolean) {
 
 // ───────────────────────────── Episodes ─────────────────────────────
 
-export async function approveEpisodeAction(episodeId: string, applyProposal: boolean) {
-  return attempt(() => approve(episodeId, { applyProposal }));
+export async function approveEpisodeAction(episodeId: string) {
+  return attempt(() => approve(episodeId));
 }
 
 export async function markPublished(episodeId: string, input: { url?: string; platform?: string; publishedAt?: string }) {
@@ -243,7 +157,7 @@ export async function markPublished(episodeId: string, input: { url?: string; pl
       .parse(input);
     const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId } });
     if (episode.status !== "APPROVED" && episode.status !== "PUBLISHED") {
-      throw new Error("Approve the episode before marking it published, so its continuity is locked in.");
+      throw new Error("Approve the episode before marking it published, so its script is locked.");
     }
     await db.episode.update({
       where: { id: episodeId },
@@ -306,45 +220,11 @@ export async function dismissScriptIssue(versionId: string, issueId: string, not
   });
 }
 
-/** The producer's own 1–5 rating of a script's story. */
+/** The producer's own 1–5 rating of a script. */
 export async function rateScript(versionId: string, rating: number | null) {
   return attempt(async () => {
     const value = rating === null ? null : z.number().int().min(1).max(5).parse(rating);
     await db.episodeVersion.update({ where: { id: versionId }, data: { humanRating: value } });
-  });
-}
-
-// ───────────────────────────── Reference stories ───────────────────────────
-
-const ReferenceInput = z.object({
-  title: z.string().trim().min(1).max(200),
-  text: z.string().trim().min(40, "Paste the full script or transcript.").max(8000),
-  archetype: z.enum(ARCHETYPES),
-  hookStyle: z.enum(HOOK_STYLES),
-  endingType: z.enum(ENDING_TYPES),
-  structure: z.string().trim().max(400).default(""),
-  tone: z.string().trim().max(100).default(""),
-  pacing: z.string().trim().max(200).default(""),
-  qualities: z.array(z.string().trim().min(1).max(120)).max(8).default([]),
-});
-
-export async function saveReferenceStory(id: string | null, input: z.input<typeof ReferenceInput>) {
-  return attempt(async () => {
-    const data = ReferenceInput.parse(input);
-    if (id) await db.referenceStory.update({ where: { id }, data });
-    else await db.referenceStory.create({ data });
-  });
-}
-
-export async function setReferenceActive(id: string, active: boolean) {
-  return attempt(async () => {
-    await db.referenceStory.update({ where: { id }, data: { active } });
-  });
-}
-
-export async function deleteReferenceStory(id: string) {
-  return attempt(async () => {
-    await db.referenceStory.delete({ where: { id } });
   });
 }
 

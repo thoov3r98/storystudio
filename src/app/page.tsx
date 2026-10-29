@@ -13,7 +13,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="Dashboard"
-        description="Opening episodes, continuations, and everything currently in production."
+        description="Scripts waiting for you, and everything currently in production."
         actions={
           <Button asChild size="lg">
             <Link href="/generate">
@@ -75,7 +75,7 @@ async function DashboardContent() {
         {recentStories.length === 0 ? (
           <EmptyState
             title="No stories yet"
-            description="Generate a batch of concepts to start your library. Concept mode costs only a few cents of text generation."
+            description="Pitch ideas for a channel to start your library. Pitching costs a few cents."
             action={
               <Button asChild>
                 <Link href="/generate">Make videos</Link>

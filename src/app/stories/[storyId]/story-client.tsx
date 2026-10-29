@@ -1,24 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, BarChart3, CheckCircle2, FilePenLine, Loader2, Pencil, Send, Sparkles } from "lucide-react";
+import { Archive, ArchiveRestore, BarChart3, CheckCircle2, Loader2, Pencil, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ActionButton, useAction } from "@/components/client-helpers";
-import {
-  addMetrics,
-  approveEpisodeAction,
-  generateNextEpisode,
-  markPublished,
-  setArchived,
-  updateStoryBible,
-  updateStoryTitle,
-} from "@/app/actions";
+import { addMetrics, approveEpisodeAction, markPublished, setArchived, updateStoryTitle } from "@/app/actions";
 
 export function StoryHeaderActions({ storyId, title, archived }: { storyId: string; title: string; archived: boolean }) {
   const [open, setOpen] = useState(false);
@@ -60,64 +50,7 @@ export function StoryHeaderActions({ storyId, title, archived }: { storyId: stri
   );
 }
 
-export function NextEpisodeButton({ storyId, blockers, nextPart }: { storyId: string; blockers: string[]; nextPart: number }) {
-  const [open, setOpen] = useState(false);
-  const [direction, setDirection] = useState("");
-  const { pending, run } = useAction();
-  const router = useRouter();
-  const blocked = blockers.length > 0;
-  const trigger = (
-    <Button size="lg" disabled={blocked}>
-      <Sparkles /> Generate Next Episode
-    </Button>
-  );
-  if (blocked) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span tabIndex={0}>{trigger}</span>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-xs">{blockers.join(" ")}</TooltipContent>
-      </Tooltip>
-    );
-  }
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Generate Part {nextPart}</DialogTitle>
-          <DialogDescription>
-            The writer receives the canonical story bible, summaries of every approved episode, and the latest episode in full. It must continue causally, avoid
-            repeating reveals, and introduce at least one meaningful development. Continuity is checked, then the script stops for your review before any images or narration are made.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="direction">Direction for this episode (optional)</Label>
-          <Textarea id="direction" rows={3} value={direction} onChange={(e) => setDirection(e.target.value)} placeholder="e.g. Follow the suitcase into the international transfer area" />
-        </div>
-        <DialogFooter>
-          <Button
-            disabled={pending}
-            onClick={() =>
-              run(() => generateNextEpisode(storyId, direction), {
-                success: `Part ${nextPart} queued`,
-                onSuccess: (d) => {
-                  setOpen(false);
-                  if (d?.episodeId) router.push(`/episodes/${d.episodeId}`);
-                },
-              })
-            }
-          >
-            {pending ? <Loader2 className="animate-spin" /> : null} Write Part {nextPart} script
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function ApproveEpisodeButton({ episodeId, hasProposal }: { episodeId: string; hasProposal: boolean }) {
+export function ApproveEpisodeButton({ episodeId }: { episodeId: string }) {
   const [open, setOpen] = useState(false);
   const { pending, run } = useAction();
   return (
@@ -131,17 +64,12 @@ export function ApproveEpisodeButton({ episodeId, hasProposal }: { episodeId: st
         <DialogHeader>
           <DialogTitle>Approve this episode?</DialogTitle>
           <DialogDescription>
-            Approval locks this script version (later edits create a new version) and{hasProposal ? " applies its proposed continuity updates to the story bible, which future episodes will treat as canon." : " makes it part of the canonical history."}
+            Approval locks this script version. Later edits create a new version.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2">
-          {hasProposal ? (
-            <Button variant="outline" disabled={pending} onClick={() => run(() => approveEpisodeAction(episodeId, false), { success: "Approved without continuity changes", onSuccess: () => setOpen(false) })}>
-              Approve, discard bible changes
-            </Button>
-          ) : null}
-          <Button disabled={pending} onClick={() => run(() => approveEpisodeAction(episodeId, true), { success: "Episode approved", onSuccess: () => setOpen(false) })}>
-            {pending ? <Loader2 className="animate-spin" /> : null} {hasProposal ? "Approve and apply" : "Approve"}
+          <Button disabled={pending} onClick={() => run(() => approveEpisodeAction(episodeId), { success: "Episode approved", onSuccess: () => setOpen(false) })}>
+            {pending ? <Loader2 className="animate-spin" /> : null} Approve
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -250,41 +178,6 @@ export function MetricsDialog({ episodeId }: { episodeId: string }) {
             }
           >
             {pending ? <Loader2 className="animate-spin" /> : null} Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function BibleEditor({ storyId, json }: { storyId: string; json: string }) {
-  const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(json);
-  const [note, setNote] = useState("");
-  const { pending, run } = useAction();
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (o) setValue(json);
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <FilePenLine /> Edit bible
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Edit story bible</DialogTitle>
-          <DialogDescription>Saving creates a new canonical version; earlier versions are kept. The structure is validated before saving.</DialogDescription>
-        </DialogHeader>
-        <Textarea value={value} onChange={(e) => setValue(e.target.value)} className="h-[55vh] font-mono text-xs" spellCheck={false} />
-        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What changed? (optional)" />
-        <DialogFooter>
-          <Button disabled={pending} onClick={() => run(() => updateStoryBible(storyId, value, note), { success: "New bible version saved", onSuccess: () => setOpen(false) })}>
-            {pending ? <Loader2 className="animate-spin" /> : null} Save new version
           </Button>
         </DialogFooter>
       </DialogContent>

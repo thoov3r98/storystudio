@@ -2,7 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { DEFAULT_PRICING, type Pricing, PricingSchema } from "@/lib/costs/pricing";
-import { DEFAULT_STYLE, QUALITY_PRESETS } from "@/lib/constants";
+import { QUALITY_PRESETS } from "@/lib/constants";
 import type { Quality } from "@/generated/prisma/enums";
 
 export const VoiceSchema = z.object({
@@ -32,13 +32,9 @@ export const AudioMixSchema = z.object({
 export type AudioMix = z.infer<typeof AudioMixSchema>;
 
 export const DefaultsSchema = z.object({
-  styleKey: z.string().default(DEFAULT_STYLE),
-  durationSec: z.number().default(75),
-  quality: z.enum(["DRAFT", "STANDARD", "PREMIUM"]).default("STANDARD"),
+  /** Spending ceiling for pitching one batch of ideas. Style, length and quality are set per channel. */
   maxBatchBudgetUsd: z.number().default(25),
-  /** Stories from before channels; channel stories take their parts range from the channel. */
-  partsPerStory: z.number().int().min(1).max(6).default(4),
-  /** Check each illustration against the story and redraw it once if it is wrong. */
+  /** Check each illustration against its line and redraw it once if it is wrong. */
   imageCheck: z.boolean().default(true),
   useStyleReferences: z.boolean().default(true),
 });
@@ -83,7 +79,7 @@ export const ModelsSchema = z.object({
   main: z.string().trim().min(1),
   /** Scores concepts; Draft quality writes and checks with it too. */
   fast: z.string().trim().min(1),
-  /** Audits plots and scripts and edits them. Defaults to the main model; a different model or family gives a more independent read. */
+  /** Fact-checks scripts against the research. Defaults to the main model; a different model or family gives a more independent read. */
   reviewer: z.string().trim().optional(),
   image: z.string().trim().min(1),
   speech: z.string().trim().min(1),

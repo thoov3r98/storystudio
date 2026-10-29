@@ -6,7 +6,7 @@ import type { TokenUsage } from "@/lib/ai/structured";
 import type { VisualState } from "@/lib/schemas/episode";
 import { env } from "@/lib/env";
 import { getModels } from "@/lib/settings";
-import { styleSpec, VIDEO_FORMATS, type VideoFormat } from "@/lib/constants";
+import { SAFE_AREA, styleSpec } from "@/lib/constants";
 
 export type ImageUsage = { textInputTokens: number; imageInputTokens: number; outputTokens: number };
 
@@ -32,44 +32,26 @@ export type ShotContext = {
   continuity?: string | null;
 };
 
-/** Builds the final prompt from the global style spec, story visual notes and the scene. */
+/** Builds the final prompt from the global style spec and the scene. */
 export function buildImagePrompt(input: {
   styleKey: string;
-  scene: { imagePrompt: string; composition: string; characters: string[]; objects: string[] };
-  characterSheet: { name: string; visualDescription: string }[];
-  visualNotes?: string;
+  scene: { imagePrompt: string; composition: string; objects: string[] };
   hasReference: boolean;
-  format?: VideoFormat;
-  /** The series' recurring character; the first reference image is their character sheet. */
-  hero?: { name: string; visualDescription: string } | null;
-  /** The hero's name when they are NOT in this shot, so the model leaves them out. */
-  absentHero?: string | null;
   shot?: ShotContext | null;
   /** Problems with a rejected earlier attempt, to fix this time. */
   fix?: string[];
 }): string {
-  const chars = input.scene.characters
-    .map((name) => input.characterSheet.find((c) => c.name.toLowerCase() === name.toLowerCase()))
-    .filter((c): c is { name: string; visualDescription: string } => Boolean(c))
-    .map((c) => `${c.name}: ${c.visualDescription}`);
   return [
     `STYLE: ${styleSpec(input.styleKey)}`,
-    input.hero && input.hasReference
-      ? `The first reference image is the character sheet for ${input.hero.name}. Whenever ${input.hero.name} appears, draw them exactly as on that sheet: same build, clothing, colours and props. Match the drawing style of all reference images; do not copy their layout or poses.`
-      : input.hasReference
-        ? "Match the line weight, figure proportions and overall drawing style of the reference image(s) exactly; do not copy their content."
-        : "",
-    input.visualNotes ? `SERIES VISUAL NOTES: ${input.visualNotes}` : "",
+    input.hasReference ? "Match the line weight, figure proportions and overall drawing style of the reference image(s) exactly; do not copy their content." : "",
     ...shotLines(input.shot),
     `SCENE: ${input.scene.imagePrompt}`,
-    `COMPOSITION: ${input.scene.composition}. ${VIDEO_FORMATS[input.format ?? "full"].safeArea}`,
-    chars.length ? `CHARACTERS (draw consistently): ${chars.join(" | ")}` : "",
+    `COMPOSITION: ${input.scene.composition}. ${SAFE_AREA}`,
     input.scene.objects.length ? `KEY OBJECTS: ${input.scene.objects.join(", ")}` : "",
-    input.shot ? "Draw exactly the moment of THIS MOMENT, true to the episode facts and continuity. Only the characters listed appear." : "",
+    input.shot ? "Draw exactly the moment of THIS MOMENT, true to the episode facts and continuity." : "",
     input.shot
       ? "Keep the STYLE's palette and light background in every shot. Show time of day and weather with small cues only (sun position, a pale tint in the sky, lit windows, long shadows, falling snow); never wash the whole image in a colour."
       : "",
-    input.absentHero ? `${input.absentHero} is not in this shot.` : "",
     input.fix?.length ? `A previous attempt was rejected. Fix these problems: ${input.fix.join("; ")}` : "",
     "Absolutely no text, words, letters, numbers, signage, logos or watermarks.",
   ]

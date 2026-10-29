@@ -181,9 +181,7 @@ STEP 2 — scenes: cut the narration into ${minScenes}–${maxScenes} shots, in 
 - characters: leave empty unless a named character is visible (there are none in this series).
 - imagePrompt: one or two specific sentences: what the machine or worker is doing, to what material, what it looks like at this moment. Subject only: no art-style words, no text, labels, numbers, dials with readings, or brand names.
 - continuity: what must be true in this shot, including how the product looks at this stage.
-- motionPreset: slow-zoom-in for detail, pan for a moving line, still for a finished result.
-
-STEP 3 — bibleUpdate: leave every list empty. arcSummary: one sentence saying what this part shows.`,
+- motionPreset: slow-zoom-in for detail, pan for a moving line, still for a finished result.`,
     user: `${input.title}
 Part ${input.part} of ${input.plan.parts.length}: ${p.title}
 
@@ -192,5 +190,21 @@ ${researchText(input.research, p.stages)}
 
 FINAL NARRATION — "${input.title}"
 ${input.narration}`,
+  };
+}
+
+export function sceneRewritePrompt(input: { channel: ChannelGuide; title: string; sceneNumber: number; before: string; current: string; after: string; instruction?: string | null }) {
+  return {
+    system: `${channelBlock(input.channel)}
+
+${VOICE}
+
+Rewrite ONE shot of an existing How It's Made style script. Keep its place in the process and its facts, keep roughly the same length (±15% words), and make it flow from the previous shot into the next. Never add a fact, number, material or machine. Return new narration plus an updated subject-only imagePrompt and composition for the illustration.`,
+    user: `Script: ${input.title}
+
+Previous shot narration: ${input.before || "(none — this is the opening)"}
+CURRENT shot ${input.sceneNumber} narration: ${input.current}
+Next shot narration: ${input.after || "(none — this is the ending)"}
+${input.instruction ? `Producer instruction: ${input.instruction}` : "Make it clearer and more natural to say aloud."}`,
   };
 }
