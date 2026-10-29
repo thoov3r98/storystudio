@@ -57,6 +57,8 @@ export async function forkVersion(
         // Fact checking is off; nothing waits on it.
         factCheckStatus: "PASSED",
         continuityReview: source.continuityReview ?? undefined,
+        // Carried over; a narration edit is re-checked by the caller, which updates it.
+        qualityStatus: source.qualityStatus,
         styleKey: source.styleKey,
         voiceoverId: opts.keepVoiceover && !narrationChanged ? source.voiceoverId : null,
         timing: opts.keepVoiceover && !narrationChanged ? (source.timing ?? undefined) : undefined,

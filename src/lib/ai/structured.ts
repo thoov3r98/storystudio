@@ -43,6 +43,8 @@ export type GenerateStructuredArgs<S extends z.ZodType> = {
   validate?: (value: z.infer<S>) => string[];
   maxAttempts?: number;
   cost?: { ctx: CostContext; operation: string };
+  /** Called with each attempt's cost, recorded or not (used to total a script's writing cost). */
+  onCost?: (usd: number) => void;
 };
 
 /**
@@ -61,13 +63,15 @@ export async function generateStructured<S extends z.ZodType>(args: GenerateStru
 
     const result = await args.client.generate({ model: args.model, system: args.system, user, schema: args.schema, schemaName: args.schemaName });
 
+    const costUsd = textCost(args.pricing, result.model, result.usage);
+    args.onCost?.(costUsd);
     if (args.cost) {
       await recordCost(args.cost.ctx, {
         provider: "OPENAI_TEXT",
         model: result.model,
         operation: args.cost.operation,
         usage: { ...result.usage, attempt },
-        costUsd: textCost(args.pricing, result.model, result.usage),
+        costUsd,
         estimated: false,
       });
     }

@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { ARCHETYPES } from "./story-plan";
 
 export const CRITERIA = [
   { key: "relatability", label: "Relatability", weight: 1.2 },
   { key: "curiosity", label: "Immediate curiosity", weight: 1.3 },
   { key: "hookStrength", label: "Opening hook strength", weight: 1.3 },
   { key: "storytellingPotential", label: "Storytelling potential", weight: 1.1 },
+  { key: "episodeFeasibility", label: "Becomes a coherent, satisfying episode", weight: 1.5 },
   { key: "seriesPotential", label: "Future episode capacity", weight: 1.2 },
   { key: "visualSimplicity", label: "Visual simplicity", weight: 0.8 },
   { key: "originality", label: "Originality vs. existing stories", weight: 1.0 },
@@ -36,6 +38,11 @@ export const ConceptCandidateSchema = z.object({
   keywords: z.array(z.string()).describe("4–8 lowercase topical keywords."),
   openingSituation: z.string().describe("The first moment the episode opens on, in one plain sentence."),
   seriesPotential: z.string().describe("How the story could naturally continue, if it does. Two strong episodes is fine; do not invent mysteries to stretch it."),
+  archetype: z.enum(ARCHETYPES).describe("The kind of story this is: survival, mystery, speculative, comedy, suspense or everyday."),
+  dramaticQuestion: z.string().describe("The one question the viewer wants answered."),
+  beatSketch: z
+    .string()
+    .describe("Three short sentences: how it starts, the main turn, and how this episode pays off. Proof it can become a complete, coherent episode without conveniences."),
 });
 
 export type ConceptCandidate = z.infer<typeof ConceptCandidateSchema>;

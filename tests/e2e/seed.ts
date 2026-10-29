@@ -6,7 +6,8 @@
  */
 import { db } from "@/lib/db";
 import { applyBibleUpdate, emptyBible } from "@/lib/schemas/story-bible";
-import { makeDraft } from "../integration/fakes";
+import { FAKE_PLOT, makeDraft } from "../integration/fakes";
+import type { QualityRecord } from "@/lib/schemas/story-plan";
 import { buildEpisodeTiming } from "@/lib/timing";
 
 if (!process.env.DATABASE_URL || /neon\.tech/.test(process.env.DATABASE_URL) || process.env.ALLOW_E2E_SEED !== "1") {
@@ -105,12 +106,33 @@ async function main() {
   });
   const scripted = await db.episode.create({ data: { storyId: chairStory.id, partNumber: 1, title: chairDraft.title, status: "SCRIPTED" } });
   const chairNarration = chairDraft.scenes.map((s) => s.narration).join(" ");
+  // The checks left one significant issue open, so approving needs an override (or a dismissal).
+  const evidence = chairNarration.split(" ").slice(6, 12).join(" ");
+  const quality: QualityRecord = {
+    pipelineVersion: 2,
+    status: "needs-attention",
+    plotRounds: [{ issues: [], changeLog: [] }],
+    scriptRounds: [],
+    issues: [
+      { id: "S3.1", stage: "script", verified: true, category: "motivation", severity: "significant", kind: "contradiction", location: "Scene 2", evidence, problem: "Ridge waves the patrol away for no clear reason.", repair: "Show he thinks they are leaving." },
+    ],
+    mustFix: [],
+    editorial: null,
+    hooks: null,
+    plotPick: null,
+    references: ["The Last Bus (original example)"],
+    dismissed: [],
+    override: null,
+    metrics: { firstPass: false, plotRepairs: 0, scriptRevisions: 2, blockingFound: 0, significantFound: 2, unverifiedIssues: 0, durationMs: 190000, textCostUsd: 0.62 },
+  };
+  quality.scriptRounds = [{ issues: quality.issues, mustFix: [], changeLog: [], unresolvedPrevious: [] }];
   const chairVersion = await db.episodeVersion.create({
     data: {
       episodeId: scripted.id,
       version: 1,
       reason: "initial",
-      spec: { ...chairDraft, scenes: undefined, storyId: chairStory.id, partNumber: 1, narration: chairNarration, wordCount: 169, estimatedDurationSec: 72, factCheckStatus: "PASSED" },
+      spec: { ...chairDraft, scenes: undefined, storyId: chairStory.id, partNumber: 1, narration: chairNarration, wordCount: 169, estimatedDurationSec: 72, factCheckStatus: "PASSED", plot: FAKE_PLOT, quality },
+      qualityStatus: quality.status,
       narration: chairNarration,
       wordCount: 169,
       estimatedDurationSec: 72,

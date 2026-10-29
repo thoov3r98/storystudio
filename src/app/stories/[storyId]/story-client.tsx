@@ -199,7 +199,9 @@ const METRIC_FIELDS = [
   ["saves", "Saves"],
   ["followersGained", "Followers gained"],
   ["avgWatchTimeSec", "Avg. watch time (s)"],
+  ["earlyRetention", "Still watching after 3s (%)"],
   ["completionRate", "Completion rate (%)"],
+  ["rewatchRate", "Rewatches (% of views)"],
 ] as const;
 
 export function MetricsDialog({ episodeId }: { episodeId: string }) {

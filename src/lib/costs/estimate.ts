@@ -9,21 +9,28 @@ import { type Pricing, imageCost, renderCost, speechCost, textCost } from "./pri
  */
 
 export const TOKEN_HEURISTICS = {
-  ideationPerConcept: { input: 250, output: 260 },
-  evaluationPerConcept: { input: 420, output: 520 },
-  /** Three beat outlines, then an editor picks one. */
-  outlineEpisode: { input: 3500, output: 1800 },
-  pickOutline: { input: 2200, output: 600 },
-  writeEpisode: { input: 5500, output: 4300 },
-  storyReview: { input: 1800, output: 500 },
-  continuityReview: { input: 4200, output: 900 },
-  /** Expected correction passes per episode (story editor notes, plus continuity fixes on Part 2+). */
-  expectedRevisions: 0.6,
+  ideationPerConcept: { input: 250, output: 380 },
+  evaluationPerConcept: { input: 520, output: 600 },
+  /** Script pipeline (see docs/story-quality.md), per 75 s episode. Output includes reasoning tokens. */
+  plotCandidates: { input: 4500, output: 3500 },
+  plotPick: { input: 3500, output: 500 },
+  plotAudit: { input: 3000, output: 1000 },
+  plotRepair: { input: 3500, output: 1800 },
+  hookCandidates: { input: 2500, output: 900 },
+  hookPick: { input: 2500, output: 700 },
+  narration: { input: 7000, output: 1400 },
+  scriptAudit: { input: 4000, output: 1000 },
+  editorialReview: { input: 2200, output: 1500 },
+  scriptRevision: { input: 6000, output: 3000 },
+  sceneBreakdown: { input: 5500, output: 3800 },
+  /** Expected plot repairs and script revisions per episode. */
+  expectedPlotRepairs: 0.5,
+  expectedRevisions: 0.8,
   /** Share of images the check sends back for one redraw. */
   expectedRedraws: 0.2,
 };
 
-export type ModelNames = { main: string; fast: string };
+export type ModelNames = { main: string; fast: string; reviewer?: string };
 
 export type Calibration = {
   /** Multiplier from recorded spend vs. estimates, clamped to [0.5, 3]. */
@@ -33,7 +40,6 @@ export type Calibration = {
 export type EpisodeEstimateInput = {
   durationSec: number;
   quality: Quality;
-  isContinuation?: boolean;
 };
 
 export type CostBreakdown = { text: number; images: number; speech: number; render: number; total: number };
@@ -61,13 +67,29 @@ export function estimateEpisodeCost(pricing: Pricing, models: ModelNames, input:
   const reviewer = preset.reviewerModel === "main" ? models.main : models.fast;
   const h = TOKEN_HEURISTICS;
   const scale = input.durationSec / 75;
-  const writes = 1 + h.expectedRevisions;
+  // Matches scriptModels() in settings: checking uses the strongest model except at Draft.
+  const checker = input.quality === "DRAFT" ? models.fast : models.reviewer?.trim() || models.main;
+  const calls = (model: string, steps: [{ input: number; output: number }, number][]) =>
+    textCost(pricing, model, {
+      inputTokens: steps.reduce((t, [c, n]) => t + c.input * n, 0),
+      outputTokens: steps.reduce((t, [c, n]) => t + c.output * n * scale, 0),
+    });
   let text =
-    textCost(pricing, writer, { inputTokens: h.writeEpisode.input * writes, outputTokens: h.writeEpisode.output * scale * writes }) +
-    textCost(pricing, writer, { inputTokens: h.outlineEpisode.input + h.pickOutline.input + h.storyReview.input, outputTokens: h.outlineEpisode.output + h.pickOutline.output + h.storyReview.output });
-  if (input.isContinuation) {
-    text += textCost(pricing, reviewer, { inputTokens: h.continuityReview.input * writes, outputTokens: h.continuityReview.output * writes });
-  }
+    calls(writer, [
+      [h.plotCandidates, 1],
+      [h.plotRepair, h.expectedPlotRepairs],
+      [h.hookCandidates, 1],
+      [h.narration, 1],
+      [h.scriptRevision, h.expectedRevisions],
+      [h.sceneBreakdown, 1],
+    ]) +
+    calls(checker, [
+      [h.plotPick, 1],
+      [h.plotAudit, 1 + h.expectedPlotRepairs],
+      [h.hookPick, 1],
+      [h.scriptAudit, 1 + h.expectedRevisions],
+      [h.editorialReview, 1 + h.expectedRevisions],
+    ]);
   text *= cal.textFactor;
 
   const [, maxScenes] = sceneCountRange(input.durationSec);

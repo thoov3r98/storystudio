@@ -29,7 +29,7 @@ function isPermanent(err: unknown): boolean {
     err instanceof BudgetExceededError ||
     err instanceof MissingConfigError ||
     err instanceof StructuredOutputError ||
-    (err instanceof Error && ["ContinuityConflictError", "ApprovalBlockedError", "JobCanceledError"].includes(err.name))
+    (err instanceof Error && ["ScriptGateError", "StoryQualityError", "ApprovalBlockedError", "JobCanceledError"].includes(err.name))
   );
 }
 
@@ -69,7 +69,7 @@ export const ideateBatchTask = schemaTask({
               batchId,
               budgetUsd: Number(batch.maxBudgetUsd),
               continueProduction: true,
-              request: { action: "produce", allowContinuityConflicts: false },
+              request: { action: "produce" },
             });
             await db.job.update({ where: { id: job.id }, data: { triggerRunId: handle.id } });
             queued.push(episodeId);

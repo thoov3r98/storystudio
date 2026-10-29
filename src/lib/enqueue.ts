@@ -41,6 +41,7 @@ export async function enqueueIdeation(batchId: string) {
 const ACTION_JOB_TYPE: Record<EpisodeJobPayload["request"]["action"], JobType> = {
   produce: "EPISODE_PRODUCTION",
   "regenerate-script": "REGENERATE_SCRIPT",
+  "revise-script": "REGENERATE_SCRIPT",
   "rewrite-scene": "REGENERATE_SCENE_NARRATION",
   "regenerate-image": "REGENERATE_IMAGE",
   "regenerate-voiceover": "REGENERATE_VOICEOVER",

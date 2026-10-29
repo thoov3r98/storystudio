@@ -2,7 +2,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { DEFAULT_PRICING, type Pricing, PricingSchema } from "@/lib/costs/pricing";
-import { DEFAULT_STYLE } from "@/lib/constants";
+import { DEFAULT_STYLE, QUALITY_PRESETS } from "@/lib/constants";
+import type { Quality } from "@/generated/prisma/enums";
 
 export const VoiceSchema = z.object({
   id: z.string().min(1),
@@ -78,8 +79,10 @@ export async function getDefaults(): Promise<Defaults> {
 export const ModelsSchema = z.object({
   /** Writes concepts, outlines and scripts. */
   main: z.string().trim().min(1),
-  /** Reviews facts and continuity; Draft quality writes with it too. */
+  /** Scores concepts; Draft quality writes and checks with it too. */
   fast: z.string().trim().min(1),
+  /** Audits plots and scripts and edits them. Defaults to the main model; a different model or family gives a more independent read. */
+  reviewer: z.string().trim().optional(),
   image: z.string().trim().min(1),
   speech: z.string().trim().min(1),
 });
@@ -107,4 +110,13 @@ export async function voiceWordsPerSecond(voiceId: string): Promise<number | nul
     .filter((r) => r > 1 && r < 5);
   if (rates.length === 0) return null;
   return rates.reduce((a, b) => a + b, 0) / rates.length;
+}
+
+/** Who writes and who checks a script. Checking decides quality, so it uses the strongest model except at Draft quality. */
+export function scriptModels(quality: Quality, models: Models): { writer: string; reviewer: string } {
+  const preset = QUALITY_PRESETS[quality];
+  return {
+    writer: preset.writerModel === "main" ? models.main : models.fast,
+    reviewer: quality === "DRAFT" ? models.fast : models.reviewer?.trim() || models.main,
+  };
 }

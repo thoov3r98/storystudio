@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MOTION_PRESETS } from "@/lib/constants";
 import { StoryBibleUpdateSchema } from "./story-bible";
-import { StoryOutlineSchema, StoryReviewSchema } from "./story-plan";
+import { LegacyStoryOutlineSchema, LegacyStoryReviewSchema, PlotSchema, QualityRecordSchema } from "./story-plan";
 
 export const SceneSpecSchema = z.object({
   sceneNumber: z.number().int(),
@@ -88,9 +88,12 @@ export const EpisodeSpecRecordSchema = EpisodeDraftSchema.omit({ scenes: true })
   /** Absent on versions written before story-first drafting. */
   storyNarration: z.string().optional(),
   visualState: VisualStateSchema.optional(),
-  /** The beat outline the script was written from, and the story editor's scores. */
-  outline: StoryOutlineSchema.optional(),
-  storyReview: StoryReviewSchema.optional(),
+  /** The causal plot the script was told from, and the record of every check and revision. */
+  plot: PlotSchema.optional(),
+  quality: QualityRecordSchema.optional(),
+  /** Versions written before the quality pipeline: beat outline and editor scores. */
+  outline: LegacyStoryOutlineSchema.optional(),
+  storyReview: LegacyStoryReviewSchema.optional(),
   storyId: z.string(),
   partNumber: z.number().int(),
   narration: z.string(),
@@ -100,3 +103,10 @@ export const EpisodeSpecRecordSchema = EpisodeDraftSchema.omit({ scenes: true })
 });
 
 export type EpisodeSpecRecord = z.infer<typeof EpisodeSpecRecordSchema>;
+
+/** The storyboard pass: shots cut from the final narration, the physical facts they respect, and the bible update. */
+export const SceneBreakdownSchema = z.object({
+  visualState: VisualStateSchema,
+  scenes: z.array(SceneSpecSchema),
+  bibleUpdate: StoryBibleUpdateSchema,
+});

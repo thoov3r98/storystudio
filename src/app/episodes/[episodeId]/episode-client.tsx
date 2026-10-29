@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, PenLine } from "lucide-react";
+import { Loader2, PenLine, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ActionButton, useAction } from "@/components/client-helpers";
-import { restoreVersion, runEpisodeAction, selectSceneImage } from "@/app/actions";
+import { dismissScriptIssue, rateScript, restoreVersion, runEpisodeAction, selectSceneImage } from "@/app/actions";
 import { cn } from "@/lib/utils";
 
 type EpisodeRequest = Parameters<typeof runEpisodeAction>[1];
@@ -78,8 +78,8 @@ export function RewriteSceneDialog({
           <DialogTitle>{opening ? "Rewrite the opening" : `Rewrite scene ${sceneNumber}`}</DialogTitle>
           <DialogDescription>
             {produced
-              ? "Creates a new script version. The voiceover, timing and captions are regenerated; this scene’s image is regenerated only if its visual changes."
-              : "Creates a new script version for you to review. Nothing is spent on media until you approve the script."}
+              ? "Creates a new script version and checks it again for plot holes. The voiceover, timing and captions are regenerated; this scene’s image is regenerated only if its visual changes."
+              : "Creates a new script version and checks it again for plot holes. Nothing is spent on media until you approve the script."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
@@ -89,7 +89,7 @@ export function RewriteSceneDialog({
         {produced ? (
           <div className="flex items-center justify-between rounded-lg border p-3">
             <Label htmlFor={`cont-${sceneNumber}`} className="text-sm font-normal">
-              Also make a new MP4 afterwards
+              Also make a new MP4 afterwards (if the checks pass)
             </Label>
             <Switch id={`cont-${sceneNumber}`} checked={cont} onCheckedChange={setCont} />
           </div>
@@ -161,5 +161,60 @@ export function VersionRestoreButton({ episodeId, versionId, disabled }: { episo
     >
       Restore
     </ActionButton>
+  );
+}
+
+/** Dismisses a flagged issue the producer judges to be wrong; it is recorded as a false positive. */
+export function DismissIssueButton({ versionId, issueId }: { versionId: string; issueId: string }) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const { pending, run } = useAction();
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="xs" variant="ghost">
+          Not a problem
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Dismiss this issue?</DialogTitle>
+          <DialogDescription>Use this when the checker is wrong. It is recorded as a false positive, and the script&apos;s status is re-evaluated.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor={`dismiss-${issueId}`}>Why it&apos;s fine (optional)</Label>
+          <Textarea id={`dismiss-${issueId}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. It's explained in scene 3" />
+        </div>
+        <DialogFooter>
+          <Button
+            disabled={pending}
+            onClick={() => run(() => dismissScriptIssue(versionId, issueId, note.trim()), { success: "Issue dismissed", onSuccess: () => setOpen(false) })}
+          >
+            {pending ? <Loader2 className="animate-spin" /> : null} Dismiss issue
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function ScriptRating({ versionId, rating }: { versionId: string; rating: number | null }) {
+  const { pending, run } = useAction();
+  return (
+    <div className="flex items-center gap-0.5" role="group" aria-label="Your rating">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          aria-label={`${n} star${n === 1 ? "" : "s"}`}
+          aria-pressed={rating === n}
+          disabled={pending}
+          onClick={() => run(() => rateScript(versionId, rating === n ? null : n))}
+          className="rounded p-0.5 text-amber-500 hover:bg-muted disabled:opacity-50"
+        >
+          <Star className={cn("size-5", rating !== null && n <= rating ? "fill-current" : "")} />
+        </button>
+      ))}
+    </div>
   );
 }

@@ -1,0 +1,2635 @@
+{
+  "writer": "gpt-5.5",
+  "reviewer": "gpt-5.5",
+  "results": [
+    {
+      "id": "empty-world",
+      "status": "passed",
+      "metrics": {
+        "firstPass": false,
+        "plotRepairs": 0,
+        "scriptRevisions": 1,
+        "blockingFound": 0,
+        "significantFound": 0,
+        "unverifiedIssues": 0,
+        "durationMs": 326959,
+        "textCostUsd": 0.8707
+      },
+      "narration": "Something below Kenny’s flat was thumping too hard and smelling of scorched plastic. In the laundrette downstairs, a dryer was smoking—and no one was shouting, running, or trying to stop it. Kenny heard no bus, no neighbour, no shouting. Warehouse nights had taught him bad machines, so he pulled on the steel-toe boots by his bed, grabbed his torch and gloves, and went down. The laundrette was bright and empty. Washers churned, the dryer smoked, and shoes, coats, a handbag and a buzzing phone lay scattered across the tiles. Smoke thickened, so he found the back utility cupboard. He had helped the owner before, so he knew the breaker and stopcock. The machines died into emergency-lit dripping silence. He tried the counter phone, then his mobile. Recorded voices looped, hold music played, and no operator or siren came. So he crossed to the public bench with the clear view and waited. For ten stubborn minutes, shop alarms blinked, a bus idled, café coats sat ownerless, and nobody appeared. Then smoke alarms screamed down the road. Kenny understood the city was full of machines working alone, so he went upstairs to pack.",
+      "hook": "Something below Kenny’s flat was thumping too hard and smelling of scorched plastic. In the laundrette downstairs, a dryer was smoking—and no one was shouting, running, or trying to stop it.",
+      "plot": {
+        "archetype": "speculative",
+        "dramaticQuestion": "Will Kenny stop the immediate danger in his building and discover how far the silence reaches around him?",
+        "heroGoal": "Stop the laundrette below his flat from catching fire, get outside safely, and find whether anyone nearby remains.",
+        "openingState": "Early morning. Kenny wakes in his small flat above the laundrette to a wrong mechanical thumping below, the smell of hot plastic, and no normal street noise. His steel-toe boots, torch and work gloves are beside the bed from his night shift.",
+        "worldRules": [
+          {
+            "id": "R1",
+            "rule": "Every human except Kenny has vanished suddenly; clothes, shoes, phones and personal items remain where people had been."
+          },
+          {
+            "id": "R2",
+            "rule": "Unattended machines continue their last programmed actions until stopped, damaged or deprived of power and water."
+          },
+          {
+            "id": "R3",
+            "rule": "Emergency calls and alarms may function automatically, but there are no human responders."
+          }
+        ],
+        "setups": [
+          {
+            "id": "S1",
+            "what": "Kenny lives above the laundrette and knows the back utility cupboard, breaker panel and stopcock because he has helped the owner with small problems before.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S2",
+            "what": "Kenny keeps steel-toe boots, a torch and work gloves by his bed after night shifts.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S3",
+            "what": "Kenny is good at noticing abnormal machine sounds and hot-motor smells from warehouse work.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S4",
+            "what": "There is a public bench across the street from the laundrette with a clear view of the high street.",
+            "plantedInBeat": 0
+          }
+        ],
+        "beats": [
+          {
+            "n": 1,
+            "link": "start",
+            "event": "Kenny wakes to the laundrette below banging harder than it should and smelling like scorched lint. No buses pass, no neighbour coughs through the wall, and nobody shouts about the noise.",
+            "cause": "The world has emptied while unattended laundrette machines continue running beneath his flat.",
+            "enabledBy": [],
+            "heroWants": "Find the source of the smell before it becomes a fire.",
+            "heroKnows": "He knows machines sound wrong when they are about to fail. He does not know anyone has vanished.",
+            "state": "Kenny is in his flat, half-dressed, pulling on boots and grabbing his torch and gloves.",
+            "changes": "A quiet morning becomes an immediate practical threat."
+          },
+          {
+            "n": 2,
+            "link": "but",
+            "event": "Downstairs, the laundrette is open, bright and empty. Washers churn with nobody watching them, a dryer smokes, and on the floor lie shoes, coats, a handbag and a phone still buzzing against the tiles.",
+            "cause": "Humans vanished mid-routine, leaving their belongings and running machines behind.",
+            "enabledBy": [
+              "B1",
+              "R1",
+              "R2",
+              "S2",
+              "S3"
+            ],
+            "heroWants": "Shut off the dangerous machines and find the owner or customers.",
+            "heroKnows": "He knows people were here recently and did not leave normally. He still tries to treat it like an emergency he can handle.",
+            "state": "Kenny is inside the laundrette, wearing boots and gloves, with smoke beginning to gather near the ceiling.",
+            "changes": "The danger is no longer only mechanical; the empty clothes make it impossible."
+          },
+          {
+            "n": 3,
+            "link": "therefore",
+            "event": "Kenny goes to the utility cupboard, kills the breaker and turns the stopcock. The washers die, the dryer stops smoking worse, and the laundrette drops into dim emergency light and dripping silence.",
+            "cause": "He knows where the controls are and uses the gear he grabbed to move through smoke and wet flooring safely.",
+            "enabledBy": [
+              "B2",
+              "S1",
+              "S2",
+              "S3",
+              "R2"
+            ],
+            "heroWants": "Prevent a fire or flood before looking for answers.",
+            "heroKnows": "He knows enough to stop this building from burning. He does not know whether the missing people are only in the laundrette.",
+            "state": "Kenny is in the darkened laundrette with power and water cut off, coughing but uninjured.",
+            "changes": "The immediate threat in his building is contained."
+          },
+          {
+            "n": 4,
+            "link": "but",
+            "event": "He calls emergency services from the counter phone and then his mobile. Both reach automated systems, hold music and dead loops; no operator answers, and no sirens come despite the alarm beeping in the back room.",
+            "cause": "Communications still function mechanically, but no human responders exist.",
+            "enabledBy": [
+              "B3",
+              "R3"
+            ],
+            "heroWants": "Get official help and make the situation someone else’s problem.",
+            "heroKnows": "He knows help is not arriving the normal way. He does not yet know how wide the absence is.",
+            "state": "Kenny stands behind the laundrette counter, phone to his ear, listening to a recorded voice repeat itself.",
+            "changes": "Normal rescue fails, forcing Kenny to verify the world outside."
+          },
+          {
+            "n": 5,
+            "link": "therefore",
+            "event": "Kenny steps outside and sits on the bench across the street where he can watch everything at once. For ten stubborn minutes, he waits while shop alarms blink, a bus idles at the kerb, and abandoned coats lie in café chairs, but not one person appears.",
+            "cause": "The bench gives him a clear, safe vantage point, and his stubborn nature makes him test the silence before accepting it.",
+            "enabledBy": [
+              "B4",
+              "S4",
+              "R1",
+              "R2"
+            ],
+            "heroWants": "Catch one ordinary sign of another person: a face in a window, a driver, a siren, anything.",
+            "heroKnows": "He knows the laundrette was not isolated. He does not know whether the emptiness ends beyond the high street.",
+            "state": "Kenny is on the public bench with his torch and gloves, facing his dark laundrette and an empty high street.",
+            "changes": "The absence becomes a neighbourhood-wide reality, not a building emergency."
+          },
+          {
+            "n": 6,
+            "link": "but",
+            "event": "A smoke alarm starts shrieking somewhere farther down the road, then another. Kenny realizes the city is full of kettles, dryers, ovens and cars still doing their jobs with no one left to stop them.",
+            "cause": "The same rule that endangered his laundrette applies everywhere: unattended systems continue until they fail.",
+            "enabledBy": [
+              "B3",
+              "B5",
+              "R2",
+              "R3"
+            ],
+            "heroWants": "Leave the flat before the empty city becomes more dangerous and choose somewhere he understands.",
+            "heroKnows": "He knows no one is coming to save him and that staying above one saved laundrette will not keep him safe for long.",
+            "state": "Kenny returns upstairs to pack essentials, with the street still empty and alarms multiplying in the distance.",
+            "changes": "The problem shifts from one contained hazard to surviving an empty, self-running city."
+          }
+        ],
+        "resolution": {
+          "what": "Kenny saves his building from the immediate fire risk, proves no responder or neighbour is coming, discovers the absence reaches at least across the high street, and faces the next earned problem: the empty city is still running and will keep creating dangers.",
+          "enabledBy": [
+            "B3",
+            "B4",
+            "B5",
+            "B6",
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "R1",
+            "R2",
+            "R3"
+          ],
+          "endingType": "discovery"
+        },
+        "deliberateMysteries": [
+          "What caused the disappearance.",
+          "Why Kenny alone remains.",
+          "How far the empty world extends beyond Kenny’s high street."
+        ]
+      },
+      "quality": {
+        "pipelineVersion": 2,
+        "status": "passed",
+        "plotRounds": [
+          {
+            "issues": [],
+            "changeLog": []
+          }
+        ],
+        "scriptRounds": [
+          {
+            "issues": [],
+            "mustFix": [
+              {
+                "area": "hook",
+                "evidence": "Recorded voices looped, hold music played, and no operator or siren came.",
+                "problem": "The intended question includes learning why nobody is coming, but this part only proves that nobody answers.",
+                "fix": "Either adjust the promise to focus on Kenny discovering the scale of the disappearance, or add one concrete clue at the end—such as an emergency broadcast, a frozen timestamp, or a message on the buzzing phone—that hints why people vanished."
+              }
+            ],
+            "changeLog": [],
+            "unresolvedPrevious": []
+          },
+          {
+            "issues": [],
+            "mustFix": [],
+            "changeLog": [
+              {
+                "issueId": "E1",
+                "change": "Adjusted the dramatic question and hero goal away from learning why nobody is coming and toward the earned discovery of scale. Updated the resolution wording to match what the episode proves. The narration was left unchanged because it already supports the corrected promise without adding an unearned explanation."
+              }
+            ],
+            "unresolvedPrevious": []
+          }
+        ],
+        "issues": [],
+        "mustFix": [],
+        "editorial": {
+          "narrative": [
+            {
+              "criterion": "premise",
+              "rating": "strong",
+              "evidence": "In the laundrette downstairs, a dryer was smoking—and no one was shouting, running, or trying to stop it.",
+              "note": "The premise combines an immediate practical danger with a larger uncanny absence, which is compelling quickly."
+            },
+            {
+              "criterion": "dramatic-question",
+              "rating": "strong",
+              "evidence": "Kenny understood the city was full of machines working alone, so he went upstairs to pack.",
+              "note": "The story clearly asks whether Kenny can stop the local danger and grasp how widespread the disappearance is."
+            },
+            {
+              "criterion": "every-beat-matters",
+              "rating": "strong",
+              "evidence": "He tried the counter phone, then his mobile. Recorded voices looped, hold music played, and no operator or siren came.",
+              "note": "Each beat either addresses the fire risk or expands the mystery, so little feels ornamental."
+            },
+            {
+              "criterion": "earned-escalation",
+              "rating": "strong",
+              "evidence": "For ten stubborn minutes, shop alarms blinked, a bus idled, café coats sat ownerless, and nobody appeared.",
+              "note": "The escalation from one smoking dryer to an apparently empty city is built through observable evidence rather than a sudden declaration."
+            },
+            {
+              "criterion": "believable-reactions",
+              "rating": "strong",
+              "evidence": "Warehouse nights had taught him bad machines, so he pulled on the steel-toe boots by his bed, grabbed his torch and gloves, and went down.",
+              "note": "Kenny’s practical response feels grounded because his experience and tools explain why he acts instead of panicking."
+            },
+            {
+              "criterion": "economy",
+              "rating": "excellent",
+              "evidence": "He had helped the owner before, so he knew the breaker and stopcock.",
+              "note": "The script uses short explanations to justify action without slowing the scene."
+            },
+            {
+              "criterion": "freshness",
+              "rating": "strong",
+              "evidence": "Kenny understood the city was full of machines working alone, so he went upstairs to pack.",
+              "note": "The vanished-people setup is familiar, but focusing on unattended machines as the immediate threat gives it a fresh angle."
+            },
+            {
+              "criterion": "ending",
+              "rating": "strong",
+              "evidence": "Then smoke alarms screamed down the road. Kenny understood the city was full of machines working alone, so he went upstairs to pack.",
+              "note": "The ending pays off the dryer with a bigger, earned realization and gives Kenny a clear next move."
+            },
+            {
+              "criterion": "worth-the-time",
+              "rating": "strong",
+              "evidence": "Washers churned, the dryer smoked, and shoes, coats, a handbag and a buzzing phone lay scattered across the tiles.",
+              "note": "The short runtime delivers danger, mystery, investigation, and escalation without feeling thin."
+            }
+          ],
+          "retention": [
+            {
+              "criterion": "first-line",
+              "rating": "strong",
+              "evidence": "Something below Kenny’s flat was thumping too hard and smelling of scorched plastic.",
+              "note": "The first line is sensory, specific, and immediately signals danger."
+            },
+            {
+              "criterion": "instant-clarity",
+              "rating": "strong",
+              "evidence": "In the laundrette downstairs, a dryer was smoking—and no one was shouting, running, or trying to stop it.",
+              "note": "The initial situation is understandable at once: there is a fire risk and the normal human response is missing."
+            },
+            {
+              "criterion": "curiosity-gap",
+              "rating": "strong",
+              "evidence": "Kenny heard no bus, no neighbour, no shouting.",
+              "note": "The absence of ordinary sound creates a clean mystery that pulls the viewer forward."
+            },
+            {
+              "criterion": "starts-late",
+              "rating": "strong",
+              "evidence": "Something below Kenny’s flat was thumping too hard and smelling of scorched plastic.",
+              "note": "The story begins at the first meaningful disturbance rather than with routine setup."
+            },
+            {
+              "criterion": "hook-delivered",
+              "rating": "strong",
+              "evidence": "For ten stubborn minutes, shop alarms blinked, a bus idled, café coats sat ownerless, and nobody appeared.",
+              "note": "The opening promise of danger plus disappearance is delivered and expanded beyond the laundrette."
+            },
+            {
+              "criterion": "steady-change",
+              "rating": "strong",
+              "evidence": "The machines died into emergency-lit dripping silence.",
+              "note": "The situation keeps changing from alarm, to action, to failed communication, to citywide realization."
+            },
+            {
+              "criterion": "payoff",
+              "rating": "strong",
+              "evidence": "Then smoke alarms screamed down the road. Kenny understood the city was full of machines working alone, so he went upstairs to pack.",
+              "note": "The final beat rewards attention by turning the initial dryer into a pattern of unattended mechanical hazards."
+            }
+          ],
+          "mustFix": [],
+          "suggestions": [
+            {
+              "area": "retention",
+              "evidence": "So he crossed to the public bench with the clear view and waited.",
+              "problem": "The waiting beat is logical, but it briefly softens the urgency after the emergency stop.",
+              "fix": "Make the waiting feel like an active test, such as: “He took the bench opposite, where he could see three streets at once, and timed the silence.”"
+            },
+            {
+              "area": "narrative",
+              "evidence": "so he went upstairs to pack.",
+              "problem": "The final action is clear but slightly general, which makes the last image less vivid than the rest of the piece.",
+              "fix": "Specify one or two survival items that connect to the machine-danger premise, such as water, gloves, radio, or spare batteries."
+            }
+          ]
+        },
+        "hooks": {
+          "candidates": {
+            "dramaticQuestion": "Will Kenny escape the immediate danger in his building and learn why nobody is coming to help?",
+            "strongestMoment": "Kenny steps into the bright, empty laundrette and finds washers still churning, a dryer smoking, and shoes, coats, a handbag, and a buzzing phone left on the floor where people should be.",
+            "candidates": [
+              {
+                "style": "disturbing-discovery",
+                "text": "Kenny found the laundrette wide open and empty. The machines were still running, and the customers had left only their shoes behind.",
+                "promise": "A concrete, eerie absence: people have vanished mid-routine, leaving ordinary objects and dangerous machines behind.",
+                "paidOffIn": "B2 reveals the empty laundrette with running washers, a smoking dryer, shoes, coats, a handbag, and a phone buzzing on the tiles; B5 expands that absence to the whole high street."
+              },
+              {
+                "style": "immediate-danger",
+                "text": "The dryer below Kenny’s flat was already smoking when he woke up. No one downstairs was shouting, running, or trying to stop it.",
+                "promise": "An urgent practical threat in Kenny’s building, made stranger by the complete lack of human reaction.",
+                "paidOffIn": "B1 establishes the wrong thumping and scorched-lint smell; B2 shows the smoking dryer; B3 pays off Kenny’s response when he cuts the power and water before the fire risk spreads."
+              },
+              {
+                "style": "specific-mystery",
+                "text": "Kenny’s first warning was not the smell of scorched lint. It was the phone buzzing on the laundrette floor beside a pair of empty shoes.",
+                "promise": "A focused mystery around a person who seems to have disappeared without taking their clothes or phone.",
+                "paidOffIn": "B2 delivers the phone, shoes, coats, and handbag left behind in the laundrette; B5 confirms this was not one missing customer but a neighbourhood-wide disappearance."
+              },
+              {
+                "style": "contradiction",
+                "text": "The high street was awake, but nobody was alive in it. Washers churned, alarms blinked, and a bus idled with no driver at the wheel.",
+                "promise": "A world where systems keep operating normally while humans are absent, creating a surreal and dangerous contradiction.",
+                "paidOffIn": "B5 shows the empty high street with blinking shop alarms, an idling bus, and abandoned café coats; B6 explains the larger threat of unattended kettles, dryers, ovens, and cars still running."
+              },
+              {
+                "style": "relatable-problem",
+                "text": "Kenny only wanted to stop the awful banging under his floor before the owner blamed him for it. Then he smelled hot plastic and realized nobody else was coming down.",
+                "promise": "A grounded morning nuisance that quickly turns into a serious emergency Kenny must handle alone.",
+                "paidOffIn": "B1 starts with the abnormal banging and hot smell below his flat; B3 pays off his practical response when he uses the utility cupboard, breaker panel, and stopcock to contain the danger."
+              }
+            ]
+          },
+          "pick": {
+            "reviews": [
+              {
+                "index": 0,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "Clear eerie image and well paid off by the empty laundrette. Slightly compresses the abandoned items into 'only their shoes,' when the plot also includes coats, a handbag and a phone."
+              },
+              {
+                "index": 1,
+                "clarity": "excellent",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "Best matches the opening action: a practical fire risk made uncanny by the lack of any human response. It gives urgency without overpromising the larger mystery."
+              },
+              {
+                "index": 2,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "excellent",
+                "deliveredByPlot": false,
+                "note": "The image is strong, but it contradicts the actual sequence: Kenny’s first warning is the noise and hot smell, not the phone and shoes downstairs."
+              },
+              {
+                "index": 3,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": false,
+                "note": "The self-running high street is paid off later, but 'nobody was alive' overstates what Kenny knows and implies death rather than disappearance."
+              },
+              {
+                "index": 4,
+                "clarity": "strong",
+                "curiosity": "acceptable",
+                "specificity": "strong",
+                "deliveredByPlot": false,
+                "note": "The banging and hot smell are paid off, but the idea that Kenny fears the owner blaming him is not established in the plot, so it adds an unsupported motive."
+              }
+            ],
+            "chosenIndex": 1,
+            "hook": "Something below Kenny’s flat was thumping too hard and smelling of scorched plastic. In the laundrette downstairs, a dryer was smoking—and no one was shouting, running, or trying to stop it.",
+            "promise": "An urgent fire risk in Kenny’s building turns stranger when he discovers the people who should be reacting are simply gone."
+          }
+        },
+        "plotPick": {
+          "reason": "Plot 1 is the better 75-second Part 1 because it gives the impossible premise a concrete, urgent shape. Kenny is not just wandering through emptiness; he must act now or his building may burn. That urgency makes the exposition easier to follow and the reveals more cinematic. The outcome is also earned: he saves the laundrette, discovers emergency systems are empty, confirms the street is deserted, and realizes the world itself is becoming hazardous without people. It ends with both resolution and a strong next problem.",
+          "rejected": "It is more observational than dramatic. For a 75-second narrated video, several beats are Kenny looking at evidence of emptiness, then trying systems that do not answer. The warehouse solution is sensible but a little emotionally flat because the main obstacle is silence rather than an escalating threat. The dramatic question is answered negatively, but the ending may feel like a pause rather than a strong turn."
+        },
+        "references": [
+          "Nobody Left (original example)",
+          "The Last Bus (original example)"
+        ],
+        "dismissed": [],
+        "override": null,
+        "metrics": {
+          "firstPass": false,
+          "plotRepairs": 0,
+          "scriptRevisions": 1,
+          "blockingFound": 0,
+          "significantFound": 0,
+          "unverifiedIssues": 0,
+          "durationMs": 326959,
+          "textCostUsd": 0.8707
+        }
+      }
+    },
+    {
+      "id": "chairlift",
+      "status": "passed",
+      "metrics": {
+        "firstPass": false,
+        "plotRepairs": 1,
+        "scriptRevisions": 0,
+        "blockingFound": 0,
+        "significantFound": 1,
+        "unverifiedIssues": 0,
+        "durationMs": 320023,
+        "textCostUsd": 0.8496
+      },
+      "narration": "Stranded on a stopped ski lift after closing, your rescue begins when your signal fails. The ski you drop becomes the one thing the groomer can’t ignore. At dusk, you take the small hill’s last chair, alone, in a white jacket, orange neck gaiter, rental skis, poles, gloves, and a phone at nine percent. Halfway up, the chair jolts, swings, and stops. You shout toward the bottom terminal, but the lift shack goes dark.\n\nYour phone shows no service, so you save it and search below. A groomer starts across the lower run. You flash and yell when it turns, but its engine swallows your voice, its lights slide behind trees, and the phone dies.\n\nThe cold sharpens, so you unclip one ski, tie your gaiter to it with a pole strap, and swing the reflective barcode stickers beneath you. The strap slips through your glove. The ski falls into the groomed lane and slides into the headlights.\n\nThe groomer brakes, lights lifting to your chair. Soon patrol inches you to the top, and you one-ski into the patrol room, blanketed, while the radio reports your ski down on the lane.",
+      "hook": "Stranded on a stopped ski lift after closing, your rescue begins when your signal fails. The ski you drop becomes the one thing the groomer can’t ignore.",
+      "plot": {
+        "archetype": "survival",
+        "dramaticQuestion": "Will you get anyone’s attention before the cold makes waiting on the stopped chair dangerous?",
+        "heroGoal": "Signal someone on the closed mountain and get brought down safely.",
+        "openingState": "It starts at dusk on a small ski hill as you slide onto the last chair of the day. You are tired, alone, wearing a bright orange neck gaiter and a white ski jacket, with rental skis, poles, gloves, and a phone showing 9% battery.",
+        "worldRules": [
+          {
+            "id": "R1",
+            "rule": "At closing, the lift can be stopped from the bottom once staff believe the last occupied chair has unloaded; if they miscount, a rider can be left suspended."
+          },
+          {
+            "id": "R2",
+            "rule": "After lifts close, grooming machines begin working the lower runs, but their drivers are focused on the snow in front of them, not the chairs overhead."
+          },
+          {
+            "id": "R3",
+            "rule": "Night temperatures drop quickly; staying still on an exposed chair becomes dangerous within hours."
+          },
+          {
+            "id": "R4",
+            "rule": "Cell service on this part of the hill is unreliable, especially below the ridgeline."
+          }
+        ],
+        "setups": [
+          {
+            "id": "S1",
+            "what": "You are wearing a bright orange neck gaiter that stands out against snow.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S2",
+            "what": "Your rental skis have reflective barcode stickers near the tips.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S3",
+            "what": "Your ski poles have wrist straps long enough to tie and dangle small items.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S4",
+            "what": "Your phone has only 9% battery and a weak flashlight.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S5",
+            "what": "A grooming machine begins its first pass on the lower run after closing.",
+            "plantedInBeat": 3
+          }
+        ],
+        "beats": [
+          {
+            "n": 1,
+            "link": "start",
+            "event": "You catch the last chair and relax as it carries you up into the dimming blue light. The lift shack drops behind you, and the hill gets suddenly quiet.",
+            "cause": "This is the final ride of the day, and you are the only visible rider still on the line.",
+            "enabledBy": [],
+            "heroWants": "Get to the top, take one easy last run, and go home.",
+            "heroKnows": "You know the hill is closing but assume staff know you are on the chair.",
+            "state": "You are suspended on the chair with skis on, poles across your lap, phone in your pocket, and the orange gaiter around your neck; only a minute or two has passed.",
+            "changes": "You are now committed to the lift ride after closing."
+          },
+          {
+            "n": 2,
+            "link": "but",
+            "event": "The chair jolts, swings once, and stops halfway up. You shout toward the bottom terminal, but the lift shack lights go dark and no one answers.",
+            "cause": "The closing crew has stopped the lift under the assumption that the line is clear.",
+            "enabledBy": [
+              "R1",
+              "B1"
+            ],
+            "heroWants": "Get the operator’s attention and make the lift move again.",
+            "heroKnows": "You know the lift has stopped, but you do not know whether anyone realizes you are still on it.",
+            "state": "You are hanging high over a run in fading light, still seated safely, with all your gear.",
+            "changes": "The ordinary last ride becomes a survival problem."
+          },
+          {
+            "n": 3,
+            "link": "therefore",
+            "event": "You try your phone, but it shows no service; you save the battery and look for movement instead. Far below, you see the yellow lights of a groomer starting across the lower slope.",
+            "cause": "Shouting and calling have failed, so you search for any person or machine still active on the mountain.",
+            "enabledBy": [
+              "B2",
+              "R2",
+              "R4",
+              "S4"
+            ],
+            "heroWants": "Use the groomer as your best chance of being noticed.",
+            "heroKnows": "You know someone is still on the hill, but they are below you and not looking up.",
+            "state": "You remain on the chair in growing cold, phone mostly unused, watching the groomer’s route.",
+            "changes": "A possible rescuer appears, but not one who can see you easily."
+          },
+          {
+            "n": 4,
+            "link": "but",
+            "event": "You flash your phone and yell whenever the groomer turns your way, but its engine swallows your voice and its lights swing away behind a stand of trees. The phone dies during one last flash.",
+            "cause": "The groomer is too far away and focused downhill; the weak phone battery cannot keep signalling.",
+            "enabledBy": [
+              "B3",
+              "S4",
+              "R2"
+            ],
+            "heroWants": "Make a bigger, more visible signal before the groomer leaves the area.",
+            "heroKnows": "You know passive waiting is getting worse and your easiest signal is gone.",
+            "state": "You are colder, in the dark, with a dead phone but still have skis, poles, gloves, and the orange gaiter.",
+            "changes": "Your safe, simple signalling option is gone."
+          },
+          {
+            "n": 5,
+            "link": "therefore",
+            "event": "You take off one ski carefully, tie the orange gaiter to it with a pole strap, and lower it until it hangs and flashes under the chair. When the groomer reappears, you swing the ski like a bright, reflective pendulum.",
+            "cause": "With the phone dead, you improvise a larger signal from the visible gear you already have.",
+            "enabledBy": [
+              "B4",
+              "S1",
+              "S2",
+              "S3"
+            ],
+            "heroWants": "Catch the groomer driver’s eye without dropping yourself from the chair.",
+            "heroKnows": "You know the reflective ski and orange cloth are more visible than your body in a white jacket.",
+            "state": "You are still seated, one ski off, gripping a pole strap that suspends the flagged ski below you.",
+            "changes": "You create an active visual signal that can be seen from below."
+          },
+          {
+            "n": 6,
+            "link": "but",
+            "event": "The strap slips through your glove and the ski falls, sliding down the groomed lane directly into the machine’s headlights. The groomer brakes hard, its work lights lift, and finally stay fixed on your chair.",
+            "cause": "Your improvised signal fails as a controlled pendulum but becomes an even clearer obstruction in the groomer’s path.",
+            "enabledBy": [
+              "B5",
+              "R2",
+              "S2"
+            ],
+            "heroWants": "Be seen and keep calm until help reaches you.",
+            "heroKnows": "You know the driver has noticed something and is looking up, but you still cannot get down alone.",
+            "state": "You are still trapped on the chair, missing one ski, colder but visible in the groomer’s lights; the dropped ski remains down on the lower groomed lane by the machine.",
+            "changes": "Someone on the mountain has discovered you."
+          },
+          {
+            "n": 7,
+            "link": "therefore",
+            "event": "The groomer driver calls it in, and patrol restarts the lift just long enough to inch your chair to the top. You unload shaking, one-skiing awkwardly into the patrol room, where someone wraps you in a blanket; over the radio, the driver says the scuffed rental ski is down on the lane and will be brought back to the base.",
+            "cause": "Once the driver sees you, the mountain staff can respond with the lift controls and patrol procedures, while the lost ski stays where it fell until the driver can recover it below.",
+            "enabledBy": [
+              "B6",
+              "R1",
+              "R2"
+            ],
+            "heroWants": "Get off the chair and out of the cold.",
+            "heroKnows": "You know you have been found, that the dropped ski is below with the groomer, and that you only need to stay seated until the lift moves.",
+            "state": "You are inside at the top station with patrol, cold but safe, wrapped in a blanket and still missing one ski for the moment; the scuffed rental ski is being handled later from the lower run/base side.",
+            "changes": "The central danger ends; your improvised signal has saved you without requiring the dropped ski to appear at the top."
+          }
+        ],
+        "resolution": {
+          "what": "You are rescued because the failed signal drops into the groomer’s path and forces the driver to look up. Your warmth and safety are restored at the top patrol room, while the dropped rental ski is recovered later from the lower run and returned through the base.",
+          "enabledBy": [
+            "B5",
+            "B6",
+            "B7",
+            "S1",
+            "S2",
+            "S3",
+            "R1",
+            "R2"
+          ],
+          "endingType": "escape"
+        },
+        "deliberateMysteries": []
+      },
+      "quality": {
+        "pipelineVersion": 2,
+        "status": "passed",
+        "plotRounds": [
+          {
+            "issues": [
+              {
+                "category": "spatial",
+                "severity": "significant",
+                "kind": "contradiction",
+                "location": "B7",
+                "evidence": "\"You unload shaking, one-skiing awkwardly into the patrol room, where someone hands you a blanket and your scuffed rental ski.\"",
+                "problem": "The missing ski fell onto the lower groomed lane in front of the groomer, while the hero is carried to the top station. The plot does not explain how that ski gets from the lower run to the top patrol room in time to be handed over there.",
+                "repair": "At B7, make the ski recovery non-immediate: e.g. patrol gives you a blanket at the top, and the groomer driver returns the scuffed rental ski later / at the base.",
+                "verified": true,
+                "stage": "plot",
+                "id": "P1.1"
+              },
+              {
+                "category": "convenient-resolution",
+                "severity": "minor",
+                "kind": "creative-concern",
+                "location": "B5",
+                "evidence": "\"Your ski poles have wrist straps long enough to tie and dangle small items.\" / \"You take off one ski carefully, tie the orange gaiter to it with a pole strap, and lower it until it hangs and flashes under the chair.\"",
+                "problem": "The setup only establishes the pole straps can dangle small items, but the rescue plan depends on a strap being long and strong enough to secure and lower a full ski. A viewer may wonder whether this tool was actually established for the job it performs.",
+                "repair": "In the opening setup, establish that the pole straps are unusually long/adjustable and sturdy enough to lash around a ski, or have the hero combine the gaiter and both pole straps into the longer lanyard.",
+                "verified": true,
+                "stage": "plot",
+                "id": "P1.2"
+              }
+            ],
+            "changeLog": []
+          },
+          {
+            "issues": [],
+            "changeLog": [
+              {
+                "issueId": "P1.1",
+                "change": "Repaired Beat 7 so patrol gives the hero only a blanket at the top station, while the groomer driver reports the dropped ski remains on the lower lane and will be returned later at the base. Updated Beat 6 state and the resolution to preserve the ski’s established location and remove the impossible immediate handoff."
+              }
+            ]
+          }
+        ],
+        "scriptRounds": [
+          {
+            "issues": [],
+            "mustFix": [],
+            "changeLog": [],
+            "unresolvedPrevious": []
+          }
+        ],
+        "issues": [],
+        "mustFix": [],
+        "editorial": {
+          "narrative": [
+            {
+              "criterion": "premise",
+              "rating": "strong",
+              "evidence": "Stranded on a stopped ski lift after closing, your rescue begins when your signal fails.",
+              "note": "The core situation is immediately tense, visual, and easy to understand."
+            },
+            {
+              "criterion": "dramatic-question",
+              "rating": "strong",
+              "evidence": "Will you get anyone’s attention before the cold makes waiting on the stopped chair dangerous?",
+              "note": "The survival question is clear and sustained through the failed calls, dying phone, and worsening cold."
+            },
+            {
+              "criterion": "every-beat-matters",
+              "rating": "strong",
+              "evidence": "Your phone shows no service, so you save it and search below.",
+              "note": "Nearly every action either removes an option, introduces the groomer, or sets up the ski signal."
+            },
+            {
+              "criterion": "earned-escalation",
+              "rating": "strong",
+              "evidence": "You flash and yell when it turns, but its engine swallows your voice, its lights slide behind trees, and the phone dies.",
+              "note": "The danger escalates logically because each reasonable rescue attempt fails before the improvised one."
+            },
+            {
+              "criterion": "believable-reactions",
+              "rating": "strong",
+              "evidence": "The cold sharpens, so you unclip one ski, tie your gaiter to it with a pole strap, and swing the reflective barcode stickers beneath you.",
+              "note": "The improvised signal feels like something a cold, trapped person might realistically attempt with the available gear."
+            },
+            {
+              "criterion": "economy",
+              "rating": "strong",
+              "evidence": "alone, in a white jacket, orange neck gaiter, rental skis, poles, gloves, and a phone at nine percent.",
+              "note": "The gear list is dense, but most of it pays off in the attempted signal and rescue."
+            },
+            {
+              "criterion": "freshness",
+              "rating": "strong",
+              "evidence": "The strap slips through your glove. The ski falls into the groomed lane and slides into the headlights.",
+              "note": "The signal failing in exactly the way that succeeds gives the familiar trapped-on-a-lift setup a satisfying twist."
+            },
+            {
+              "criterion": "ending",
+              "rating": "strong",
+              "evidence": "Soon patrol inches you to the top, and you one-ski into the patrol room, blanketed, while the radio reports your ski down on the lane.",
+              "note": "The ending resolves the danger cleanly and lands on the consequence of the failed signal."
+            },
+            {
+              "criterion": "worth-the-time",
+              "rating": "strong",
+              "evidence": "The groomer brakes, lights lifting to your chair.",
+              "note": "The short runtime is justified because the story moves quickly from trap to failed attempts to ironic rescue."
+            }
+          ],
+          "retention": [
+            {
+              "criterion": "first-line",
+              "rating": "strong",
+              "evidence": "Stranded on a stopped ski lift after closing, your rescue begins when your signal fails.",
+              "note": "The first line gives a concrete danger and an unusual promise, though it also reveals the rescue mechanism early."
+            },
+            {
+              "criterion": "instant-clarity",
+              "rating": "excellent",
+              "evidence": "At dusk, you take the small hill’s last chair, alone, in a white jacket, orange neck gaiter, rental skis, poles, gloves, and a phone at nine percent.",
+              "note": "The viewer can instantly picture where they are, what they have, and why the situation is vulnerable."
+            },
+            {
+              "criterion": "curiosity-gap",
+              "rating": "strong",
+              "evidence": "The ski you drop becomes the one thing the groomer can’t ignore.",
+              "note": "This creates a clear question about how a dropped ski turns from mistake into rescue."
+            },
+            {
+              "criterion": "starts-late",
+              "rating": "strong",
+              "evidence": "Halfway up, the chair jolts, swings, and stops.",
+              "note": "The story gets to the inciting danger quickly without wasting time on setup."
+            },
+            {
+              "criterion": "hook-delivered",
+              "rating": "excellent",
+              "evidence": "The ski falls into the groomed lane and slides into the headlights.",
+              "note": "The promised failed signal becoming the thing that gets noticed is paid off directly."
+            },
+            {
+              "criterion": "steady-change",
+              "rating": "strong",
+              "evidence": "but its engine swallows your voice, its lights slide behind trees, and the phone dies.",
+              "note": "The situation keeps changing because each hope closes and forces a new tactic."
+            },
+            {
+              "criterion": "payoff",
+              "rating": "strong",
+              "evidence": "while the radio reports your ski down on the lane.",
+              "note": "The final image confirms why the rescue worked and gives the story a neat closing beat."
+            }
+          ],
+          "mustFix": [],
+          "suggestions": [
+            {
+              "area": "hook",
+              "evidence": "The ski you drop becomes the one thing the groomer can’t ignore.",
+              "problem": "The opening explains so much of the mechanism that some suspense is reduced before the scene begins.",
+              "fix": "Consider making the first line slightly less complete, such as: “Stranded on a stopped ski lift after closing, you try to signal the groomer below—but the mistake is what saves you.”"
+            },
+            {
+              "area": "retention",
+              "evidence": "alone, in a white jacket, orange neck gaiter, rental skis, poles, gloves, and a phone at nine percent.",
+              "problem": "The inventory is useful but a little list-like for a narrated opening.",
+              "fix": "Fold the items into action, for example: “Your white jacket blends into the hill; only the orange gaiter, rental skis, poles, and a phone at nine percent feel useful.”"
+            }
+          ]
+        },
+        "hooks": {
+          "candidates": {
+            "dramaticQuestion": "Will you get anyone’s attention before the cold makes waiting on the stopped chair dangerous?",
+            "strongestMoment": "Your improvised signal slips away: the rental ski drops into the groomer’s headlights, forcing the driver to brake and finally look up at your chair.",
+            "candidates": [
+              {
+                "style": "immediate-danger",
+                "text": "The last chair of the day stops halfway up. Then the lift shack lights go dark beneath you.",
+                "promise": "You have been stranded on a closed ski lift, and the danger begins with no staff watching.",
+                "paidOffIn": "B2 delivers it when the chair jolts to a stop, the shack goes dark, and no one answers your shouts."
+              },
+              {
+                "style": "specific-mystery",
+                "text": "At closing time, the lift crew counts one chair wrong. You are sitting on it.",
+                "promise": "A simple human mistake has left you suspended after the mountain shuts down.",
+                "paidOffIn": "B2 and B7 deliver it: the crew has stopped the lift assuming the line is clear, and patrol later restarts it once the groomer driver spots you."
+              },
+              {
+                "style": "relatable-problem",
+                "text": "Your phone has 9% battery, no service, and a flashlight too weak for the dark. The only person still moving is a groomer driver who never looks up.",
+                "promise": "Your normal lifeline is useless, so you must find another way to get noticed.",
+                "paidOffIn": "B3 and B4 deliver the failed phone attempt, and B5-B6 deliver the improvised ski-and-gaiter signal that finally reaches the groomer."
+              },
+              {
+                "style": "contradiction",
+                "text": "Your rescue starts when your signal fails. The ski you drop becomes the one thing the groomer cannot ignore.",
+                "promise": "The failed improvisation will accidentally become the key to being found.",
+                "paidOffIn": "B6 delivers it when the strap slips, the ski falls into the groomer’s headlights, and the driver brakes and looks up."
+              },
+              {
+                "style": "consequential-decision",
+                "text": "You take off one ski while hanging in the dark. If you drop it, you may lose your only chance to be seen.",
+                "promise": "You make a risky choice with limited gear, and the outcome will decide whether anyone notices you.",
+                "paidOffIn": "B5-B6 deliver it: you lower the ski with the orange gaiter as a signal, then drop it into the groomer’s path, which finally gets the driver’s attention."
+              }
+            ]
+          },
+          "pick": {
+            "reviews": [
+              {
+                "index": 0,
+                "clarity": "excellent",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "Instantly understandable and fully paid off. It sets the stranded-lift danger cleanly, though it does not hint at the distinctive rescue mechanism."
+              },
+              {
+                "index": 1,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "A concise human-error hook that matches the miscount. Slightly less sensory and urgent than the strongest options, but very honest."
+              },
+              {
+                "index": 2,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "excellent",
+                "deliveredByPlot": true,
+                "note": "Very specific and directly aligned with the central problem: the phone fails and the groomer won’t look up. It gives away more setup than drama, but it is well delivered."
+              },
+              {
+                "index": 3,
+                "clarity": "acceptable",
+                "curiosity": "excellent",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "The best tension engine: a failed signal becoming the rescue is the story’s central reversal. It needs refinement to clarify that you are stranded on a ski lift."
+              },
+              {
+                "index": 4,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "Concrete and tense, with a clear risky action. It is delivered, but frames dropping the ski as possibly losing your chance, while the plot’s real payoff is that dropping it saves you."
+              }
+            ],
+            "chosenIndex": 3,
+            "hook": "Stranded on a stopped ski lift after closing, your rescue begins when your signal fails. The ski you drop becomes the one thing the groomer can’t ignore.",
+            "promise": "You are trapped on a closed ski lift, and an improvised signal will go wrong in exactly the way that gets you noticed."
+          }
+        },
+        "plotPick": {
+          "reason": "Plot 0 is the stronger short narrated video. It keeps one dramatic question in focus—will anyone notice the stranded rider before the cold becomes dangerous—and resolves it through a simple, earned chain of cause and effect. The improvised signal uses planted objects, fails in a surprising but logical way, and directly causes the rescue. Plot 1 has good ingredients, but it asks the viewer to track more logistics and accept more risky coincidences. For 75 seconds, plot 0 is clearer, more coherent, and more satisfying.",
+          "rejected": "It is busier and shifts conflicts several times: stuck chair, judging the fall, landing, recovering gear, avoiding groomers, navigating, finding the phone. That is a lot for 75 seconds. The tower-number/map logic feels shaky unless the map plausibly marks towers, which most trail maps do not. The stopped chair happening to be over the one survivable snow pile is planted but still feels convenient. Jumping from a chairlift is also a major action that may pull viewers into questioning realism and safety instead of following the story."
+        },
+        "references": [
+          "The Last Bus (original example)"
+        ],
+        "dismissed": [],
+        "override": null,
+        "metrics": {
+          "firstPass": false,
+          "plotRepairs": 1,
+          "scriptRevisions": 0,
+          "blockingFound": 0,
+          "significantFound": 1,
+          "unverifiedIssues": 0,
+          "durationMs": 320023,
+          "textCostUsd": 0.8496
+        }
+      }
+    },
+    {
+      "id": "moved-car",
+      "status": "passed",
+      "metrics": {
+        "firstPass": true,
+        "plotRepairs": 0,
+        "scriptRevisions": 0,
+        "blockingFound": 0,
+        "significantFound": 0,
+        "unverifiedIssues": 0,
+        "durationMs": 475220,
+        "textCostUsd": 1.1672
+      },
+      "narration": "Every morning, your car looks a few inches closer to the wooden bench beside it. The doors stay locked, but a black crescent on the bumper lines up with one rubber bench leg. In the apartment lot, phone and keys out, you know you parked farther away. Scrape trails lie under it, and the service sign says deliveries use this entrance before five.\n\nThat evening, you park carefully, photograph it, outline the tires and bench legs with chalk from your move, then take one wide photo from the kitchen window.\n\nIn the morning, the tire outlines match, but the bench outline is broken. It sits crooked near the bumper, so your suspicion flips. The car is staying put.\n\nBefore dawn, you leave the kitchen light off and watch from the window. Just after four, a delivery worker arrives with stacked crates, drags the bench aside to wedge the service door open, then shoves it back by foot while steering the cart. The rubber leg taps the crescent mark and stops inches off.\n\nYou show the supervisor the photos. Next morning, taped lines hold the bench away, and your car is unchanged.",
+      "hook": "Every morning, your car looks a few inches closer to the wooden bench beside it. The doors stay locked, but a black crescent on the bumper lines up with one rubber bench leg.",
+      "plot": {
+        "archetype": "mystery",
+        "dramaticQuestion": "Is someone moving your car at night, or is something else changing around it?",
+        "heroGoal": "Find out why the car looks slightly different every morning without accusing the wrong person.",
+        "openingState": "It starts on a weekday morning in your apartment building’s small rear lot. Your car is in its usual end space beside a movable wooden bench and a service entrance; you have your keys and phone, and from your kitchen window you can see this space.",
+        "worldRules": [
+          {
+            "id": "R1",
+            "rule": "Each morning, the parking arrangement looks slightly different by a few inches, but there is no smashed window, no alarm, and no obvious theft."
+          },
+          {
+            "id": "R2",
+            "rule": "The bench by the service entrance is light enough for one delivery worker to drag and heavy enough to leave scrape marks when moved."
+          },
+          {
+            "id": "R3",
+            "rule": "Predawn deliveries use the service entrance several times a week, before most residents are awake."
+          }
+        ],
+        "setups": [
+          {
+            "id": "S1",
+            "what": "Your usual space sits directly beside a wooden bench, and the bench’s black rubber leg caps are roughly the same height as a faint black crescent on your rear bumper.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S2",
+            "what": "There are pale scrape trails on the pavement under the bench legs, showing the bench has been dragged before.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S3",
+            "what": "A small sign on the service door says deliveries use that entrance before 5 a.m.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S4",
+            "what": "You have a phone camera and can see the parking space from your kitchen window.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S5",
+            "what": "You have a stick of sidewalk chalk in your apartment from marking boxes during a recent move.",
+            "plantedInBeat": 0
+          }
+        ],
+        "beats": [
+          {
+            "n": 1,
+            "link": "start",
+            "event": "You come out in the morning and stop because your car seems parked a few inches closer to the bench than it was last night. The doors are locked, the mirrors are untouched, but the black crescent on the bumper lines up almost perfectly with one bench leg.",
+            "cause": "This is the first clear morning when the small difference is obvious enough for you to notice and question it.",
+            "enabledBy": [],
+            "heroWants": "You want to know whether someone has been inside your car, but you also need to get through an ordinary morning.",
+            "heroKnows": "You know you parked normally last night and locked the car; you do not know whether the car moved or whether the bench did.",
+            "state": "You are in the apartment lot beside the car, holding your keys and phone; only a minute has passed.",
+            "changes": "A vague annoyance becomes a concrete mystery tied to the bench and bumper mark."
+          },
+          {
+            "n": 2,
+            "link": "therefore",
+            "event": "That evening, you park carefully, photograph the car, and draw chalk outlines around all four tires and around the bench legs. You also take one photo from your kitchen window so the whole space is captured at once.",
+            "cause": "Because the morning clue did not prove what moved, you create a simple test that can separate car movement from bench movement.",
+            "enabledBy": [
+              "B1",
+              "S4",
+              "S5"
+            ],
+            "heroWants": "You want a result you can trust in the morning.",
+            "heroKnows": "You know the car, tires, and bench are all marked; you still do not know who or what will disturb them.",
+            "state": "You are back upstairs after dark, with the car locked in its space and fresh chalk marks around it and the bench.",
+            "changes": "The mystery now has a controlled before-and-after test."
+          },
+          {
+            "n": 3,
+            "link": "but",
+            "event": "In the morning, the tire outlines still match, but the bench outline is broken and the bench is back at a slightly different angle, pressed near the bumper. Your first suspicion flips: the car may not be moving at all.",
+            "cause": "The chalk test shows the tires stayed put while the bench changed position overnight.",
+            "enabledBy": [
+              "B2",
+              "S1",
+              "S2",
+              "R1",
+              "R2"
+            ],
+            "heroWants": "You want to catch the moment the bench moves and learn whether it is accidental or deliberate.",
+            "heroKnows": "You know the car was not driven during this test; you know the bench moved; you do not yet know who moved it or why.",
+            "state": "You are standing in the lot early in the morning with your phone, looking at intact tire chalk and disturbed bench chalk.",
+            "changes": "The central question narrows from “who is moving my car?” to “why is the bench being moved against my car?”"
+          },
+          {
+            "n": 4,
+            "link": "therefore",
+            "event": "That night, you leave the kitchen light off and wait by the window during the delivery window instead of going to bed. The marked bench and car sit below you in the orange lot light.",
+            "cause": "The service-door delivery sign gives you the most likely time and reason for movement near the bench.",
+            "enabledBy": [
+              "B3",
+              "S3",
+              "S4",
+              "R3"
+            ],
+            "heroWants": "You want to see the movement happen without confronting anyone too soon.",
+            "heroKnows": "You know the bench is the active piece, and the delivery entrance is the best lead; you still do not know whether the person moving it realizes it affects your car.",
+            "state": "You are awake before dawn at your kitchen window, tired but watching the space clearly.",
+            "changes": "You move from passive checking to active surveillance."
+          },
+          {
+            "n": 5,
+            "link": "but",
+            "event": "Just after four, a delivery worker arrives with stacked crates, drags the bench aside to wedge the heavy service door open, and later shoves it back roughly by foot while steering the cart. The bench bumps your bumper and ends up a few inches off its old chalk outline, making the car look newly parked each morning.",
+            "cause": "The bench blocks the easiest service-door route, and the worker is using it as a quick doorstop during deliveries.",
+            "enabledBy": [
+              "B4",
+              "S1",
+              "S2",
+              "S3",
+              "R2",
+              "R3"
+            ],
+            "heroWants": "You want the nightly bumping to stop without turning a small discovery into a fight.",
+            "heroKnows": "You know no one has stolen or entered the car; you know the apparent movement comes from the bench being moved and reset carelessly.",
+            "state": "You are still at the window, watching the worker finish and leave; the bench sits crooked beside the car again.",
+            "changes": "The mystery is explained by an ordinary habit hidden at an hour you never see."
+          },
+          {
+            "n": 6,
+            "link": "therefore",
+            "event": "In the morning, you show the worker’s supervisor the chalk photos and ask for the bench to be kept on the other side of the door. The next day your car looks exactly as you left it, and the bench has a fresh taped rectangle on the pavement where it belongs.",
+            "cause": "The photos and chalk marks make the problem visible and fixable without guessing or accusing.",
+            "enabledBy": [
+              "B2",
+              "B3",
+              "B5",
+              "S4",
+              "S5"
+            ],
+            "heroWants": "You want proof that the explanation was right and that the pattern is over.",
+            "heroKnows": "You know the cause, the time it happens, and the simple fix.",
+            "state": "You are in the lot the following morning, holding your keys, looking at the car and the taped bench position.",
+            "changes": "The recurring impossible-feeling observation becomes a solved, grounded mystery."
+          }
+        ],
+        "resolution": {
+          "what": "The car was not being secretly driven; the bench beside it was being dragged for predawn deliveries and reset badly, changing the reference point and bumping the bumper. Once the bench is marked and moved away from the car, the morning difference stops.",
+          "enabledBy": [
+            "B2",
+            "B3",
+            "B5",
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "R2",
+            "R3"
+          ],
+          "endingType": "resolution"
+        },
+        "deliberateMysteries": []
+      },
+      "quality": {
+        "pipelineVersion": 2,
+        "status": "passed",
+        "plotRounds": [
+          {
+            "issues": [],
+            "changeLog": []
+          }
+        ],
+        "scriptRounds": [
+          {
+            "issues": [],
+            "mustFix": [],
+            "changeLog": [],
+            "unresolvedPrevious": []
+          }
+        ],
+        "issues": [],
+        "mustFix": [],
+        "editorial": {
+          "narrative": [
+            {
+              "criterion": "premise",
+              "rating": "strong",
+              "evidence": "Every morning, your car looks a few inches closer to the wooden bench beside it.",
+              "note": "The premise is a simple but immediately legible parking-lot mystery with a concrete visual clue."
+            },
+            {
+              "criterion": "dramatic-question",
+              "rating": "strong",
+              "evidence": "In the morning, the tire outlines match, but the bench outline is broken.",
+              "note": "The central question is clear, then usefully flips from whether the car moved to whether the bench moved."
+            },
+            {
+              "criterion": "every-beat-matters",
+              "rating": "strong",
+              "evidence": "That evening, you park carefully, photograph it, outline the tires and bench legs with chalk from your move, then take one wide photo from the kitchen window.",
+              "note": "Most beats either set up evidence, test the theory, or reveal the cause, so the story stays purposeful."
+            },
+            {
+              "criterion": "earned-escalation",
+              "rating": "strong",
+              "evidence": "Before dawn, you leave the kitchen light off and watch from the window.",
+              "note": "The escalation from noticing marks to documenting them to surveillance feels logical and earned."
+            },
+            {
+              "criterion": "believable-reactions",
+              "rating": "strong",
+              "evidence": "You show the supervisor the photos.",
+              "note": "The narrator responds like a real tenant would: gather proof first, then take it to someone who can fix it."
+            },
+            {
+              "criterion": "economy",
+              "rating": "strong",
+              "evidence": "The doors stay locked, but a black crescent on the bumper lines up with one rubber bench leg.",
+              "note": "The details are compact and functional, with nearly every object later mattering."
+            },
+            {
+              "criterion": "freshness",
+              "rating": "strong",
+              "evidence": "Just after four, a delivery worker arrives with stacked crates, drags the bench aside to wedge the service door open, then shoves it back by foot while steering the cart.",
+              "note": "The reveal is mundane but specific enough to avoid feeling like a generic prank or supernatural fakeout."
+            },
+            {
+              "criterion": "ending",
+              "rating": "strong",
+              "evidence": "Next morning, taped lines hold the bench away, and your car is unchanged.",
+              "note": "The ending cleanly resolves the practical problem and confirms the explanation."
+            },
+            {
+              "criterion": "worth-the-time",
+              "rating": "strong",
+              "evidence": "The rubber leg taps the crescent mark and stops inches off.",
+              "note": "For a 75-second mystery, the setup, investigation, reveal, and fix feel complete and satisfying."
+            }
+          ],
+          "retention": [
+            {
+              "criterion": "first-line",
+              "rating": "strong",
+              "evidence": "Every morning, your car looks a few inches closer to the wooden bench beside it.",
+              "note": "The first line creates an odd, visual problem without vague mood-setting."
+            },
+            {
+              "criterion": "instant-clarity",
+              "rating": "strong",
+              "evidence": "The doors stay locked, but a black crescent on the bumper lines up with one rubber bench leg.",
+              "note": "The situation is understandable immediately: the car seems to be shifting toward a bench, but the lock status complicates that idea."
+            },
+            {
+              "criterion": "curiosity-gap",
+              "rating": "strong",
+              "evidence": "In the apartment lot, phone and keys out, you know you parked farther away.",
+              "note": "The story creates a clear tension between memory, physical evidence, and a possible outside cause."
+            },
+            {
+              "criterion": "starts-late",
+              "rating": "strong",
+              "evidence": "Every morning, your car looks a few inches closer to the wooden bench beside it.",
+              "note": "It starts after the pattern has already become alarming, which avoids unnecessary setup."
+            },
+            {
+              "criterion": "hook-delivered",
+              "rating": "excellent",
+              "evidence": "In the morning, the tire outlines match, but the bench outline is broken.",
+              "note": "The opening promise is delivered exactly because the real clue turns out to be the bench, not the car."
+            },
+            {
+              "criterion": "steady-change",
+              "rating": "strong",
+              "evidence": "In the morning, the tire outlines match, but the bench outline is broken. It sits crooked near the bumper, so your suspicion flips.",
+              "note": "The situation changes meaningfully at each stage: suspicion, test, reversal, observation, resolution."
+            },
+            {
+              "criterion": "payoff",
+              "rating": "strong",
+              "evidence": "Just after four, a delivery worker arrives with stacked crates, drags the bench aside to wedge the service door open, then shoves it back by foot while steering the cart.",
+              "note": "The payoff rewards attention to the crescent mark, scrape trails, service entrance, and early-morning delivery clue."
+            }
+          ],
+          "mustFix": [],
+          "suggestions": [
+            {
+              "area": "retention",
+              "evidence": "You show the supervisor the photos. Next morning, taped lines hold the bench away, and your car is unchanged.",
+              "problem": "The final resolution is clear but slightly flat emotionally after the satisfying reveal.",
+              "fix": "Add one small sensory confirmation, such as the bench sitting inside the taped box while the crescent mark remains untouched, to make the final image more memorable."
+            },
+            {
+              "area": "narrative",
+              "evidence": "outline the tires and bench legs with chalk from your move",
+              "problem": "“from your move” explains the chalk source but slightly distracts from the mystery mechanics.",
+              "fix": "Consider trimming it to “outline the tires and bench legs with chalk” unless the moving detail matters elsewhere."
+            }
+          ]
+        },
+        "hooks": {
+          "candidates": {
+            "dramaticQuestion": "Is someone moving your car at night, or is something else changing around it?",
+            "strongestMoment": "Just after four in the morning, you watch a delivery worker drag the bench aside as a doorstop, then shove it back by foot until it bumps your bumper and makes the car look newly parked.",
+            "candidates": [
+              {
+                "style": "specific-mystery",
+                "text": "Every morning, your car looks a few inches closer to the bench beside it. The doors stay locked, but a black crescent on the bumper keeps lining up with one rubber bench leg.",
+                "promise": "A precise parking-lot mystery: the car may be moving, or the bench may be the clue.",
+                "paidOffIn": "B3 shows the tire chalk still matches while the bench outline is broken; B5 reveals the bench is being dragged and shoved back into the bumper."
+              },
+              {
+                "style": "disturbing-discovery",
+                "text": "You stop beside your car because the bumper mark lines up almost perfectly with the bench leg. The car is locked, and that makes it worse.",
+                "promise": "A suspicious physical clue with no obvious break-in, pushing the viewer to wonder how the mark and the changed position happened.",
+                "paidOffIn": "B5 pays it off when the delivery worker shoves the bench back by foot and it bumps the bumper at the same height as the mark."
+              },
+              {
+                "style": "impossible-situation",
+                "text": "In the morning, your tire outlines are still perfect. The bench outline is broken, and the bench is pressed near your bumper.",
+                "promise": "An apparent contradiction: the car looks moved, but the chalk proves the tires stayed put.",
+                "paidOffIn": "B3 delivers the contradiction with the chalk test, and B5 explains it through the predawn delivery routine."
+              },
+              {
+                "style": "relatable-problem",
+                "text": "You do not want to accuse a neighbor over a few inches of parking-lot weirdness. So before bed, you outline your tires and the bench legs in sidewalk chalk.",
+                "promise": "A careful, low-drama investigation where proof matters more than suspicion.",
+                "paidOffIn": "B3 gives the trustworthy result, and B6 uses the chalk photos to fix the problem without accusing the wrong person."
+              },
+              {
+                "style": "consequential-decision",
+                "text": "At four in the morning, you keep your kitchen light off and watch your car from the window. If someone is moving it, this is the hour you catch them.",
+                "promise": "A stakeout that will reveal the hidden overnight cause.",
+                "paidOffIn": "B5 delivers the observation: a delivery worker moves the bench for the service door and accidentally bumps the car."
+              }
+            ]
+          },
+          "pick": {
+            "reviews": [
+              {
+                "index": 0,
+                "clarity": "excellent",
+                "curiosity": "strong",
+                "specificity": "excellent",
+                "deliveredByPlot": true,
+                "note": "Instantly understandable, concrete, and it frames the real mystery honestly: either the car moved or the bench did. The bumper crescent and rubber bench leg are fully paid off by the chalk test and delivery-worker reveal."
+              },
+              {
+                "index": 1,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "Good physical clue and suspicion, but 'that makes it worse' is a little vague and leans more ominous than the grounded plot ultimately becomes."
+              },
+              {
+                "index": 2,
+                "clarity": "acceptable",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "The contradiction is compelling, but it starts after the chalk setup, so a viewer may need a beat to understand why tire outlines exist. Strong payoff, slightly less natural as the very first line."
+              },
+              {
+                "index": 3,
+                "clarity": "strong",
+                "curiosity": "acceptable",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "Accurately promises the careful, non-accusatory investigation, but it is more procedural than mysterious and has less immediate visual tension than the bumper/bench clue."
+              },
+              {
+                "index": 4,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "A clear stakeout hook that pays off in B5, but it begins late in the plot and slightly over-centers the possibility that someone is moving the car rather than the changing reference point."
+              }
+            ],
+            "chosenIndex": 0,
+            "hook": "Every morning, your car looks a few inches closer to the wooden bench beside it. The doors stay locked, but a black crescent on the bumper lines up with one rubber bench leg.",
+            "promise": "A precise, grounded parking-lot mystery: the car may be moving overnight, or the bench beside it may be the real clue."
+          }
+        },
+        "plotPick": {
+          "reason": "Plot 0 is the better short-video story. It is simpler, more visual, and more believable, with a mystery the viewer can track beat by beat. The chalk test cleanly separates car movement from bench movement, and the predawn delivery reveal follows naturally from clues planted at the start. Plot 1 has higher stakes, but it asks the audience to accept more mechanics and a less realistic choice by the maintenance worker. For about 75 seconds, Plot 0 is more likely to feel coherent and satisfying.",
+          "rejected": "It is busier and more technical: jack points, tire marks, door tape, ramp clearance, maintenance schedule, mobility scooter, and a floor jack all need to be understood quickly. The maintenance worker secretly jacking a resident’s car is less believable and riskier than the delivery-worker bench habit, so the viewer may question the character behavior instead of staying inside the mystery."
+        },
+        "references": [
+          "The Car That Moved at Night (original example)"
+        ],
+        "dismissed": [],
+        "override": null,
+        "metrics": {
+          "firstPass": true,
+          "plotRepairs": 0,
+          "scriptRevisions": 0,
+          "blockingFound": 0,
+          "significantFound": 0,
+          "unverifiedIssues": 0,
+          "durationMs": 475220,
+          "textCostUsd": 1.1672
+        }
+      }
+    },
+    {
+      "id": "wrong-text",
+      "status": "passed",
+      "metrics": {
+        "firstPass": false,
+        "plotRepairs": 1,
+        "scriptRevisions": 0,
+        "blockingFound": 1,
+        "significantFound": 0,
+        "unverifiedIssues": 0,
+        "durationMs": 349804,
+        "textCostUsd": 0.904
+      },
+      "narration": "You accidentally text your boss, “He manages like an alarm clock with a LinkedIn account.” To survive, you claim it’s for a comedy sketch—so he books you to perform it at Friday all-hands.\n\nMinutes earlier, Darren orders the deck redone for vague reasons, so everyone leaves furious. In the break room, Jae expects your rant. Beside you are Friday’s comedy-slot flyer and Darren’s process survey. You send the line, then see Darren’s name. Delivered.\n\nYou try unsend but he replies, Was that meant for me?\n\nBecause you wrote he not Darren, you call it sketch material. Darren wants to look approachable, so he says it is funny and makes you opener.\n\nAt your desk, Jae helps soften it until Darren posts the original in team chat. Reactions pile up because everyone recognizes the redo.\n\nFriday arrives and the room laughs until Darren asks who the alarm clock is.\n\nYou admit it came from frustration over the redo, which is what his survey was meant to catch. Darren sees the team agreeing, cancels the redo, and asks for process notes. You keep your job but the insult becomes homework.",
+      "hook": "You accidentally text your boss, “He manages like an alarm clock with a LinkedIn account.” To survive, you claim it’s for a comedy sketch—so he books you to perform it at Friday all-hands.",
+      "plot": {
+        "archetype": "comedy",
+        "dramaticQuestion": "Can you convince your boss that the insulting text you sent him was not actually about him?",
+        "heroGoal": "Keep your job and escape the mistaken text without admitting you were venting about your boss.",
+        "openingState": "Late afternoon in the office break room, minutes after Darren, your boss, has ordered a pointless redo of a slide deck. You have your phone, half a cold coffee, and a coworker named Jae waiting for your usual post-meeting rant.",
+        "worldRules": [
+          {
+            "id": "R1",
+            "rule": "This is an ordinary workplace with ordinary messaging: once a text is delivered, you cannot depend on pulling it back from the recipient’s phone."
+          },
+          {
+            "id": "R2",
+            "rule": "Darren cares about seeming approachable in front of the team, especially after tense meetings."
+          }
+        ],
+        "setups": [
+          {
+            "id": "S1",
+            "what": "You and Jae routinely vent by text during deadline weeks, and Jae is expecting your reaction to Darren’s redo order.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S2",
+            "what": "Darren has just demanded a redo for vague reasons, and the whole team is frustrated.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S3",
+            "what": "A flyer in the break room says Friday all-hands includes a five-minute employee comedy slot meant to 'lighten the culture.'",
+            "plantedInBeat": 1
+          },
+          {
+            "id": "S4",
+            "what": "Darren has been pushing an anonymous process-feedback survey, but nobody has been brave enough to fill it out honestly.",
+            "plantedInBeat": 1
+          }
+        ],
+        "beats": [
+          {
+            "n": 1,
+            "link": "start",
+            "event": "Standing near the comedy-slot flyer and the ignored process-survey reminder, you type Jae a complaint: 'He manages like an alarm clock with a LinkedIn account.' The moment you hit send, you see Darren’s name at the top of the thread.",
+            "cause": "You are frustrated from the meeting and texting on autopilot to the person you usually vent to.",
+            "enabledBy": [],
+            "heroWants": "Undo the text before Darren sees it.",
+            "heroKnows": "You know the message went to Darren, but you do not know whether he has read it yet. Because the text says 'he' instead of naming Darren, you know there may still be room to pretend it was not about him.",
+            "state": "You are frozen in the break room with your phone in your hand, the message marked delivered, seconds after the meeting.",
+            "changes": "The private complaint has become a suspicious, potentially boss-directed insult, but it has not explicitly named Darren."
+          },
+          {
+            "n": 2,
+            "link": "but",
+            "event": "You jab at the message, trying to unsend it, but Darren’s reply appears: 'Was that meant for me?'",
+            "cause": "The message has already delivered, and Darren is at his desk with his phone.",
+            "enabledBy": [
+              "B1",
+              "R1"
+            ],
+            "heroWants": "Find an explanation that does not sound like a lie, even though it is one.",
+            "heroKnows": "You know Darren has seen enough to ask about it; you still do not know how offended he is.",
+            "state": "Still in the break room, sweating over your phone, with Darren waiting for an answer.",
+            "changes": "Avoiding him is no longer possible; you have to respond."
+          },
+          {
+            "n": 3,
+            "link": "therefore",
+            "event": "You claim the line is from a little office sketch you were writing for the Friday comedy slot. Darren, eager to look like a good sport, says it is funny and tells you to open the all-hands with it.",
+            "cause": "You grab the first plausible cover story in sight: the comedy-slot flyer on the wall.",
+            "enabledBy": [
+              "B2",
+              "S3",
+              "R2"
+            ],
+            "heroWants": "Make the text seem fictional and then quietly drop it.",
+            "heroKnows": "You know Darren has accepted the explanation for now, but he has turned it into a public commitment.",
+            "state": "You leave the break room with your phone, a fake performance assignment, and less than two days to make the lie real.",
+            "changes": "The cover story works, but it creates a bigger problem."
+          },
+          {
+            "n": 4,
+            "link": "but",
+            "event": "You and Jae try to write a harmless version of the sketch, but Darren forwards your original 'alarm clock' line to the team chat as a teaser for Friday.",
+            "cause": "Darren thinks promoting the bit will make him seem relaxed and fun.",
+            "enabledBy": [
+              "B3",
+              "S1",
+              "R2"
+            ],
+            "heroWants": "Replace the insult with something safe before anyone connects it to Darren.",
+            "heroKnows": "You know the team will recognize exactly who the line describes, because they all sat through the same meeting.",
+            "state": "At your desk with Jae beside you, staring at the team chat while the original insult gets laughing reactions.",
+            "changes": "The insult is now public enough that softening it will look suspicious."
+          },
+          {
+            "n": 5,
+            "link": "therefore",
+            "event": "At all-hands, Darren asks you to perform the sketch. The room laughs at the original line, then goes quiet when Darren cheerfully asks, 'So who is the alarm clock?'",
+            "cause": "The teaser has made the line the thing everyone expects to hear, but the line itself never named Darren, so he can still publicly treat it as a fictional joke.",
+            "enabledBy": [
+              "B4",
+              "S2"
+            ],
+            "heroWants": "Get through the moment without naming him or blaming some innocent person.",
+            "heroKnows": "You know everyone in the room understands the joke, and Darren is the only one asking the question out loud.",
+            "state": "Standing at the front of the conference room with your phone as a fake script, in front of Darren and the team.",
+            "changes": "The lie has reached the point where continuing it would make the room more awkward than the truth."
+          },
+          {
+            "n": 6,
+            "link": "therefore",
+            "event": "You admit the line came from frustration over the redo, but you frame it as the kind of feedback the survey was supposed to collect. Darren, trapped between embarrassment and his own culture talk, cancels the second redo and asks you to turn the rant into actual process notes.",
+            "cause": "The public reaction proves the frustration is shared, and Darren has already invited honest feedback through the survey.",
+            "enabledBy": [
+              "B5",
+              "S2",
+              "S4",
+              "R2"
+            ],
+            "heroWants": "Survive the confession with the least damage possible.",
+            "heroKnows": "You know Darren finally understands the text was about him, but he also knows the team agrees.",
+            "state": "The meeting ends with you still employed, holding your phone and a new assignment to write the feedback properly.",
+            "changes": "The mistaken text becomes a public but useful confrontation instead of a firing offense."
+          }
+        ],
+        "resolution": {
+          "what": "You survive the wrong text, and the pointless redo is canceled, but your punishment is having to convert your private insult into official workplace feedback.",
+          "enabledBy": [
+            "B6",
+            "S2",
+            "S4",
+            "R2"
+          ],
+          "endingType": "irony"
+        },
+        "deliberateMysteries": []
+      },
+      "quality": {
+        "pipelineVersion": 2,
+        "status": "passed",
+        "plotRounds": [
+          {
+            "issues": [
+              {
+                "category": "knowledge",
+                "severity": "blocking",
+                "kind": "contradiction",
+                "location": "B5",
+                "evidence": "B1: \"You type Jae a complaint: 'Darren manages like an alarm clock with a LinkedIn account.'\" / B5: \"Darren cheerfully asks, 'So who is the alarm clock?'\"",
+                "problem": "The original line explicitly names Darren, so Darren and the team would already know who the 'alarm clock' is. That breaks the cover story that the line can be treated as fictional or ambiguous, and makes Darren's later question nonsensical.",
+                "repair": "At B1, remove Darren's name from the text: e.g. 'He manages like an alarm clock with a LinkedIn account.' Then the later ambiguity and Darren's 'who is it?' question work.",
+                "verified": true,
+                "stage": "plot",
+                "id": "P1.1"
+              },
+              {
+                "category": "temporal",
+                "severity": "minor",
+                "kind": "contradiction",
+                "location": "B6",
+                "evidence": "Opening state: \"Darren, your boss, has ordered a pointless redo of a slide deck.\" / B6: \"Darren... cancels the second redo\"",
+                "problem": "Only one redo has been established. Calling it the 'second redo' introduces an extra round of revisions that the plot has not set up.",
+                "repair": "In B6 and the resolution, call it 'the redo' instead of 'the second redo,' or establish earlier that Darren has already demanded one redo and is now asking for another.",
+                "verified": true,
+                "stage": "plot",
+                "id": "P1.2"
+              }
+            ],
+            "changeLog": []
+          },
+          {
+            "issues": [],
+            "changeLog": [
+              {
+                "issueId": "P1.1",
+                "change": "Removed Darren’s name from the mistaken text in Beat 1, changing it to 'He manages like an alarm clock with a LinkedIn account.' Updated Beat 1 knowledge and changes, and clarified in Beat 5 that Darren can ask who the 'alarm clock' is because the line never explicitly named him."
+              }
+            ]
+          }
+        ],
+        "scriptRounds": [
+          {
+            "issues": [],
+            "mustFix": [],
+            "changeLog": [],
+            "unresolvedPrevious": []
+          }
+        ],
+        "issues": [],
+        "mustFix": [],
+        "editorial": {
+          "narrative": [
+            {
+              "criterion": "premise",
+              "rating": "strong",
+              "evidence": "You accidentally text your boss, “He manages like an alarm clock with a LinkedIn account.” To survive, you claim it’s for a comedy sketch—so he books you to perform it at Friday all-hands.",
+              "note": "The wrong-text premise is familiar, but the forced public performance gives it a clear comic trap."
+            },
+            {
+              "criterion": "dramatic-question",
+              "rating": "strong",
+              "evidence": "To survive, you claim it’s for a comedy sketch—so he books you to perform it at Friday all-hands.",
+              "note": "The viewer immediately understands the question is whether the narrator can turn the insult into a survivable performance."
+            },
+            {
+              "criterion": "every-beat-matters",
+              "rating": "strong",
+              "evidence": "Beside you are Friday’s comedy-slot flyer and Darren’s process survey.",
+              "note": "The setup details return later as the escape route and the final consequence, so the beats feel purposeful."
+            },
+            {
+              "criterion": "earned-escalation",
+              "rating": "strong",
+              "evidence": "Darren wants to look approachable, so he says it is funny and makes you opener.",
+              "note": "The escalation from private mistake to public all-hands performance follows from Darren’s insecurity rather than random coincidence."
+            },
+            {
+              "criterion": "believable-reactions",
+              "rating": "strong",
+              "evidence": "At your desk, Jae helps soften it until Darren posts the original in team chat.",
+              "note": "Jae helping with damage control and the team recognizing the insult both feel like plausible workplace reactions."
+            },
+            {
+              "criterion": "economy",
+              "rating": "excellent",
+              "evidence": "You try unsend but he replies, Was that meant for me?",
+              "note": "The script moves quickly and uses short beats that each alter the situation."
+            },
+            {
+              "criterion": "freshness",
+              "rating": "strong",
+              "evidence": "“He manages like an alarm clock with a LinkedIn account.”",
+              "note": "The central insult is specific and funny enough to lift the common accidental-text setup."
+            },
+            {
+              "criterion": "ending",
+              "rating": "strong",
+              "evidence": "You keep your job but the insult becomes homework.",
+              "note": "The ending resolves the firing threat while leaving the narrator with a comic punishment that grows naturally from the survey setup."
+            },
+            {
+              "criterion": "worth-the-time",
+              "rating": "strong",
+              "evidence": "Darren sees the team agreeing, cancels the redo, and asks for process notes.",
+              "note": "The story feels complete because the insult exposes a real workplace problem and changes the outcome."
+            }
+          ],
+          "retention": [
+            {
+              "criterion": "first-line",
+              "rating": "excellent",
+              "evidence": "You accidentally text your boss, “He manages like an alarm clock with a LinkedIn account.”",
+              "note": "The first line is instantly visual, risky, and funny."
+            },
+            {
+              "criterion": "instant-clarity",
+              "rating": "strong",
+              "evidence": "You accidentally text your boss, “He manages like an alarm clock with a LinkedIn account.”",
+              "note": "The basic situation and danger are clear without explanation."
+            },
+            {
+              "criterion": "curiosity-gap",
+              "rating": "strong",
+              "evidence": "To survive, you claim it’s for a comedy sketch—so he books you to perform it at Friday all-hands.",
+              "note": "The hook creates a clear desire to know how the narrator can possibly get out of this."
+            },
+            {
+              "criterion": "starts-late",
+              "rating": "strong",
+              "evidence": "You accidentally text your boss, “He manages like an alarm clock with a LinkedIn account.”",
+              "note": "It begins at the mistake rather than spending time on ordinary office setup."
+            },
+            {
+              "criterion": "hook-delivered",
+              "rating": "strong",
+              "evidence": "Friday arrives and the room laughs until Darren asks who the alarm clock is.",
+              "note": "The promised public workplace comedy trap arrives and forces the confrontation."
+            },
+            {
+              "criterion": "steady-change",
+              "rating": "strong",
+              "evidence": "Darren wants to look approachable, so he says it is funny and makes you opener.",
+              "note": "Each moment changes the problem from private panic to cover story to public exposure."
+            },
+            {
+              "criterion": "payoff",
+              "rating": "strong",
+              "evidence": "You keep your job but the insult becomes homework.",
+              "note": "The final line rewards attention with a clean comic reversal instead of a simple escape."
+            }
+          ],
+          "mustFix": [],
+          "suggestions": [
+            {
+              "area": "retention",
+              "evidence": "Friday arrives and the room laughs until Darren asks who the alarm clock is.",
+              "problem": "The all-hands performance is the promised centerpiece, but it passes very quickly.",
+              "fix": "Add one compact performance detail before Darren’s question, such as one softened joke landing too well, to make the public trap feel more vivid."
+            }
+          ]
+        },
+        "hooks": {
+          "candidates": {
+            "dramaticQuestion": "Can you convince your boss that the insulting text you sent him was not actually about him?",
+            "strongestMoment": "At all-hands, the room laughs at your “alarm clock with a LinkedIn account” line, and Darren cheerfully asks who the alarm clock is.",
+            "candidates": [
+              {
+                "style": "specific-mystery",
+                "text": "You send your boss one sentence by mistake: “He manages like an alarm clock with a LinkedIn account.” Then his reply appears: “Was that meant for me?”",
+                "promise": "A specific mistaken-text disaster where the insult is obvious but still technically deniable.",
+                "paidOffIn": "B2 delivers the confrontation when Darren replies, and B6 pays off the denial by forcing you to admit it was about the redo without getting fired."
+              },
+              {
+                "style": "contradiction",
+                "text": "Your boss laughs at the insult you accidentally text him. Then he tells you to perform it at Friday all-hands.",
+                "promise": "A comic escalation where the cover story works too well and turns private panic into a public performance.",
+                "paidOffIn": "B3 delivers this when Darren accepts the comedy-sketch excuse, and B5 pays it off when he asks you to perform the bit in front of everyone."
+              },
+              {
+                "style": "immediate-danger",
+                "text": "Your phone says delivered, and Darren’s name is at the top of the thread. The insult was supposed to go to Jae.",
+                "promise": "An urgent office crisis built around a sent message that cannot be safely pulled back.",
+                "paidOffIn": "B1 establishes the mistaken recipient and delivered text, while B2 confirms the danger when Darren has already seen enough to ask about it."
+              },
+              {
+                "style": "relatable-problem",
+                "text": "After one pointless meeting, you text the rant you always send your work friend. This time, it lands on your boss’s phone.",
+                "promise": "A familiar workplace frustration becomes a high-stakes social mistake.",
+                "paidOffIn": "B1 pays off the wrong-recipient setup, and B4 shows the whole frustrated team recognizing exactly who the rant describes."
+              },
+              {
+                "style": "consequential-decision",
+                "text": "You can confess the text is about Darren, or pretend it is a comedy sketch. You choose the sketch, and Darren books you for all-hands.",
+                "promise": "A lie made under pressure creates a bigger, funnier obligation.",
+                "paidOffIn": "B3 delivers the choice and its consequence, and B5 pays it off when the fake sketch has to be performed publicly."
+              }
+            ]
+          },
+          "pick": {
+            "reviews": [
+              {
+                "index": 0,
+                "clarity": "excellent",
+                "curiosity": "strong",
+                "specificity": "excellent",
+                "deliveredByPlot": true,
+                "note": "Instantly understandable and the exact insult is funny and concrete. It promises a deniable wrong-text crisis, which the plot pays off through Darren’s reply and the eventual public admission."
+              },
+              {
+                "index": 1,
+                "clarity": "strong",
+                "curiosity": "excellent",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "The contradiction is the funniest and most distinctive escalation: the boss turns an accidental insult into a public performance. It cleanly matches the central comic engine of the plot."
+              },
+              {
+                "index": 2,
+                "clarity": "strong",
+                "curiosity": "acceptable",
+                "specificity": "acceptable",
+                "deliveredByPlot": true,
+                "note": "Clear and urgent, but less flavorful because it withholds the actual insult and the later all-hands escalation."
+              },
+              {
+                "index": 3,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "acceptable",
+                "deliveredByPlot": true,
+                "note": "Relatable and honest to the setup, but more generic than the others because it does not include the specific joke or the strange consequence."
+              },
+              {
+                "index": 4,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "Accurately frames the pressure choice and escalation, but it feels slightly more like a plot summary than an immediate hook."
+              }
+            ],
+            "chosenIndex": 1,
+            "hook": "You accidentally text your boss, “He manages like an alarm clock with a LinkedIn account.” To survive, you claim it’s for a comedy sketch—so he books you to perform it at Friday all-hands.",
+            "promise": "A private wrong-text insult becomes a public workplace comedy trap, and the story will pay off whether the narrator can escape without getting fired."
+          }
+        },
+        "plotPick": {
+          "reason": "Plot 0 has the more satisfying comic shape for a narrated short: the lie works, then makes the problem bigger, then forces a public truth that has been earned by the team’s shared frustration and Darren’s own culture talk. It is slightly more complex than plot 1, but the escalation and payoff are stronger, and the ending lands with a clear ironic consequence instead of just a narrow escape.",
+          "rejected": "The protagonist trying to unlock the boss’s phone is a bit invasive, which may make them less sympathetic. The phone-lock mechanics feel slightly contrived, and the ending is smaller than plot 0’s public confrontation. It resolves the situation, but with less comic payoff."
+        },
+        "references": [
+          "Act Normal (original example)"
+        ],
+        "dismissed": [],
+        "override": null,
+        "metrics": {
+          "firstPass": false,
+          "plotRepairs": 1,
+          "scriptRevisions": 0,
+          "blockingFound": 1,
+          "significantFound": 0,
+          "unverifiedIssues": 0,
+          "durationMs": 349804,
+          "textCostUsd": 0.904
+        }
+      }
+    },
+    {
+      "id": "neighbour-light",
+      "status": "passed",
+      "metrics": {
+        "firstPass": false,
+        "plotRepairs": 1,
+        "scriptRevisions": 0,
+        "blockingFound": 0,
+        "significantFound": 2,
+        "unverifiedIssues": 0,
+        "durationMs": 364965,
+        "textCostUsd": 0.9273
+      },
+      "narration": "For a year, the empty house next door lit one upstairs window at exactly 2 a.m. Tonight, the familiar white glow turned orange, and a black smear began climbing the curtain. You are awake at your bedroom window, phone in hand. The house is empty, power kept on for viewings, but it stands close to yours, with dry bins and a wooden fence between. You call emergency services, then step outside and read the estate agent’s emergency number from the For Sale sign. The agent says no one should be inside, and the only scheduled light is an old plug-in lamp on a mechanical timer. Then she remembers yesterday’s viewing, when the upstairs room was tidied. As she talks, flame catches the curtain. You stay out, drag the bins from the wall, pull the hose to the fence, and soak the wood and side path. The fire crew arrives, forces the door, and puts out the small upstairs fire. No one is inside. A firefighter shows you a photo. The lamp lies against the scorched curtain, timer fixed at 2 a.m. For a year, it made the house look lived in. Until yesterday, someone moved it close enough to threaten yours.",
+      "hook": "For a year, the empty house next door lit one upstairs window at exactly 2 a.m. Tonight, the familiar white glow turned orange, and a black smear began climbing the curtain.",
+      "plot": {
+        "archetype": "suspense",
+        "dramaticQuestion": "Is tonight’s 2am light the same harmless mystery as always, or is the empty house about to catch fire?",
+        "heroGoal": "Find out why the light has changed and stop the danger from spreading to your home.",
+        "openingState": "It starts at 1:58am in your bedroom, a year after the neighbouring house was left empty. You are awake, you have your phone, and you can see the upstairs front window next door from your own room.",
+        "worldRules": [
+          {
+            "id": "R1",
+            "rule": "The house next door has been empty for a year, though its power has remained connected for viewings and basic security."
+          },
+          {
+            "id": "R2",
+            "rule": "A plug-in lamp on a mechanical timer turns on in the upstairs front room every night at 2am."
+          },
+          {
+            "id": "R3",
+            "rule": "After a recent viewing, the timer lamp was left too close to the upstairs front-room curtain, so when it turns on tonight it starts a small electrical fire."
+          }
+        ],
+        "setups": [
+          {
+            "id": "S1",
+            "what": "The For Sale sign outside the empty house has an estate agent’s emergency number printed on it.",
+            "plantedInBeat": 1
+          },
+          {
+            "id": "S2",
+            "what": "Your garden hose reaches the fence and the bins along the shared side path.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S3",
+            "what": "The two houses stand close together, with dry bins and a wooden fence between them.",
+            "plantedInBeat": 1
+          },
+          {
+            "id": "S4",
+            "what": "The fire crew can force entry once called, because the house is locked but accessible from the street.",
+            "plantedInBeat": 2
+          },
+          {
+            "id": "S5",
+            "what": "The estate agent says there was a viewing the previous afternoon and the old timer lamp may have been moved while the room was being made presentable.",
+            "plantedInBeat": 2
+          }
+        ],
+        "beats": [
+          {
+            "n": 1,
+            "link": "start",
+            "event": "At exactly 2am, the usual upstairs light turns on next door, but tonight it wavers orange instead of white. A dark smear begins to climb the inside of the curtain.",
+            "cause": "The nightly timer switches on the lamp, but after the recent viewing the lamp has been left too close to the curtain.",
+            "enabledBy": [
+              "R1",
+              "R2",
+              "R3"
+            ],
+            "heroWants": "You want to decide whether you are seeing a trick of the glass or real smoke.",
+            "heroKnows": "You know the house is supposed to be empty and that the light normally comes on, but you have never seen it flicker like this.",
+            "state": "You are at your bedroom window with your phone, looking across at the lit room next door.",
+            "changes": "The familiar mystery becomes an immediate danger."
+          },
+          {
+            "n": 2,
+            "link": "therefore",
+            "event": "You call emergency services, then read the estate agent’s number from the sign and call it too. The sleepy agent confirms no one should be inside, blurts out that the only scheduled light is an old timer lamp left for security, and remembers there was a viewing the previous afternoon where the room was tidied for buyers.",
+            "cause": "The smoke and the empty-house status make calling for help the safest first response, and the agent’s records explain what may have changed since the usual harmless nights.",
+            "enabledBy": [
+              "B1",
+              "S1",
+              "R1",
+              "R2"
+            ],
+            "heroWants": "You want professionals on the way and confirmation that nobody is trapped upstairs.",
+            "heroKnows": "You now know the likely source is a timer lamp, not a person turning on a room light, and that someone was in the room recently; you still do not know how bad the fire is.",
+            "state": "You are outside in the cold with your phone, watching the upstairs window while help is being dispatched.",
+            "changes": "The original 2am pattern gets a practical explanation, and tonight’s difference gains a likely cause, but the fire risk escalates."
+          },
+          {
+            "n": 3,
+            "link": "but",
+            "event": "While you wait, a visible flame catches the curtain and the window brightens. Because the houses are close, you drag your bins away from the shared wall and soak the fence and side path with the garden hose.",
+            "cause": "The fire grows faster than the response time, and the dry objects beside your house could carry the damage across.",
+            "enabledBy": [
+              "B2",
+              "S2",
+              "S3",
+              "R3"
+            ],
+            "heroWants": "You want to keep the fire from jumping to your property without going inside the burning house.",
+            "heroKnows": "You know entering would be dangerous, but you can reduce what the flames might reach outside.",
+            "state": "You are in your garden in slippers, holding the hose, with the neighbour’s upstairs room glowing brighter.",
+            "changes": "You stop being only a witness and take limited, believable action."
+          },
+          {
+            "n": 4,
+            "link": "therefore",
+            "event": "The fire crew arrives, forces the front door, and puts out the small upstairs fire before it spreads beyond the room. Smoke rolls out, but no one is found inside.",
+            "cause": "Your emergency call brings responders before the fire consumes the room.",
+            "enabledBy": [
+              "B2",
+              "B3",
+              "S4"
+            ],
+            "heroWants": "You want confirmation the house is empty and the danger is contained.",
+            "heroKnows": "You know the fire is being handled, but not exactly what started it.",
+            "state": "You are on the pavement near your gate while firefighters move through the empty house.",
+            "changes": "The immediate danger is resolved."
+          },
+          {
+            "n": 5,
+            "link": "therefore",
+            "event": "A firefighter comes back downstairs and shows you a phone photo taken in the upstairs room: a cheap lamp plugged into a mechanical timer, its dial fixed at 2am, lying against the scorched curtain. The light had been turning on every night for a year to make the house look lived in, until yesterday’s viewing left it close enough to fabric for tonight’s routine to nearly burn the place down.",
+            "cause": "Once the room is safe, the responders can identify and photograph the burned timer and lamp, confirming the agent’s clue about the recent viewing.",
+            "enabledBy": [
+              "B4",
+              "R2",
+              "R3",
+              "S5"
+            ],
+            "heroWants": "You want the nightly mystery to stop being a mystery.",
+            "heroKnows": "You now know the house was empty, the light was automatic, and tonight’s change was a real fire hazard caused by the lamp being moved too close to the curtain.",
+            "state": "It is after 2am; you are outside beside the fire engine, looking at the firefighter’s phone photo of the ruined timer lamp from the upstairs room.",
+            "changes": "The strange recurring light is explained and permanently ended."
+          }
+        ],
+        "resolution": {
+          "what": "The 2am light is revealed to be a security lamp on a mechanical timer. It becomes dangerous because yesterday’s viewing left the lamp against the curtain, and your noticing the changed light lets firefighters stop the fire before it reaches your home.",
+          "enabledBy": [
+            "B1",
+            "B2",
+            "B3",
+            "B4",
+            "B5",
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "R2",
+            "R3"
+          ],
+          "endingType": "resolution"
+        },
+        "deliberateMysteries": []
+      },
+      "quality": {
+        "pipelineVersion": 2,
+        "status": "passed",
+        "plotRounds": [
+          {
+            "issues": [
+              {
+                "category": "spatial",
+                "severity": "significant",
+                "kind": "contradiction",
+                "location": "B5",
+                "evidence": "“A firefighter shows you the cause from the doorway: a cheap lamp plugged into a mechanical timer, its dial fixed at 2am, lying against the scorched curtain.” / “you are outside beside the fire engine, looking at the ruined timer lamp through the open doorway.”",
+                "problem": "The lamp and timer are in the upstairs front room, but the hero is outside beside the fire engine looking through the open doorway. From the street/front doorway, they would not be able to see an object lying against an upstairs curtain clearly enough to identify the timer dial fixed at 2am.",
+                "repair": "In B5, have the firefighter either bring the scorched lamp/timer downstairs, show the hero a phone/photo from the room, or tell the hero the finding from the doorway rather than having the hero see it from outside.",
+                "verified": true,
+                "stage": "plot",
+                "id": "P1.1"
+              },
+              {
+                "category": "causal-gap",
+                "severity": "significant",
+                "kind": "creative-concern",
+                "location": "R3 / Resolution",
+                "evidence": "“Tonight, the timer still works, but the lamp has shifted close enough to fabric to start a small electrical fire.” / “It becomes dangerous only because the lamp shifts against the curtain”",
+                "problem": "The plot’s danger depends on the lamp shifting after a year in an empty house, but nothing explains why it shifted tonight. A viewer could accept it as an accident, but because the dramatic question is specifically why tonight’s light changed, the triggering cause is a little thin.",
+                "repair": "Add a minimal cause before or during B2/B5: for example, the estate agent mentions a recent viewing/cleaning, or the firefighter notes the lamp was on an unstable table/box that slipped, leaving it against the curtain.",
+                "verified": true,
+                "stage": "plot",
+                "id": "P1.2"
+              }
+            ],
+            "changeLog": []
+          },
+          {
+            "issues": [],
+            "changeLog": [
+              {
+                "issueId": "P1.1",
+                "change": "Reworked B5 so the firefighter shows the hero a phone photo taken upstairs instead of having the hero identify an upstairs lamp and timer from outside through the doorway; updated the B5 state accordingly."
+              },
+              {
+                "issueId": "P1.2",
+                "change": "Changed R3 from an unexplained year-later shift to a recent-viewing cause, planted that information through the estate agent in B2 as S5, and updated B1, B2, B5, and the resolution so tonight’s fire follows from that earlier change."
+              }
+            ]
+          }
+        ],
+        "scriptRounds": [
+          {
+            "issues": [],
+            "mustFix": [],
+            "changeLog": [],
+            "unresolvedPrevious": []
+          }
+        ],
+        "issues": [],
+        "mustFix": [],
+        "editorial": {
+          "narrative": [
+            {
+              "criterion": "premise",
+              "rating": "strong",
+              "evidence": "For a year, the empty house next door lit one upstairs window at exactly 2 a.m.",
+              "note": "The harmless ritual becoming a possible fire threat is immediately interesting and visual."
+            },
+            {
+              "criterion": "dramatic-question",
+              "rating": "strong",
+              "evidence": "Tonight, the familiar white glow turned orange, and a black smear began climbing the curtain.",
+              "note": "The central question is clear: whether the odd nightly light has become a real danger."
+            },
+            {
+              "criterion": "every-beat-matters",
+              "rating": "strong",
+              "evidence": "The agent says no one should be inside, and the only scheduled light is an old plug-in lamp on a mechanical timer.",
+              "note": "Most beats either escalate the threat or supply a clue needed for the final explanation."
+            },
+            {
+              "criterion": "earned-escalation",
+              "rating": "strong",
+              "evidence": "As she talks, flame catches the curtain.",
+              "note": "The escalation grows directly from the orange glow and black smear rather than appearing randomly."
+            },
+            {
+              "criterion": "believable-reactions",
+              "rating": "strong",
+              "evidence": "You call emergency services, then step outside and read the estate agent’s emergency number from the For Sale sign.",
+              "note": "The narrator behaves sensibly by calling for help first and not entering the burning house."
+            },
+            {
+              "criterion": "economy",
+              "rating": "excellent",
+              "evidence": "You stay out, drag the bins from the wall, pull the hose to the fence, and soak the wood and side path.",
+              "note": "The script is compact and uses each detail to clarify either risk, action, or payoff."
+            },
+            {
+              "criterion": "freshness",
+              "rating": "strong",
+              "evidence": "The lamp lies against the scorched curtain, timer fixed at 2 a.m.",
+              "note": "The explanation is grounded and more specific than a generic haunted-house or arson reveal."
+            },
+            {
+              "criterion": "ending",
+              "rating": "strong",
+              "evidence": "Until yesterday, someone moved it close enough to threaten yours.",
+              "note": "The ending resolves the mystery and ties the danger to the earlier viewing clue."
+            },
+            {
+              "criterion": "worth-the-time",
+              "rating": "strong",
+              "evidence": "For a year, it made the house look lived in.",
+              "note": "The story feels complete for a short video because it answers the light mystery and the fire threat cleanly."
+            }
+          ],
+          "retention": [
+            {
+              "criterion": "first-line",
+              "rating": "strong",
+              "evidence": "For a year, the empty house next door lit one upstairs window at exactly 2 a.m.",
+              "note": "The first line gives a strange recurring image with an implied mystery."
+            },
+            {
+              "criterion": "instant-clarity",
+              "rating": "excellent",
+              "evidence": "The house is empty, power kept on for viewings, but it stands close to yours, with dry bins and a wooden fence between.",
+              "note": "The setup, location, and danger are understandable almost immediately."
+            },
+            {
+              "criterion": "curiosity-gap",
+              "rating": "strong",
+              "evidence": "Tonight, the familiar white glow turned orange, and a black smear began climbing the curtain.",
+              "note": "This creates an urgent question about what changed tonight."
+            },
+            {
+              "criterion": "starts-late",
+              "rating": "excellent",
+              "evidence": "Tonight, the familiar white glow turned orange, and a black smear began climbing the curtain.",
+              "note": "The story begins at the moment the familiar pattern becomes dangerous."
+            },
+            {
+              "criterion": "hook-delivered",
+              "rating": "excellent",
+              "evidence": "The lamp lies against the scorched curtain, timer fixed at 2 a.m.",
+              "note": "The script pays off both the nightly 2 a.m. light and why tonight turned into a fire."
+            },
+            {
+              "criterion": "steady-change",
+              "rating": "strong",
+              "evidence": "You call emergency services, then step outside and read the estate agent’s emergency number from the For Sale sign.",
+              "note": "The situation keeps changing through action, new information, visible fire, and rescue."
+            },
+            {
+              "criterion": "payoff",
+              "rating": "strong",
+              "evidence": "Until yesterday, someone moved it close enough to threaten yours.",
+              "note": "The final line rewards attention by connecting the viewing, the timer, and the changed glow."
+            }
+          ],
+          "mustFix": [],
+          "suggestions": [
+            {
+              "area": "narrative",
+              "evidence": "Then she remembers yesterday’s viewing, when the upstairs room was tidied.",
+              "problem": "The phrase “was tidied” is slightly vague about whether the lamp was moved by the viewer, the agent, or someone staging the room.",
+              "fix": "Change it to a more concrete clue, such as “Then she remembers yesterday’s viewing, when she moved the lamp while tidying the upstairs room.”"
+            }
+          ]
+        },
+        "hooks": {
+          "candidates": {
+            "dramaticQuestion": "Is tonight’s 2 a.m. light the same harmless mystery as always, or is the empty house about to catch fire?",
+            "strongestMoment": "At exactly 2 a.m., the familiar upstairs light in the empty house turns on, but tonight it flickers orange and a dark smear starts climbing the curtain.",
+            "candidates": [
+              {
+                "style": "immediate-danger",
+                "text": "At 2 a.m., the empty house next door lights up like it always does. This time, the curtain starts to burn.",
+                "promise": "The familiar nightly light has become an urgent fire threat.",
+                "paidOffIn": "B3 and B4 deliver it: the curtain catches flame, you soak the fence and bins to protect your house, and firefighters arrive to put out the upstairs fire."
+              },
+              {
+                "style": "contradiction",
+                "text": "The house next door has been empty for a year, but its upstairs light still turns on every night at two. Tonight, the glow is orange.",
+                "promise": "The viewer will learn why an empty house has a nightly light, and why tonight is different.",
+                "paidOffIn": "B5 delivers it: the firefighter’s photo reveals a lamp on a mechanical timer, moved too close to the curtain after a viewing."
+              },
+              {
+                "style": "disturbing-discovery",
+                "text": "You watch the usual 2 a.m. light appear next door, and a black smear crawls up the inside of the curtain.",
+                "promise": "The strange mark will be identified as real smoke, not a trick of the window.",
+                "paidOffIn": "B2 and B3 deliver it: you call emergency services, the agent confirms the timer lamp, and the smoke becomes visible flame on the curtain."
+              },
+              {
+                "style": "specific-mystery",
+                "text": "Every night, the same upstairs window turns white at exactly 2 a.m. Tonight, it flickers orange from inside an empty room.",
+                "promise": "The episode will explain both the year-long 2 a.m. pattern and the new orange flicker.",
+                "paidOffIn": "B5 delivers it: the light was a security lamp on a mechanical timer, and the orange flicker came from the lamp scorching the curtain."
+              },
+              {
+                "style": "consequential-decision",
+                "text": "You can ignore the 2 a.m. light one more night, or call it in and wake half the street. Then the curtain catches.",
+                "promise": "Your choice to act will matter and may stop the fire spreading to your home.",
+                "paidOffIn": "B2 through B4 deliver it: you call emergency services and the estate agent, move the bins, soak the fence, and firefighters stop the fire before it spreads."
+              }
+            ]
+          },
+          "pick": {
+            "reviews": [
+              {
+                "index": 0,
+                "clarity": "excellent",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "Instantly understandable and urgent. It honestly pays off, though it reveals the fire threat so quickly that it leaves less room for the recurring-light mystery."
+              },
+              {
+                "index": 1,
+                "clarity": "strong",
+                "curiosity": "excellent",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "Best matches the plot’s central question: why an empty house lights up every night, and why tonight’s light has changed. Fully paid off by the timer-lamp reveal and the curtain fire."
+              },
+              {
+                "index": 2,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "excellent",
+                "deliveredByPlot": true,
+                "note": "The black smear is concrete and unsettling, and the plot identifies it as smoke. Slightly less context than the strongest options because the year-long pattern is not as clearly established."
+              },
+              {
+                "index": 3,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "A clean mystery hook with strong visual detail. It promises the timer explanation and the orange flicker, both delivered, but it carries slightly less immediate danger than the best version."
+              },
+              {
+                "index": 4,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "acceptable",
+                "deliveredByPlot": true,
+                "note": "The decision to act does matter, and the fire-spread threat is paid off. The phrasing is a little more constructed than natural, and 'wake half the street' is less specific than the actual emergency response."
+              }
+            ],
+            "chosenIndex": 1,
+            "hook": "For a year, the empty house next door lit one upstairs window at exactly 2 a.m. Tonight, the familiar white glow turned orange, and a black smear began climbing the curtain.",
+            "promise": "The story will explain the nightly 2 a.m. light, reveal why tonight is different, and show whether the changed glow is a real fire threat."
+          }
+        },
+        "plotPick": {
+          "reason": "Plot 1 is the stronger short narrated video because it has one clean situation, one escalating danger, believable choices, and a complete payoff within 75 seconds. Plot 0 has the creepier hook, but its surveillance escalation depends on a larger hidden setup that raises more logistical questions than the short can answer. Plot 1 is simpler, more emotionally immediate, and more satisfying.",
+          "rejected": "It expands very fast from one light to a whole surveillance system, and the kitchen blind/back door wiring strains plausibility without showing how someone got sensors into the narrator’s house. The ending explains the first light but withholds the bigger why/who, so it is tense but not fully satisfying on its own. It also risks feeling like a setup for a larger conspiracy rather than a complete 75-second story."
+        },
+        "references": [
+          "The Monitor (original example)"
+        ],
+        "dismissed": [],
+        "override": null,
+        "metrics": {
+          "firstPass": false,
+          "plotRepairs": 1,
+          "scriptRevisions": 0,
+          "blockingFound": 0,
+          "significantFound": 2,
+          "unverifiedIssues": 0,
+          "durationMs": 364965,
+          "textCostUsd": 0.9273
+        }
+      }
+    },
+    {
+      "id": "missed-calls",
+      "status": "passed",
+      "metrics": {
+        "firstPass": false,
+        "plotRepairs": 1,
+        "scriptRevisions": 0,
+        "blockingFound": 0,
+        "significantFound": 2,
+        "unverifiedIssues": 0,
+        "durationMs": 494299,
+        "textCostUsd": 1.2212
+      },
+      "narration": "When Kenny woke, there was a voicemail in his own voice, left while he’d been asleep: “Do not open the front door. Window. Bench.” His phone buzzed on the floor. Muted after his shift, it had missed forty-seven calls, all from his own number.\n\nAbove the laundrette, boots and keys by the bed, Kenny hated nonsense, but warehouse work had trained him to notice heat, smells, wrong sounds. He tested the front door without opening it.\n\nThe handle was warm. Brown smoke pressed under the frame.\n\n“Fine,” he said. “Window.”\n\nAt the window, below the laundrette sign, sat the ugly bolted bench he passed every morning. The painted sash stuck, so he grabbed a steel-toe boot and smashed the lower pane.\n\nGlass toothed the frame. Kenny pocketed the phone, dropped the boot, climbed out with both hands, lowered onto the sign, and fell onto the bench. His palm bled. Smoke burned his throat.\n\nThen his pocket rang.\n\nHis own number.\n\nHe answered. His own voice said, “Move.”\n\nKenny stepped off as the upper frame gave way. Burning glass crashed onto the bench. He stood in dawn street, bleeding, one boot short.",
+      "hook": "When Kenny woke, there was a voicemail in his own voice, left while he’d been asleep: “Do not open the front door. Window. Bench.”",
+      "plot": {
+        "archetype": "survival",
+        "dramaticQuestion": "Will Kenny understand the calls quickly enough to get out of the flat alive?",
+        "heroGoal": "Work out whether the impossible missed calls are a prank or a warning, then escape when the warning proves real.",
+        "openingState": "Kenny wakes just after dawn in his small flat above the laundrette after a night shift. He is groggy, alone, his phone has been on silent since he came home, and his work boots and key lanyard are beside the bed.",
+        "worldRules": [
+          {
+            "id": "R1",
+            "rule": "Kenny's phone can receive calls that display as his exact own mobile number; the source is unseen, and the voice on the calls sounds like Kenny."
+          },
+          {
+            "id": "R2",
+            "rule": "The calls can warn Kenny about immediate events a few minutes before they happen, but they do not physically prevent those events."
+          },
+          {
+            "id": "R3",
+            "rule": "The building and fire behave normally: smoke rises through the stairwell, heat makes metal fittings dangerous, and falling glass can injure him."
+          }
+        ],
+        "setups": [
+          {
+            "id": "S1",
+            "what": "Kenny put his phone on silent before sleeping, so he did not hear the calls arrive.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S2",
+            "what": "Kenny notices small physical details because of night-shift warehouse work: smells, heat, routine sounds, and things out of place.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S3",
+            "what": "There is a bolted wooden bench on the pavement below Kenny's front window, under the laundrette sign; Kenny sees it every day when he comes home.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S4",
+            "what": "Kenny's steel-toe work boots are beside the bed.",
+            "plantedInBeat": 0
+          },
+          {
+            "id": "S5",
+            "what": "Kenny's flat is above a laundrette, with the only normal exit leading down through the same stairwell as the shop.",
+            "plantedInBeat": 0
+          }
+        ],
+        "beats": [
+          {
+            "n": 1,
+            "link": "start",
+            "event": "Kenny wakes to his phone vibrating silently against the floor. The screen shows 47 missed calls, every one from his own number, and one voicemail in his own voice says, 'Do not open the front door. Window. Bench.'",
+            "cause": "The calls arrived while his phone was on silent and he slept after his shift.",
+            "enabledBy": [],
+            "heroWants": "Decide whether he is still half-asleep, being hacked, or being warned.",
+            "heroKnows": "He knows the number on the screen is his own and the voice sounds like him; he does not know the source or whether to trust it.",
+            "state": "In bed in his flat at dawn, holding his phone, tired and unsettled, with his boots and keys nearby.",
+            "changes": "The ordinary morning becomes an impossible warning with a specific instruction."
+          },
+          {
+            "n": 2,
+            "link": "but",
+            "event": "Kenny ignores the instruction enough to check the front door. Before touching the handle fully, he notices the metal is warm and a thin brown line of smoke is pressing under the frame.",
+            "cause": "His stubbornness makes him verify the warning, and his habit of noticing details lets him catch the danger before opening the door.",
+            "enabledBy": [
+              "B1",
+              "S2",
+              "S5",
+              "R3"
+            ],
+            "heroWants": "Confirm whether the voicemail is nonsense without doing anything stupid.",
+            "heroKnows": "He now knows the stairwell is unsafe and the voice knew something true; he still does not know who called.",
+            "state": "By the front door, crouched low in smoke beginning to creep into the flat, phone in hand.",
+            "changes": "The calls are no longer just strange; they have become useful and urgent."
+          },
+          {
+            "n": 3,
+            "link": "therefore",
+            "event": "Kenny goes to the front window instead. Looking down, he sees the laundrette sign and the bench below it: ugly, bolted down, and suddenly the only thing that might break his drop.",
+            "cause": "The voicemail named the window and bench, and the stairwell is blocked by smoke.",
+            "enabledBy": [
+              "B1",
+              "B2",
+              "S3",
+              "R2"
+            ],
+            "heroWants": "Find a way out without using the burning stairwell.",
+            "heroKnows": "He knows the bench is real and positioned below the window; he does not know whether he can reach it safely.",
+            "state": "At the front window, coughing lightly, measuring the drop by eye, still holding his phone.",
+            "changes": "His escape route shifts from the door to the window and bench."
+          },
+          {
+            "n": 4,
+            "link": "but",
+            "event": "The old painted window will not lift. Kenny wedges one work boot into his hand and smashes the lower pane with the steel toe, cutting a jagged exit through the glass.",
+            "cause": "The window is stuck, and the boot is the nearest tool solid enough to break it.",
+            "enabledBy": [
+              "B3",
+              "S4"
+            ],
+            "heroWants": "Open a way out before the smoke thickens.",
+            "heroKnows": "He knows breaking the glass may cut him, but waiting is worse.",
+            "state": "At the broken window, one boot in hand, smoke behind him, glass on the sill.",
+            "changes": "The route is dangerous but physically open."
+          },
+          {
+            "n": 5,
+            "link": "therefore",
+            "event": "Before climbing, Kenny drops the boot back inside and shoves the phone into his pocket so both hands are free. He climbs out, lowers himself onto the laundrette sign, then drops hard onto the bench, landing badly and staying there a moment, coughing with one palm sliced by the jagged frame.",
+            "cause": "The broken window and the bench's position make the descent possible, and freeing his hands lets him manage the climb instead of trying to hold the boot and phone through it.",
+            "enabledBy": [
+              "B3",
+              "B4",
+              "S3",
+              "R3"
+            ],
+            "heroWants": "Get away from the burning stairwell and onto something solid outside.",
+            "heroKnows": "He knows the impossible caller saved him once; he still cannot explain it.",
+            "state": "On the bolted bench outside the laundrette, coughing, palm bleeding, phone in his pocket, the boot left behind in the flat, dawn street around him.",
+            "changes": "Kenny survives the immediate trap inside the flat but is still directly below the broken window."
+          },
+          {
+            "n": 6,
+            "link": "but",
+            "event": "Before he can laugh at himself for obeying a phone call from himself, the phone rings again in his pocket from his own number. Kenny yanks it out, hears the voice say, 'Move,' and steps off the bench just before the upper window frame gives way and burning glass crashes onto the seat.",
+            "cause": "The warning calls continue to anticipate immediate danger, and the fire weakens the window he just broke while he is still beneath it.",
+            "enabledBy": [
+              "B1",
+              "B4",
+              "B5",
+              "S3",
+              "R1",
+              "R2",
+              "R3"
+            ],
+            "heroWants": "Stay alive and learn whether the caller is helping or herding him.",
+            "heroKnows": "He knows the calls have now saved him twice; he does not know who or what is on the other end.",
+            "state": "In the street beside the ruined bench, injured but alive, holding a ringing phone as smoke pushes out above him.",
+            "changes": "Kenny is safe from the flat, but the impossible caller is proven real and still active."
+          }
+        ],
+        "resolution": {
+          "what": "Kenny escapes the burning flat because he tests the first warning, uses the bench route it named, frees his hands for the climb, and obeys the second warning in time to get off the bench before falling glass hits it. The episode ends with him alive on the street, facing the deeper problem of why his own number is calling him.",
+          "enabledBy": [
+            "B1",
+            "B2",
+            "B3",
+            "B4",
+            "B5",
+            "B6",
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "R1",
+            "R2",
+            "R3"
+          ],
+          "endingType": "escape"
+        },
+        "deliberateMysteries": [
+          "Who or what is calling Kenny from his own number.",
+          "How the caller sounds exactly like Kenny.",
+          "How the caller knows immediate future events."
+        ]
+      },
+      "quality": {
+        "pipelineVersion": 2,
+        "status": "passed",
+        "plotRounds": [
+          {
+            "issues": [
+              {
+                "category": "spatial",
+                "severity": "significant",
+                "kind": "contradiction",
+                "location": "B6",
+                "evidence": "B5: \"drops hard onto the bench and rolls onto the pavement\" and \"after: On the pavement outside the laundrette\"; B6: \"Kenny steps off the bench just before the upper window frame gives way and burning glass crashes onto the seat.\"",
+                "problem": "B6’s danger depends on Kenny still being on the bench, but B5 has already moved him onto the pavement. If he is already off the bench, the command to “Move” does not save him from glass crashing onto the seat.",
+                "repair": "At B5, leave Kenny collapsed or sitting on the bench after the drop, then B6’s call makes him step off. Alternatively, keep B5 as written and change B6 so the warning makes him move farther away from the bench/sign area before debris hits where he landed.",
+                "verified": true,
+                "stage": "plot",
+                "id": "P1.1"
+              },
+              {
+                "category": "spatial",
+                "severity": "significant",
+                "kind": "creative-concern",
+                "location": "B5",
+                "evidence": "B4: \"Kenny wedges one work boot into his hand and smashes the lower pane\"; B5: \"Kenny climbs out, lowers himself onto the laundrette sign, then drops hard onto the bench and rolls onto the pavement\" and \"phone still in his grip\".",
+                "problem": "The descent is physically hand-dependent, but Kenny is described as having handled a boot and still gripping the phone through climbing out, lowering himself, dropping, rolling, and cutting his palm. A viewer may question how he safely climbs and lowers himself while keeping hold of these objects.",
+                "repair": "Before the climb in B5, have him drop the boot inside and shove the phone into a pocket. In B6, the phone can ring/vibrate from his pocket and he pulls it out or reacts to the voice on speaker.",
+                "verified": true,
+                "stage": "plot",
+                "id": "P1.2"
+              }
+            ],
+            "changeLog": []
+          },
+          {
+            "issues": [],
+            "changeLog": [
+              {
+                "issueId": "P1.1",
+                "change": "Revised Beat 5 so Kenny lands and remains on the bench after the drop instead of rolling onto the pavement; Beat 6 now logically saves him by making him step off the bench before glass crashes onto it."
+              },
+              {
+                "issueId": "P1.2",
+                "change": "Revised Beat 5 so Kenny drops the boot inside and puts the phone in his pocket before climbing, leaving both hands free; Beat 6 now has the phone ring from his pocket before he pulls it out."
+              }
+            ]
+          }
+        ],
+        "scriptRounds": [
+          {
+            "issues": [],
+            "mustFix": [],
+            "changeLog": [],
+            "unresolvedPrevious": []
+          }
+        ],
+        "issues": [],
+        "mustFix": [],
+        "editorial": {
+          "narrative": [
+            {
+              "criterion": "premise",
+              "rating": "strong",
+              "evidence": "“Do not open the front door. Window. Bench.”",
+              "note": "An impossible voicemail with blunt survival instructions is an immediate, clean thriller premise."
+            },
+            {
+              "criterion": "dramatic-question",
+              "rating": "strong",
+              "evidence": "His phone buzzed on the floor. Muted after his shift, it had missed forty-seven calls, all from his own number.",
+              "note": "The story quickly creates the question of whether Kenny should trust his own impossible warning before the danger reaches him."
+            },
+            {
+              "criterion": "every-beat-matters",
+              "rating": "strong",
+              "evidence": "The handle was warm. Brown smoke pressed under the frame.",
+              "note": "Each beat either verifies the warning, forces the next action, or raises the physical danger."
+            },
+            {
+              "criterion": "earned-escalation",
+              "rating": "strong",
+              "evidence": "He answered. His own voice said, “Move.”",
+              "note": "The second call escalates naturally because the earlier forty-seven missed calls established that the warnings can keep coming."
+            },
+            {
+              "criterion": "believable-reactions",
+              "rating": "strong",
+              "evidence": "Kenny hated nonsense, but warehouse work had trained him to notice heat, smells, wrong sounds. He tested the front door without opening it.",
+              "note": "Kenny’s skepticism and practical caution make his decision to obey the warning feel human rather than gullible."
+            },
+            {
+              "criterion": "economy",
+              "rating": "excellent",
+              "evidence": "Glass toothed the frame. Kenny pocketed the phone, dropped the boot, climbed out with both hands, lowered onto the sign, and fell onto the bench.",
+              "note": "The prose is compact and action-focused, with almost no decorative detail slowing the escape."
+            },
+            {
+              "criterion": "freshness",
+              "rating": "strong",
+              "evidence": "He stood in dawn street, bleeding, one boot short.",
+              "note": "The self-warning setup is familiar, but the specific physical escape through the window, sign, bench, and falling glass gives it texture."
+            },
+            {
+              "criterion": "ending",
+              "rating": "strong",
+              "evidence": "Kenny stepped off as the upper frame gave way. Burning glass crashed onto the bench.",
+              "note": "The ending pays off the bench instruction and proves the final warning mattered."
+            },
+            {
+              "criterion": "worth-the-time",
+              "rating": "strong",
+              "evidence": "He stood in dawn street, bleeding, one boot short.",
+              "note": "For a short narrated thriller, it delivers a complete survival arc with a clear payoff."
+            }
+          ],
+          "retention": [
+            {
+              "criterion": "first-line",
+              "rating": "excellent",
+              "evidence": "When Kenny woke, there was a voicemail in his own voice, left while he’d been asleep: “Do not open the front door. Window. Bench.”",
+              "note": "The first line is instantly strange, specific, and dangerous."
+            },
+            {
+              "criterion": "instant-clarity",
+              "rating": "strong",
+              "evidence": "When Kenny woke, there was a voicemail in his own voice, left while he’d been asleep",
+              "note": "The impossible situation is understandable immediately even before the fire is revealed."
+            },
+            {
+              "criterion": "curiosity-gap",
+              "rating": "excellent",
+              "evidence": "it had missed forty-seven calls, all from his own number.",
+              "note": "The repeated calls create a strong need to know why his own number is warning him."
+            },
+            {
+              "criterion": "starts-late",
+              "rating": "strong",
+              "evidence": "When Kenny woke, there was a voicemail in his own voice",
+              "note": "The script begins at the discovery of the warning rather than with setup about Kenny’s day."
+            },
+            {
+              "criterion": "hook-delivered",
+              "rating": "strong",
+              "evidence": "The handle was warm. Brown smoke pressed under the frame.",
+              "note": "The front-door warning is quickly proven true, and the window-and-bench instruction becomes the escape route."
+            },
+            {
+              "criterion": "steady-change",
+              "rating": "strong",
+              "evidence": "At the window, below the laundrette sign, sat the ugly bolted bench he passed every morning.",
+              "note": "The situation keeps changing from warning to confirmation to escape attempt to last-second save."
+            },
+            {
+              "criterion": "payoff",
+              "rating": "strong",
+              "evidence": "Burning glass crashed onto the bench.",
+              "note": "The final image rewards attention by showing why the last call’s single word mattered."
+            }
+          ],
+          "mustFix": [],
+          "suggestions": [
+            {
+              "area": "narrative",
+              "evidence": "all from his own number.",
+              "problem": "The source of the impossible calls is not explained, which is fine for a Part 1 but may leave a standalone viewer wanting one more hint.",
+              "fix": "If this must work as a standalone, add one small closing clue such as Kenny seeing an outgoing call log entry he has not made yet."
+            },
+            {
+              "area": "retention",
+              "evidence": "Above the laundrette, boots and keys by the bed, Kenny hated nonsense",
+              "problem": "This sentence carries location, props, and character attitude all at once, which may be slightly dense in narration.",
+              "fix": "Split or streamline it to prioritize the survival-relevant idea: Kenny is practical and notices danger signs."
+            }
+          ]
+        },
+        "hooks": {
+          "candidates": {
+            "dramaticQuestion": "Will Kenny understand the calls quickly enough to get out of the flat alive?",
+            "strongestMoment": "Kenny lands on the bolted bench outside, injured but alive, then his own number calls again and his own voice says, “Move,” seconds before burning glass crashes onto the seat.",
+            "candidates": [
+              {
+                "style": "specific-mystery",
+                "text": "Kenny woke to forty-seven missed calls. Every one was from his own number.",
+                "promise": "An impossible phone mystery that matters immediately, not just a strange glitch.",
+                "paidOffIn": "B1 reveals the voicemail in Kenny’s own voice warning him not to open the door, and B6 proves the calls can predict danger when another call saves him from falling glass."
+              },
+              {
+                "style": "impossible-situation",
+                "text": "The voicemail was in Kenny’s voice, but Kenny had been asleep when it was left. It said, “Do not open the front door. Window. Bench.”",
+                "promise": "Kenny is receiving instructions from an impossible version of himself, and those instructions will have to be tested.",
+                "paidOffIn": "B2 pays it off when the front door is warm and smoke is under the frame; B3–B5 pay off “Window. Bench” as his escape route."
+              },
+              {
+                "style": "immediate-danger",
+                "text": "Kenny nearly opened his flat door before he felt the heat in the handle. Smoke was already pressing under the frame.",
+                "promise": "Kenny is trapped in a burning building and must escape without using the obvious exit.",
+                "paidOffIn": "B2 confirms the stairwell is unsafe, and B3–B5 deliver the escape through the window, onto the laundrette sign, and down to the bench."
+              },
+              {
+                "style": "consequential-decision",
+                "text": "Kenny had one normal way out of his flat, and the voice on his phone told him not to use it. He listened just long enough to stay alive.",
+                "promise": "A single choice—trusting or ignoring the impossible call—will decide whether Kenny survives.",
+                "paidOffIn": "B2 shows that opening the door would be deadly, B5 shows him surviving by following the window-and-bench instruction, and B6 shows him obeying the second warning in time."
+              },
+              {
+                "style": "contradiction",
+                "text": "The safest thing in Kenny’s flat was a broken window. The front door was already too hot to touch.",
+                "promise": "The story will flip the normal escape route: the door is danger, and the window becomes survival.",
+                "paidOffIn": "B2 makes the door unsafe with heat and smoke; B4 opens the stuck window with the steel-toe boot; B5 gets Kenny outside through that broken window."
+              }
+            ]
+          },
+          "pick": {
+            "reviews": [
+              {
+                "index": 0,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "Instantly understandable and raises the impossible-call mystery, but it delays the life-or-death instruction that makes the calls urgent."
+              },
+              {
+                "index": 1,
+                "clarity": "strong",
+                "curiosity": "excellent",
+                "specificity": "excellent",
+                "deliveredByPlot": true,
+                "note": "The impossible voice, the fact Kenny was asleep, and the exact warning are all clear and concrete. The plot directly pays off the door, window, and bench instructions."
+              },
+              {
+                "index": 2,
+                "clarity": "excellent",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "A clean survival opening, but it leaves out the story’s most distinctive hook: Kenny being warned by his own voice."
+              },
+              {
+                "index": 3,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "acceptable",
+                "deliveredByPlot": true,
+                "note": "Good focus on the survival choice, and the plot pays it off, but the wording is broader and less vivid than the voicemail version."
+              },
+              {
+                "index": 4,
+                "clarity": "strong",
+                "curiosity": "strong",
+                "specificity": "strong",
+                "deliveredByPlot": true,
+                "note": "A punchy reversal of normal escape logic, but it starts with the fire mechanics rather than the impossible calls that drive the story."
+              }
+            ],
+            "chosenIndex": 1,
+            "hook": "When Kenny woke, there was a voicemail in his own voice, left while he’d been asleep: “Do not open the front door. Window. Bench.”",
+            "promise": "Kenny will have to decide whether to trust an impossible warning from himself, and the specific words in the voicemail will become the key to escaping alive."
+          }
+        },
+        "plotPick": {
+          "reason": "Plot 0 is the stronger short narrated video. It gives the viewer one urgent situation, one easy-to-track question, and a complete earned outcome inside the episode: Kenny survives because he tests, then trusts, the impossible calls. Every setup pays off visibly, and the mystery remains as a hook without withholding the main satisfaction. Plot 1 is clever and coherent, but it is more of a setup for a larger mystery than a fully gripping 75-second story.",
+          "rejected": "The stakes are softer for most of the episode; Kenny is curious rather than endangered until the final warning. In 75 seconds, the search procedure may feel more procedural than emotional. Finding an identical phone explains the call source but raises so many bigger questions that the 'resolution' may feel less satisfying than the escape plot. The final warning depends on delayed danger rather than the danger being visible now."
+        },
+        "references": [
+          "The Last Bus (original example)",
+          "Nobody Left (original example)"
+        ],
+        "dismissed": [],
+        "override": null,
+        "metrics": {
+          "firstPass": false,
+          "plotRepairs": 1,
+          "scriptRevisions": 0,
+          "blockingFound": 0,
+          "significantFound": 2,
+          "unverifiedIssues": 0,
+          "durationMs": 494299,
+          "textCostUsd": 1.2212
+        }
+      }
+    }
+  ]
+}

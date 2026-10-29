@@ -88,6 +88,7 @@ export function ModelsPricingForm(props: { models: Models; pricing: Pricing; ima
   const [models, setModels] = useState(props.models);
   const [main, setMain] = useState(() => textPriceStrings(props.pricing, props.models.main));
   const [fast, setFast] = useState(() => textPriceStrings(props.pricing, props.models.fast));
+  const [rev, setRev] = useState(() => textPriceStrings(props.pricing, props.models.reviewer || props.models.main));
   const [imageTokens, setImageTokens] = useState(() => ({
     textInputPerMTok: str(props.pricing.imageTokens.textInputPerMTok),
     imageInputPerMTok: str(props.pricing.imageTokens.imageInputPerMTok),
@@ -108,7 +109,13 @@ export function ModelsPricingForm(props: { models: Models; pricing: Pricing; ima
   // Prices are keyed by model name; earlier entries are kept so switching back restores them.
   const pricing: Pricing = useMemo(
     () => ({
-      textModels: { ...props.pricing.textModels, [models.fast.trim()]: toText(fast), [models.main.trim()]: toText(main), default: toText(main) },
+      textModels: {
+        ...props.pricing.textModels,
+        ...(models.reviewer?.trim() ? { [models.reviewer.trim()]: toText(rev) } : {}),
+        [models.fast.trim()]: toText(fast),
+        [models.main.trim()]: toText(main),
+        default: toText(main),
+      },
       imageTokens: { textInputPerMTok: num(imageTokens.textInputPerMTok), imageInputPerMTok: num(imageTokens.imageInputPerMTok), outputPerMTok: num(imageTokens.outputPerMTok) },
       imagePerImage: { low: num(perImage.low), medium: num(perImage.medium), high: num(perImage.high) },
       elevenLabsPer1kChars: num(speech),
@@ -116,17 +123,17 @@ export function ModelsPricingForm(props: { models: Models; pricing: Pricing; ima
       sandboxOverheadPerRender: num(sandbox.overhead),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [models, main, fast, imageTokens, perImage, speech, sandbox, props.pricing.textModels],
+    [models, main, fast, rev, imageTokens, perImage, speech, sandbox, props.pricing.textModels],
   );
-  const valid = Object.values({ ...toText(main), ...toText(fast), ...pricing.imageTokens, ...pricing.imagePerImage }).every((n) => Number.isFinite(n) && n >= 0) &&
+  const valid = Object.values({ ...toText(main), ...toText(fast), ...(models.reviewer?.trim() ? toText(rev) : {}), ...pricing.imageTokens, ...pricing.imagePerImage }).every((n) => Number.isFinite(n) && n >= 0) &&
     [pricing.elevenLabsPer1kChars, pricing.sandboxPerVcpuHour, pricing.sandboxOverheadPerRender].every((n) => Number.isFinite(n) && n >= 0);
   const sample = valid ? estimateEpisodeCost(pricing, models, { durationSec: 75, quality: "STANDARD" }) : null;
 
   // Picking a model with a saved price fills its prices in.
-  const pickText = (role: "main" | "fast", name: string) => {
+  const pickText = (role: "main" | "fast" | "reviewer", name: string) => {
     setModels({ ...models, [role]: name });
     const known = props.pricing.textModels[name] ?? DEFAULT_PRICING.textModels[name];
-    if (known) (role === "main" ? setMain : setFast)({ inputPerMTok: str(known.inputPerMTok), cachedInputPerMTok: str(known.cachedInputPerMTok), outputPerMTok: str(known.outputPerMTok) });
+    if (known) ({ main: setMain, fast: setFast, reviewer: setRev })[role]({ inputPerMTok: str(known.inputPerMTok), cachedInputPerMTok: str(known.cachedInputPerMTok), outputPerMTok: str(known.outputPerMTok) });
   };
 
   return (
@@ -142,16 +149,34 @@ export function ModelsPricingForm(props: { models: Models; pricing: Pricing; ima
       }
     >
       <div className="rounded-xl border bg-card p-5">
-        <ModelRow role="Writing" description="Concepts, outlines and scripts at Standard and Premium quality; reviews too at Premium." model={models.main} onModel={(v) => pickText("main", v)} suggestions={SUGGESTIONS.text}>
+        <ModelRow role="Writing" description="Concepts, plots, hooks and scripts at Standard and Premium quality." model={models.main} onModel={(v) => pickText("main", v)} suggestions={SUGGESTIONS.text}>
           <Money label="Input" unit="per 1M tokens" value={main.inputPerMTok} onChange={(v) => setMain({ ...main, inputPerMTok: v })} />
           <Money label="Cached input" unit="per 1M tokens" value={main.cachedInputPerMTok} onChange={(v) => setMain({ ...main, cachedInputPerMTok: v })} />
           <Money label="Output" unit="per 1M tokens" value={main.outputPerMTok} onChange={(v) => setMain({ ...main, outputPerMTok: v })} />
         </ModelRow>
 
-        <ModelRow role="Reviewing" description="Concept scoring and continuity checks at Draft and Standard; all writing at Draft." model={models.fast} onModel={(v) => pickText("fast", v)} suggestions={SUGGESTIONS.text}>
+        <ModelRow role="Scoring" description="Concept scoring at Draft and Standard; all writing and script checks at Draft." model={models.fast} onModel={(v) => pickText("fast", v)} suggestions={SUGGESTIONS.text}>
           <Money label="Input" unit="per 1M tokens" value={fast.inputPerMTok} onChange={(v) => setFast({ ...fast, inputPerMTok: v })} />
           <Money label="Cached input" unit="per 1M tokens" value={fast.cachedInputPerMTok} onChange={(v) => setFast({ ...fast, cachedInputPerMTok: v })} />
           <Money label="Output" unit="per 1M tokens" value={fast.outputPerMTok} onChange={(v) => setFast({ ...fast, outputPerMTok: v })} />
+        </ModelRow>
+
+        <ModelRow
+          role="Story reviewer"
+          description="Audits plots and scripts for logic holes and edits them at Standard and Premium. Leave empty to use the Writing model; a different model or family gives a more independent read."
+          model={models.reviewer ?? ""}
+          onModel={(v) => pickText("reviewer", v)}
+          suggestions={SUGGESTIONS.text}
+        >
+          {models.reviewer?.trim() ? (
+            <>
+              <Money label="Input" unit="per 1M tokens" value={rev.inputPerMTok} onChange={(v) => setRev({ ...rev, inputPerMTok: v })} />
+              <Money label="Cached input" unit="per 1M tokens" value={rev.cachedInputPerMTok} onChange={(v) => setRev({ ...rev, cachedInputPerMTok: v })} />
+              <Money label="Output" unit="per 1M tokens" value={rev.outputPerMTok} onChange={(v) => setRev({ ...rev, outputPerMTok: v })} />
+            </>
+          ) : (
+            <p className="col-span-full self-center text-xs text-muted-foreground">Uses the Writing model and its prices.</p>
+          )}
         </ModelRow>
 
         <ModelRow role="Illustrations" description={`Scene images at ${props.imageSize}. Token prices are used when the API reports usage.`} model={models.image} onModel={(v) => setModels({ ...models, image: v })} suggestions={SUGGESTIONS.image}>

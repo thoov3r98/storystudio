@@ -18,6 +18,8 @@ import type { EpisodeTiming } from "@/lib/timing";
 import { downloadUrl, previewUrl } from "@/lib/urls";
 import { ApproveEpisodeButton } from "@/app/stories/[storyId]/story-client";
 import { EpisodeActionButton, RewriteSceneDialog, SceneImageHistory, VersionRestoreButton } from "./episode-client";
+import { ScriptChecks } from "./script-checks";
+import type { RecordedIssue } from "@/lib/schemas/story-plan";
 
 export const metadata: Metadata = { title: "Episode" };
 
@@ -55,16 +57,37 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
     ? estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: episode.story.targetDurationSec, quality: episode.story.quality })
     : null;
   const mediaCost = media ? formatUsd(media.images + media.speech + media.render) : "";
-  const approveScript = (
-    <EpisodeActionButton
-      episodeId={episode.id}
-      request={{ action: "render" }}
-      disabled={busy}
-      label="Approve script & make video"
-      primary
-      confirm={`Generates the illustrations, narration, captions and edit, then renders the MP4. Estimated ${mediaCost}.`}
-    />
-  );
+  const quality = spec?.quality;
+  const gate = awaitingReview ? (v?.qualityStatus ?? "passed") : null;
+  const openItems = quality ? quality.issues.filter((i) => i.severity !== "minor" && !quality.dismissed.some((d) => d.issueId === i.id)).length + quality.mustFix.length : 0;
+  const approveScript =
+    gate === "blocked" ? (
+      <Button disabled>Blocked by plot issues</Button>
+    ) : gate === "needs-attention" ? (
+      <EpisodeActionButton
+        episodeId={episode.id}
+        request={{ action: "render", acceptOpenNotes: true }}
+        disabled={busy}
+        label="Approve anyway & make video"
+        primary
+        confirm={`${openItems} issue${openItems === 1 ? "" : "s"} from the script checks ${openItems === 1 ? "is" : "are"} still open. Approving records your override, then generates the illustrations, narration, captions and edit and renders the MP4. Estimated ${mediaCost}.`}
+      />
+    ) : (
+      <EpisodeActionButton
+        episodeId={episode.id}
+        request={{ action: "render" }}
+        disabled={busy}
+        label="Approve script & make video"
+        primary
+        confirm={`Generates the illustrations, narration, captions and edit, then renders the MP4. Estimated ${mediaCost}.`}
+      />
+    );
+  // A plot that failed its logic check stops before any narration is written; show why.
+  const lastJob = episode.jobs[0];
+  const plotFailure =
+    !busy && lastJob?.status === "FAILED" && (lastJob.error as { name?: string } | null)?.name === "StoryQualityError"
+      ? ((lastJob.error as { issues?: RecordedIssue[] }).issues ?? [])
+      : null;
 
   return (
     <>
@@ -96,22 +119,12 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         actions={
           <>
             {!v || episode.status === "DRAFT" ? (
-              <EpisodeActionButton episodeId={episode.id} request={{ action: "produce", allowContinuityConflicts: false }} disabled={busy} label="Write script" primary />
+              <EpisodeActionButton episodeId={episode.id} request={{ action: "produce" }} disabled={busy} label="Write script" primary />
             ) : null}
             {awaitingReview ? approveScript : null}
             {v && episode.status === "FAILED" ? (
               <>
                 <EpisodeActionButton episodeId={episode.id} request={{ action: "render" }} disabled={busy} label="Resume production" primary />
-                {continuity?.verdict === "material-conflicts" ? (
-                  <EpisodeActionButton
-                    episodeId={episode.id}
-                    request={{ action: "regenerate-script", allowContinuityConflicts: true }}
-                    disabled={busy}
-                    label="Rewrite anyway"
-                    continueProduction={false}
-                    confirm="Continuity conflicts remain. This rewrites the script and keeps it even if material conflicts persist, so you can review it."
-                  />
-                ) : null}
               </>
             ) : null}
             {latestRender?.url ? (
@@ -158,7 +171,11 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
             <div>
               <div className="font-medium">Script ready for your review</div>
               <p className="text-muted-foreground">
-                Read it below. Rewrite a line, the opening or the whole script, or approve it to make the video ({mediaCost} for images, narration and render).
+                {gate === "blocked"
+                  ? "The checks found a plot problem a viewer would notice, so it can't be made into a video yet. See Script checks below."
+                  : gate === "needs-attention"
+                    ? `The checks left ${openItems} open item${openItems === 1 ? "" : "s"} (see Script checks). Fix them, rewrite a line, or approve anyway to make the video (${mediaCost}).`
+                    : `Read it below. Rewrite a line, the opening or the whole script, or approve it to make the video (${mediaCost} for images, narration and render).`}
               </p>
             </div>
           </div>
@@ -170,9 +187,23 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         <div className="mb-8 rounded-xl border border-red-200 bg-red-50/60 p-4 text-sm text-red-800">Last render failed: {latestRenderAttempt.error}</div>
       ) : null}
 
+      {plotFailure ? (
+        <div className="mb-8 rounded-xl border border-red-200 bg-red-50/60 p-4 text-sm text-red-900">
+          <div className="font-medium">The plot didn&apos;t pass its logic check, so no script was written</div>
+          <p className="mt-1 text-xs">Nothing was spent on narration or media. Write the script again for a new plot, or add direction.</p>
+          <ul className="mt-2 ml-4 list-disc space-y-1">
+            {plotFailure.map((i) => (
+              <li key={i.id}>
+                {i.location}: {i.problem} <span className="text-xs opacity-75">(evidence: “{i.evidence}”)</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {!v ? (
         <div className="rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
-          No script yet. <span className="font-medium text-foreground">Write script</span> outlines the episode and writes the script. Nothing is spent on images,
+          No script yet. <span className="font-medium text-foreground">Write script</span> plans the plot, checks its logic, develops the hook and writes the script. Nothing is spent on images,
           narration or rendering until you approve it.
         </div>
       ) : (
@@ -250,19 +281,21 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
           </div>
 
           <div className="min-w-0 space-y-10">
+            <ScriptChecks quality={quality} plot={spec?.plot} versionId={v.id} episodeId={episode.id} humanRating={v.humanRating} busy={busy} atGate={awaitingReview} />
+
             <Section
               title="Script"
               description={`${v.wordCount} words · ~${v.estimatedDurationSec.toFixed(0)}s estimated${timing ? ` · ${(timing.totalDurationMs / 1000).toFixed(1)}s actual` : ""}`}
               actions={
                 <EpisodeActionButton
                   episodeId={episode.id}
-                  request={{ action: "regenerate-script", allowContinuityConflicts: false }}
+                  request={{ action: "regenerate-script" }}
                   disabled={busy}
                   label="Regenerate script"
                   size="sm"
                   variant="outline"
                   continueProduction={false}
-                  confirm="Writes a new script version and stops for your review; nothing is spent on media until you approve it. The current version is kept in history."
+                  confirm="Plans, writes and checks a new script version and stops for your review; nothing is spent on media until you approve it. The current version is kept in history."
                 />
               }
             >

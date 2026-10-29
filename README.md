@@ -23,19 +23,22 @@ The studio never publishes anything. Its output is a downloadable MP4 plus every
 
 ```
 Generate page ──► Batch ──► Trigger.dev "ideate-batch"
-                              │  pitch ~2N candidates (OpenAI, strict JSON)
+                              │  pitch ~2N candidates (archetype, dramatic question, 3-line episode sketch)
                               │  dedupe vs library (title / trigram / keyword similarity)
-                              │  score 9 editorial criteria, rank, keep top N
-                              └► Story + Part 1 (DRAFT) + ≥3 scored hooks each
+                              │  score 9 editorial criteria incl. "becomes a coherent episode"; unworkable ideas rank last
+                              └► Story + Part 1 (DRAFT)
 
-"Produce" / "Generate Next Episode" ──► Trigger.dev "episode-job"
-   1. Write script (scenes, claims, proposed bible update)
-   2. Fact review ─┐  bounded corrections (≤2 rounds)
-   3. Continuity ──┘  (Part 2+; material conflicts stop before any media spend)
-   4. Illustrate scenes (OpenAI Images, style references, per-scene retries)
-   5. Narrate (ElevenLabs with character timestamps)
-   6. Synchronize: scene boundaries + word-level captions from the real alignment
-   7. Render: Vercel Sandbox (Remotion) → MP4 uploaded to Vercel Blob
+"Write script" / "Generate Next Episode" ──► Trigger.dev "episode-job"   (see docs/story-quality.md)
+   1. Plot: two causal plots → editor's pick → logic audit → targeted repairs (≤2); blocking holes stop here
+   2. Hook: 4–6 candidates → judged against the plot → refined
+   3. Narration told from the plot, with matching reference stories as craft examples
+   4. Checks: independent logic audit (+ series continuity on Part 2+) and editorial review → targeted revisions (≤2)
+   5. Shots cut word-for-word from the narration, visual state, proposed bible update
+   ── Script gate: passed / needs attention (approve with override) / blocked (cannot be produced) ──
+   6. Illustrate scenes (OpenAI Images, style references, per-scene checks and retries)
+   7. Narrate (ElevenLabs with character timestamps)
+   8. Synchronize: scene boundaries + word-level captions from the real alignment
+   9. Render: Vercel Sandbox (Remotion) → MP4 uploaded to Vercel Blob
 ```
 
 Key design rules:
@@ -45,10 +48,10 @@ Key design rules:
 - **Resumable jobs.** Each stage skips work whose artifact already exists, so retrying a failed job resumes rather than repaying for completed steps. A failed scene image never discards the others.
 - **Continuity only becomes canon on approval.** Each script proposes a bible update; it's applied as a new bible version only when you approve the episode.
 - **Selective memory for long series.** Continuations receive the canonical bible, the last ~10 approved episode summaries, and the latest episode in full. Older parts are represented by the bible's compressed arc summary.
-- **No silent facts.** Every factual claim is classified and assessed. Anything not widely documented is flagged; episodes with open flags can't be approved until you verify, revise or reject them. The reviewer has no web access, and the UI says so.
+- **No unchecked scripts.** Every episode, Part 1 included, is audited for plot holes in a separate checking pass (its own prompt, and optionally its own model), with quoted evidence. Blocking holes can't reach media; the issues, ratings, hook candidates, plot and revision history are on the episode page, and the Story Quality page tracks them over time.
 - **Costs are estimates.** Every paid call records a `CostEntry` using the pricing on the Settings page. Batch budgets are hard stops checked before each paid step.
 
-Scores (concepts and hooks) are AI editorial heuristics, not predictions of audience performance.
+Scores and ratings are AI editorial heuristics, not predictions of audience performance.
 
 ---
 
@@ -164,9 +167,13 @@ pnpm test                               # unit tests (no DB needed)
 
 ```bash
 pnpm prisma dev -d --name iws-test      # note the printed postgres:// URL
-DATABASE_URL=<url> pnpm prisma migrate deploy
+DIRECT_URL=<url> DATABASE_URL=<url> pnpm prisma migrate deploy
 TEST_DATABASE_URL=<url> DATABASE_POOL_MAX=1 pnpm test
 ```
+
+**Story evaluation** (optional, real models, costs money): `pnpm story-eval audit` runs the logic auditor on the fixed benchmark in `tests/story-bench/` (stories with seeded holes plus sound ones) and reports detection and false-positive rates; `pnpm story-eval generate` writes scripts for fixed premises with the full pipeline for side-by-side reading. Results go to `evals/results/`.
+
+**Local prisma commands:** `prisma.config.ts` prefers `DIRECT_URL`, which `.env` points at production. Set `DIRECT_URL` as well as `DATABASE_URL` to the test database when migrating it.
 
 **Browser tests** (Playwright) seed a disposable database and exercise every page, including the approve → bible update → continuation-unlocked flow and the mobile layout:
 
@@ -200,6 +207,7 @@ src/components/                App shell, shared UI, shadcn/ui
 src/lib/
   ai/                          Prompts, strict structured outputs with bounded retries
   pipeline/                    Ideation, writing, illustrations, voiceover, render, versions, context
+  story/                       Script composition: plot checks, audits, revisions, references, quality metrics
   providers/                   OpenAI Images, ElevenLabs
   render/                      Render clients (Vercel Sandbox, local)
   schemas/                     Zod schemas for every AI response and the story bible

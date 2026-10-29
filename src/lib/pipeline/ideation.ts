@@ -24,10 +24,15 @@ import type { PipelineDeps } from "./deps";
 const IDEATION_CHUNK = 10;
 const EVALUATION_CHUNK = 8;
 
-/** Ranks evaluated concepts by weighted total score (ties: curiosity, then hook strength). */
+/** Below this, a concept can't become a coherent episode and ranks after every workable one. */
+export const MIN_FEASIBILITY = 5;
+
+/** Ranks evaluated concepts: workable episodes first, then by weighted total score (ties: curiosity, then hook strength). */
 export function rankConcepts<T extends { total: number; evaluation: ConceptEvaluation }>(items: T[]): T[] {
+  const workable = (x: T) => ((x.evaluation.scores.episodeFeasibility?.score ?? MIN_FEASIBILITY) >= MIN_FEASIBILITY ? 1 : 0);
   return [...items].sort(
     (a, b) =>
+      workable(b) - workable(a) ||
       b.total - a.total ||
       b.evaluation.scores.curiosity.score - a.evaluation.scores.curiosity.score ||
       b.evaluation.scores.hookStrength.score - a.evaluation.scores.hookStrength.score,
@@ -147,6 +152,7 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
           category: e.concept.category || batch.category,
           keywords: e.concept.keywords.map((k) => k.toLowerCase()),
           seriesPotential: e.concept.seriesPotential,
+          storySeed: { archetype: e.concept.archetype, dramaticQuestion: e.concept.dramaticQuestion, beatSketch: e.concept.beatSketch },
           scores: { ...e.evaluation.scores, summary: e.evaluation.summary },
           totalScore: e.total,
           rank: rank + 1,
@@ -167,6 +173,7 @@ export async function runIdeation(input: { batchId: string; jobId: string; deps:
         category: c.category,
         premise: c.premise,
         logline: source?.openingSituation ? `${c.logline} Opening: ${source.openingSituation}` : c.logline,
+        storySeed: c.storySeed ?? undefined,
         keywords: c.keywords,
         styleKey: batch.styleKey,
         voiceId: character?.voiceId ?? batch.voiceId,

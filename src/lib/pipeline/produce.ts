@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { setJobStage } from "@/lib/jobs";
 import type { CostContext } from "@/lib/costs/record";
 import { computeStaleness } from "@/lib/invalidation";
-import { rewriteScene, writeEpisode } from "./writing";
+import { reviseEpisode, rewriteScene, writeEpisode } from "./writing";
+import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
 import { generateSceneImages } from "./illustrations";
 import { generateVoiceover, synchronizeNarration } from "./voiceover";
 import { renderVersion } from "./render";
@@ -11,12 +12,15 @@ import { ensureEditableVersion, refreshStoryStatus } from "./versions";
 import type { PipelineDeps } from "./deps";
 
 export const EpisodeActionSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("produce"), direction: z.string().nullish(), allowContinuityConflicts: z.boolean().default(false) }),
-  z.object({ action: z.literal("regenerate-script"), direction: z.string().nullish(), allowContinuityConflicts: z.boolean().default(false) }),
+  z.object({ action: z.literal("produce"), direction: z.string().nullish() }),
+  z.object({ action: z.literal("regenerate-script"), direction: z.string().nullish() }),
+  /** Fix the issues flagged on the current script with targeted revisions. */
+  z.object({ action: z.literal("revise-script") }),
   z.object({ action: z.literal("rewrite-scene"), sceneNumber: z.number().int(), instruction: z.string().nullish() }),
   z.object({ action: z.literal("regenerate-image"), sceneNumbers: z.array(z.number().int()).min(1) }),
   z.object({ action: z.literal("regenerate-voiceover") }),
-  z.object({ action: z.literal("render") }),
+  /** At the script gate, `acceptOpenNotes` is the producer's explicit override of non-blocking issues. */
+  z.object({ action: z.literal("render"), acceptOpenNotes: z.boolean().optional() }),
 ]);
 
 export const EpisodeJobPayloadSchema = z.object({
@@ -31,13 +35,32 @@ export const EpisodeJobPayloadSchema = z.object({
 
 export type EpisodeJobPayload = z.infer<typeof EpisodeJobPayloadSchema>;
 
-export class ContinuityConflictError extends Error {
-  constructor(public readonly conflicts: string[]) {
-    super(`Material continuity conflicts remain after ${conflicts.length ? "bounded corrections" : "review"}. Production stopped before spending on media. Review the script, edit the story bible, or re-run with "produce anyway".`);
-    this.name = "ContinuityConflictError";
+/** The script gate refused to spend on media for this script. */
+export class ScriptGateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ScriptGateError";
   }
-  toJSON() {
-    return { name: this.name, message: this.message, conflicts: this.conflicts };
+}
+
+/**
+ * The script gate. A blocked script can never be produced; one with open
+ * issues needs the producer's explicit override, which is recorded.
+ */
+async function assertScriptApproved(episodeId: string, acceptOpenNotes: boolean) {
+  const { currentVersion: v } = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: true } });
+  if (!v || !v.qualityStatus || v.qualityStatus === "passed") return;
+  const spec = v.spec as EpisodeSpecRecord;
+  if (v.qualityStatus === "blocked") {
+    throw new ScriptGateError("This script has blocking plot problems. Fix the flagged issues, rewrite the lines, regenerate it, or dismiss an issue you judge to be wrong. Nothing was spent on media.");
+  }
+  if (v.qualityStatus === "needs-attention") {
+    if (spec.quality?.override) return;
+    if (!acceptOpenNotes) throw new ScriptGateError("This script has open issues from the checks. Review them, then approve with the override to make the video anyway.");
+    if (spec.quality) {
+      const open = spec.quality.issues.filter((i) => i.severity !== "minor" && !spec.quality!.dismissed.some((d) => d.issueId === i.id)).length + spec.quality.mustFix.length;
+      await db.episodeVersion.update({ where: { id: v.id }, data: { spec: { ...spec, quality: { ...spec.quality, override: { at: new Date().toISOString(), open } } } } });
+    }
   }
 }
 
@@ -47,6 +70,7 @@ export class ContinuityConflictError extends Error {
  * retries resume instead of restarting, and keeps regeneration minimal.
  */
 async function produceDownstream(episodeId: string, jobId: string, cost: CostContext, deps: PipelineDeps) {
+  await assertScriptApproved(episodeId, false);
   const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId } });
   const versionId = episode.currentVersionId;
   if (!versionId) throw new Error("No script version to produce.");
@@ -111,11 +135,16 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
   const req = payload.request;
   const { jobId } = payload;
 
-  const writeAndCheck = async (reason: string, direction: string | null | undefined, allowConflicts: boolean) => {
-    await setJobStage(jobId, "WRITING_STORY", "Outlining, writing and reviewing the script", 0.05);
-    const result = await writeEpisode({ ...ctx, reason, direction });
-    if (result.materialConflicts.length && !allowConflicts) throw new ContinuityConflictError(result.materialConflicts);
-    return result;
+  const write = async (reason: string, direction?: string | null) => {
+    await setJobStage(jobId, "WRITING_STORY", "Planning, writing and checking the script", 0.02);
+    return writeEpisode({ ...ctx, jobId, reason, direction });
+  };
+  // A changed script only goes on to media when it passed its checks; otherwise it waits at the gate.
+  const continueIfPassed = async (status: string | null) => {
+    if (payload.continueProduction && status === "passed") return produceDownstream(episode.id, jobId, cost, deps);
+    await db.episode.update({ where: { id: episode.id }, data: { status: "SCRIPTED" } });
+    await refreshStoryStatus(episode.storyId);
+    return { scripted: true };
   };
 
   switch (req.action) {
@@ -123,27 +152,36 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
       // Script gate: a new script always stops for review before anything is spent on images,
       // narration or rendering. Approving it ("render") makes the video.
       if (!episode.currentVersionId) {
-        await writeAndCheck("initial", req.direction, req.allowContinuityConflicts);
+        await write("initial", req.direction);
         return { scripted: true };
       }
       return produceDownstream(episode.id, jobId, cost, deps);
     }
     case "regenerate-script": {
-      await writeAndCheck("regenerate-script", req.direction, req.allowContinuityConflicts);
-      return payload.continueProduction ? produceDownstream(episode.id, jobId, cost, deps) : { scripted: true };
+      const result = await write("regenerate-script", req.direction);
+      return continueIfPassed(result.quality.status);
+    }
+    case "revise-script": {
+      await setJobStage(jobId, "WRITING_STORY", "Fixing the flagged issues", 0.02);
+      await reviseEpisode({ ...ctx, jobId });
+      return { scripted: true };
     }
     case "rewrite-scene": {
       await setJobStage(jobId, "WRITING_STORY", `Rewriting scene ${req.sceneNumber}`, 0.1);
-      await rewriteScene({ ...ctx, sceneNumber: req.sceneNumber, instruction: req.instruction });
-      return payload.continueProduction ? produceDownstream(episode.id, jobId, cost, deps) : { scripted: true };
+      const { versionId } = await rewriteScene({ ...ctx, jobId, sceneNumber: req.sceneNumber, instruction: req.instruction });
+      const v = await db.episodeVersion.findUniqueOrThrow({ where: { id: versionId }, select: { qualityStatus: true } });
+      // Scripts written before the checks have no status and keep their old behaviour.
+      return continueIfPassed(v.qualityStatus ?? "passed");
     }
     case "regenerate-image": {
+      await assertScriptApproved(episode.id, false);
       const versionId = await ensureEditableVersion(episode.id, "regenerate-image");
       await setJobStage(jobId, "GENERATING_ILLUSTRATIONS", `Regenerating ${req.sceneNumbers.length} image(s)`, 0.1);
       await generateSceneImages({ versionId, sceneNumbers: req.sceneNumbers, jobId, cost, deps, progress: { from: 0.1, to: 0.75 } });
       return payload.continueProduction ? produceDownstream(episode.id, jobId, cost, deps) : { versionId };
     }
     case "regenerate-voiceover": {
+      await assertScriptApproved(episode.id, false);
       const versionId = await ensureEditableVersion(episode.id, "regenerate-voiceover");
       await setJobStage(jobId, "GENERATING_VOICEOVER", "Recording narration", 0.1);
       await generateVoiceover({ versionId, cost, deps });
@@ -152,6 +190,7 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
       return payload.continueProduction ? produceDownstream(episode.id, jobId, cost, deps) : { versionId };
     }
     case "render": {
+      await assertScriptApproved(episode.id, req.acceptOpenNotes ?? false);
       return produceDownstream(episode.id, jobId, cost, deps);
     }
   }

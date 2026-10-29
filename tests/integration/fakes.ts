@@ -16,22 +16,80 @@ const scores = (n: number) => Object.fromEntries(CRITERIA.map((c) => [c.key, { s
 const SUBJECTS = ["luggage", "water", "elevators", "subway", "mail", "ports", "power", "satellites", "bridges", "sewers", "trains", "hospitals", "shipping", "airports", "tunnels", "dams", "trucks", "ferries", "cables", "grain"];
 
 export type FakeTextOptions = {
-  /** Continuity verdict to return for Part 2+. */
-  continuity?: "consistent" | "material-conflicts";
-  /** Story editor verdict on the first script. */
-  storyReview?: "pass" | "revise";
+  /** Plot logic audit: a blocking hole that a repair fixes, or one that never goes away. */
+  plotAudit?: "pass" | "blocking-once" | "blocking-always";
+  /** Script logic audit: a significant issue fixed by one revision, a blocking one that persists, or a series contradiction. */
+  scriptAudit?: "pass" | "significant-once" | "blocking-always" | "series-conflict";
+  /** Editorial review: a must-fix note on the first read, or on every read. */
+  editorial?: "ready" | "must-fix-once" | "must-fix-always";
 };
 
-const OUTLINE = {
-  logline: "A traveller's shortcut strands them.",
-  trigger: "They skip the queue.",
-  stakes: "Their flight in an hour.",
-  escalations: ["Bag lost", "Phone dies", "Gate moves"],
-  cleverMove: "Tracks the bag by its tag.",
-  funnyMoment: "Argues with a vending machine.",
-  endingTurn: "The bag is on another plane.",
-  beats: ["b1", "b2", "b3", "b4", "b5", "b6"],
+/** A valid five-beat causal plot (setups planted before use, every beat caused). */
+export const FAKE_PLOT = {
+  archetype: "survival",
+  dramaticQuestion: "Will the traveller get the bag back before the flight?",
+  heroGoal: "Get the bag back",
+  openingState: "In the arrivals hall after a ten-hour flight, holding a baggage tag.",
+  worldRules: [{ id: "R1", rule: "Bags with tags can be tracked at the service desk." }],
+  setups: [{ id: "S1", what: "The baggage tag in their pocket", plantedInBeat: 0 }],
+  beats: [
+    { n: 1, link: "start", event: "The carousel stops and the bag never comes.", cause: "Opening.", enabledBy: [], heroWants: "Their bag", heroKnows: "Nothing yet", state: "Arrivals hall", changes: "The bag is missing" },
+    { n: 2, link: "but", event: "The service desk queue is an hour long.", cause: "A full flight landed.", enabledBy: ["B1"], heroWants: "Help", heroKnows: "The bag is missing", state: "In the queue", changes: "Time is running out" },
+    { n: 3, link: "therefore", event: "They read the tag number to a gate agent instead.", cause: "They have the tag.", enabledBy: ["B2", "S1", "R1"], heroWants: "To track it", heroKnows: "The tag can be tracked", state: "At a gate", changes: "The bag is located" },
+    { n: 4, link: "but", event: "The bag is on another plane.", cause: "Mis-sorted.", enabledBy: ["B3"], heroWants: "The bag", heroKnows: "Where it is", state: "At the gate", changes: "A new problem" },
+    { n: 5, link: "therefore", event: "They rebook onto that plane.", cause: "It goes home too.", enabledBy: ["B4"], heroWants: "To go home with it", heroKnows: "Its flight", state: "Boarding", changes: "They follow the bag" },
+  ],
+  resolution: { what: "They board the plane their bag is on.", enabledBy: ["B5", "S1"], endingType: "irony" },
+  deliberateMysteries: [],
 };
+
+const AUDIT_ISSUE = (severity: string, evidence: string, category = "causal-gap") => ({
+  category,
+  severity,
+  kind: "contradiction",
+  location: "Beat 3",
+  evidence,
+  problem: "It isn't clear why this happens.",
+  repair: "Show the cause earlier.",
+});
+
+const EDITORIAL = (mustFix: boolean, narration: string) => {
+  const quote = narration.split(" ").slice(0, 5).join(" ");
+  const rate = (criterion: string) => ({ criterion, rating: "strong", evidence: quote, note: "n" });
+  return {
+    narrative: ["premise", "dramatic-question", "every-beat-matters", "earned-escalation", "believable-reactions", "economy", "freshness", "ending", "worth-the-time"].map(rate),
+    retention: ["first-line", "instant-clarity", "curiosity-gap", "starts-late", "hook-delivered", "steady-change", "payoff"].map(rate),
+    mustFix: mustFix ? [{ area: "narrative", evidence: quote, problem: "The opening drags.", fix: "Cut to the moment the bag is missing." }] : [],
+    suggestions: [],
+  };
+};
+
+const between = (text: string, start: string, end?: string) => {
+  const a = text.indexOf(start);
+  if (a < 0) return "";
+  const from = a + start.length;
+  const b = end ? text.indexOf(end, from) : -1;
+  return text.slice(from, b < 0 ? undefined : b).trim();
+};
+
+/** Issue ids listed in a revision or repair prompt ("- S1.1: ..."). */
+const issueIds = (user: string) => [...user.matchAll(/^- ([A-Z]\d+\.\d+|E\d+): /gm)].map((m) => m[1]);
+
+/** Cuts narration into shots the way makeDraft does: the hook travels with its first sentence. */
+function cutScenes(narration: string, hero: string) {
+  const sentences = narration.split(/(?<=\.)\s+/);
+  const shots = sentences.length > 12 ? [`${sentences[0]} ${sentences[1]}`, ...sentences.slice(2)] : sentences;
+  return shots.map((n, i) => ({
+    sceneNumber: i + 1,
+    narration: n,
+    imagePrompt: `A stick figure in scene ${i + 1}`,
+    composition: "wide shot",
+    continuity: `Still in the terminal, scene ${i + 1}`,
+    characters: i === 4 ? [] : [hero],
+    objects: ["suitcase"],
+    motionPreset: "slow-zoom-in",
+  }));
+}
 
 function emptyUpdate(part: number) {
   return {
@@ -75,15 +133,18 @@ export function makeDraft(hook: string, part: number, sceneCount = 12, hero = "Y
   };
 }
 
-export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { calls: Record<string, number>; prompts: Record<string, string[]> } {
+export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { calls: Record<string, number>; prompts: Record<string, string[]>; models: Record<string, string> } {
   const calls: Record<string, number> = {};
   const prompts: Record<string, string[]> = {};
+  const models: Record<string, string> = {};
   let conceptCounter = 0;
   return {
     calls,
     prompts,
-    async generate({ schemaName, user }) {
+    models,
+    async generate({ schemaName, user, model }) {
       calls[schemaName] = (calls[schemaName] ?? 0) + 1;
+      models[schemaName] = model;
       (prompts[schemaName] ??= []).push(user);
       const usage = { inputTokens: 1000, cachedInputTokens: 0, outputTokens: 500 };
       const out = (parsed: unknown) => ({ parsed, usage, model: "fake-model" });
@@ -113,9 +174,11 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
                 logline: `Logline ${i}`,
                 category: "hidden-infrastructure",
                 keywords: [subject, `k${i}`],
-                factMode: "MIXED",
                 openingSituation: `You notice ${subject}`,
                 seriesPotential: "Many parts",
+                archetype: "mystery",
+                dramaticQuestion: `What is behind the ${subject}?`,
+                beatSketch: "It starts. It turns. It pays off.",
               };
             }),
           });
@@ -124,38 +187,101 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
           const n = (user.match(/^\[\d+\]/gm) ?? []).length;
           return out({ evaluations: Array.from({ length: n }, (_, i) => ({ conceptIndex: i, scores: scores(4 + ((i * 3) % 6)), summary: "ok" })) });
         }
-        case "episode_draft": {
-          if (user.includes("Current draft (JSON):")) {
-            const json = user.slice(user.indexOf("Current draft (JSON):") + "Current draft (JSON):".length).trim();
-            const draft = JSON.parse(json) as EpisodeDraft;
-            draft.scenes[1].narration = draft.scenes[1].narration.replace(/\.$/, " revised.");
-            draft.storyNarration = draft.scenes.map((s) => s.narration).join(" ");
-            return out(draft);
-          }
-          const hook = "You land after ten hours.";
+        case "plot_candidates":
+          return out({ plots: [FAKE_PLOT, { ...FAKE_PLOT, dramaticQuestion: "Second plot" }] });
+        case "plot_pick":
+          return out({ reviews: [0, 1].map((index) => ({ index, strengths: "s", weaknesses: "w" })), chosenIndex: 1, reason: "Clearer cause and effect." });
+        case "plot_audit": {
+          const n = calls.plot_audit;
+          const fail = opts.plotAudit === "blocking-always" || (opts.plotAudit === "blocking-once" && n === 1);
+          return out({
+            intendedUnknowns: [],
+            issues: fail ? [AUDIT_ISSUE("blocking", "They read the tag number to a gate agent instead", "knowledge")] : [],
+            previousIssues: user.includes("EARLIER ISSUES") ? issueIds(user).map((id) => ({ id, resolved: !fail, note: "" })) : [],
+          });
+        }
+        case "plot_repair": {
+          const plot = JSON.parse(between(user, "CURRENT PLOT", "Return a diagnosis"));
+          const ids = issueIds(user);
+          return out({ diagnosis: ids.map((issueId) => ({ issueId, rootBeat: 2, rootCause: "c" })), plot, changeLog: ids.map((issueId) => ({ issueId, change: "Planted the cause in beat 2." })) });
+        }
+        case "hook_candidates":
+          return out({
+            dramaticQuestion: "Will they get the bag?",
+            strongestMoment: "The carousel stops",
+            candidates: [
+              { style: "relatable-problem", text: "You land after ten hours.", promise: "A travel problem", paidOffIn: "B1" },
+              { style: "specific-mystery", text: "Your bag is on a plane you are not.", promise: "Where the bag went", paidOffIn: "B4" },
+              { style: "immediate-danger", text: "The carousel stops.", promise: "Trouble", paidOffIn: "B1" },
+              { style: "contradiction", text: "The tag says Lisbon.", promise: "A mix-up", paidOffIn: "B3" },
+            ],
+          });
+        case "hook_pick":
+          return out({
+            reviews: [0, 1, 2, 3].map((index) => ({ index, clarity: "strong", curiosity: "strong", specificity: "strong", deliveredByPlot: true, note: "n" })),
+            chosenIndex: 0,
+            hook: "You land after ten hours.",
+            promise: "A travel problem you'll solve",
+          });
+        case "story_narration": {
+          const hook = /CHOSEN HOOK \(open with exactly this\): (.+)/.exec(user)?.[1] ?? "You land after ten hours.";
           const part = Number(/^Part: (\d+)/m.exec(user)?.[1] ?? 1);
           const hero = /NARRATOR AND HERO: (.+?) —/.exec(user)?.[1];
-          return out(makeDraft(hook, part, 12, hero));
-        }
-        case "story_outlines":
-          return out({ outlines: [OUTLINE, { ...OUTLINE, logline: "Second outline" }, { ...OUTLINE, logline: "Third outline" }] });
-        case "outline_pick":
+          const d = makeDraft(hook, part, 12, hero);
           return out({
-            reviews: [0, 1, 2].map((index) => ({ index, stakes: 7, escalation: 7, character: 7, ending: 7, note: "n" })),
-            chosenIndex: 1,
-            improvements: ["Make the ending sharper"],
+            title: d.title,
+            storyNarration: d.storyNarration,
+            summary: d.summary,
+            keyReveals: d.keyReveals,
+            unresolvedQuestions: d.unresolvedQuestions,
+            beatCoverage: FAKE_PLOT.beats.map((b) => ({ beat: b.n, opensWith: "x" })),
+            planChanges: [],
           });
-        case "story_review": {
-          const revise = opts.storyReview === "revise" && (calls.story_review ?? 0) === 1;
-          const n = revise ? 5 : 8;
-          return out({ scores: { hook: n, stakes: n, escalation: n, character: n, ending: n, flow: n }, notes: revise ? ['The ending "x" is a status report; end on a turn.'] : [] });
         }
-        case "continuity_review":
-          return out(
-            opts.continuity === "material-conflicts"
-              ? { issues: [{ type: "character-contradiction", severity: "material", description: "Maya changed jobs", sceneNumber: 3, suggestedFix: "Keep her job" }], verdict: "material-conflicts" }
-              : { issues: [], verdict: "consistent" },
-          );
+        case "script_audit": {
+          const narration = between(user, "NARRATION\n");
+          const quote = narration.split(" ").slice(6, 12).join(" ");
+          const n = calls.script_audit;
+          const issues =
+            opts.scriptAudit === "blocking-always"
+              ? [AUDIT_ISSUE("blocking", quote)]
+              : opts.scriptAudit === "series-conflict" && user.includes("SERIES SO FAR")
+                ? [AUDIT_ISSUE("blocking", quote, "series-continuity")]
+                : opts.scriptAudit === "significant-once" && n === 1
+                  ? [AUDIT_ISSUE("significant", quote)]
+                  : [];
+          return out({ intendedUnknowns: [], issues, previousIssues: user.includes("EARLIER ISSUES") ? issueIds(user).map((id) => ({ id, resolved: issues.length === 0, note: "" })) : [] });
+        }
+        case "editorial_review": {
+          const narration = between(user, "SCRIPT\n");
+          const mustFix = opts.editorial === "must-fix-always" || (opts.editorial === "must-fix-once" && calls.editorial_review === 1);
+          return out(EDITORIAL(mustFix, narration));
+        }
+        case "script_revision": {
+          const plot = JSON.parse(between(user, "CURRENT PLOT", "CURRENT NARRATION"));
+          const narration = between(user, "CURRENT NARRATION");
+          const sentences = narration.split(/(?<=\.)\s+/);
+          sentences[2] = sentences[2].replace(/\.$/, " revised.");
+          const ids = issueIds(user);
+          return out({
+            diagnosis: ids.map((issueId) => ({ issueId, rootBeat: 2, rootCause: "c" })),
+            plot,
+            title: "Revised episode",
+            storyNarration: sentences.join(" "),
+            summary: "Revised summary.",
+            keyReveals: ["Reveal"],
+            unresolvedQuestions: ["Question"],
+            beatCoverage: plot.beats.map((b: { n: number }) => ({ beat: b.n, opensWith: "x" })),
+            changeLog: ids.map((issueId) => ({ issueId, change: "Fixed at the root." })),
+          });
+        }
+        case "scene_breakdown": {
+          const narration = between(user, "FINAL NARRATION", "\u0000").replace(/^— ".*"\n/, "");
+          const part = Number(/^Part: (\d+)/m.exec(user)?.[1] ?? 1);
+          const hero = /NARRATOR AND HERO: (.+?) —/.exec(user)?.[1] ?? "You";
+          const d = makeDraft("x", part, 12, hero);
+          return out({ visualState: d.visualState, scenes: cutScenes(narration, hero), bibleUpdate: d.bibleUpdate });
+        }
         case "scene_rewrite": {
           const current = /CURRENT scene \d+ narration: (.*)/.exec(user)?.[1] ?? "x";
           return out({ narration: current.replace(/\.$/, " rewritten."), imagePrompt: "A different stick figure scene", composition: "close-up", rationale: "r" });

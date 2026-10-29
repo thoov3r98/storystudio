@@ -18,6 +18,16 @@ test.describe("studio pages", () => {
     await expect(page).toHaveURL(new RegExp(`/episodes/${scriptedEpisodeId}`));
     await expect(page.getByText("Script ready for your review")).toBeVisible();
     await expect(page.getByText("Script to review")).toBeVisible();
+    // The checks left one issue open: approving would be an explicit override.
+    await expect(page.getByText("Needs your attention")).toBeVisible();
+    await expect(page.getByText("Ridge waves the patrol away for no clear reason.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve anyway & make video" }).first()).toBeVisible();
+    // The producer judges the issue wrong and dismisses it; the script passes.
+    await page.getByRole("button", { name: "Not a problem" }).click();
+    await page.getByLabel("Why it's fine (optional)").fill("He thinks they are leaving; it's in scene 1.");
+    await page.getByRole("button", { name: "Dismiss issue" }).click();
+    await expect(page.getByText("dismissed by you")).toBeVisible();
+    await expect(page.getByText("Passed", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Approve script & make video" }).first().click();
     await expect(page.getByRole("alertdialog")).toContainText(/illustrations, narration, captions and edit.*Estimated \$/);
     await page.getByRole("button", { name: "Cancel" }).click();
@@ -94,6 +104,20 @@ test.describe("studio pages", () => {
     await expect(page.getByRole("button", { name: "Generate Next Episode" })).toBeEnabled();
     await expect(page.getByText("Open question from part 1")).toBeVisible();
     await expect(page.getByText(/Canonical v2/)).toBeVisible();
+  });
+
+  test("story quality page summarises checked scripts and manages reference stories", async ({ page }) => {
+    await page.goto("/quality");
+    await expect(page.getByRole("heading", { name: "Story Quality" })).toBeVisible();
+    await expect(page.getByText("Scripts checked")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Stuck on the Last Chairlift" })).toBeVisible();
+    await page.getByRole("link", { name: "Reference stories" }).click();
+    await expect(page.getByText("The Last Bus (original example)")).toBeVisible();
+    await page.getByLabel("Title").fill("My own survival script");
+    await page.getByLabel("Script or transcript").fill("A climber's rope snags on a ledge as the light goes, and she remembers the knot her father taught her on the first page of this story.");
+    await page.getByRole("button", { name: "Add reference" }).click();
+    await expect(page.getByText("Reference added")).toBeVisible();
+    await expect(page.getByText("Your references (1)")).toBeVisible();
   });
 
   test("episode details shows script and scenes, with no hooks panel or fact review", async ({ page }) => {

@@ -1,0 +1,458 @@
+{
+  "model": "gpt-5.5",
+  "summary": {
+    "detectionPct": 90.9090909090909,
+    "falseBlockPct": 14.285714285714286,
+    "falseSignificantPct": 42.857142857142854,
+    "unverifiedIssues": 0,
+    "costUsd": 0.448
+  },
+  "results": [
+    {
+      "id": "unexplained-knowledge",
+      "kind": "flawed",
+      "caught": true,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 18810,
+      "issues": [
+        {
+          "category": "knowledge",
+          "severity": "significant",
+          "kind": "contradiction",
+          "location": "At the hatch",
+          "evidence": "“Kenny typed in 7-4-1-9 without thinking, and the hatch hissed open.”",
+          "problem": "Kenny successfully enters the exact keypad code for a hidden bunker, but the narration gives no prior reason he would know it. “Without thinking” signals something strange, but because the code immediately solves the locked-hatch problem, it reads as an unexplained piece of necessary knowledge rather than a supported action.",
+          "repair": "Before he reaches the hatch, add the smallest cause for the code being in his head: for example, he recognizes the water plant from a childhood memory, remembers seeing the number somewhere, or the number has been repeating since he woke up.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        },
+        {
+          "category": "series-continuity",
+          "severity": "significant",
+          "kind": "contradiction",
+          "location": "Final line",
+          "evidence": "“Kenny woke up and there was nobody left in the world.” / “Somebody was already talking.”",
+          "problem": "The opening states as fact that nobody is left in the world, but the ending says somebody is talking on the radio. If the speaker is alive, that contradicts the premise; if it is a recording or transmission from somewhere else, the narration does not clarify enough to avoid the apparent contradiction.",
+          "repair": "Soften the opening into Kenny’s perception — “it seemed there was nobody left” — or make the radio line explicitly ambiguous, such as “a voice was already playing.”",
+          "verified": true,
+          "stage": "script",
+          "id": "B2"
+        }
+      ],
+      "intendedUnknowns": [
+        "Why everyone in the world has vanished is the premise and allowed by design.",
+        "Who is speaking on the radio, and whether it is live, recorded, or from somewhere unusual, is presented as a closing mystery."
+      ]
+    },
+    {
+      "id": "convenient-rescue-object",
+      "kind": "flawed",
+      "caught": true,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 15986,
+      "issues": [
+        {
+          "category": "convenient-resolution",
+          "severity": "significant",
+          "kind": "creative-concern",
+          "location": "Resolution",
+          "evidence": "Then she remembered the screwdriver in her apron pocket, took the door's inside panel off in under a minute, and pulled the latch free.",
+          "problem": "The tool that solves the whole crisis is introduced only at the moment Marta needs it. Because the narration never established she had a screwdriver or a reason to be carrying one while counting stock, the escape can feel too convenient rather than earned.",
+          "repair": "Seed the screwdriver at the start, e.g. mention she stayed late to count stock and tighten a loose shelf/repair a label holder, slipping the screwdriver into her apron before entering the freezer.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        }
+      ],
+      "intendedUnknowns": [
+        "The premise that Marta is trapped in the walk-in freezer after closing is accepted by design."
+      ]
+    },
+    {
+      "id": "time-contradiction",
+      "kind": "flawed",
+      "caught": true,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 15044,
+      "issues": [
+        {
+          "category": "temporal",
+          "severity": "blocking",
+          "kind": "contradiction",
+          "location": "Final sentence",
+          "evidence": "“It was a quarter past six when he reached the car, exactly when he'd planned.”",
+          "problem": "At the start, Jonah planned to be back “by six,” meaning 6:00 that evening. The ending is “just after sunrise” and “a quarter past six,” which is both the next morning and fifteen minutes later than planned, so it cannot be “exactly when he'd planned.”",
+          "repair": "Change the ending to acknowledge the delay, e.g. “It was a quarter past six when he reached the car, twelve hours and fifteen minutes late.”",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        },
+        {
+          "category": "dropped-stakes",
+          "severity": "significant",
+          "kind": "contradiction",
+          "location": "Middle to ending",
+          "evidence": "“He walked another two hours by the light of his phone until the battery died. Then, just after sunrise, he heard a road.”",
+          "problem": "The narration establishes Jonah stranded in darkness with a dead phone, then jumps to sunrise without saying whether he stopped, sheltered, kept moving, or how he got through the night. The immediate danger of being lost after dark quietly disappears.",
+          "repair": "Add a brief bridge before sunrise, e.g. “With no light left, he huddled under a spruce until dawn.”",
+          "verified": true,
+          "stage": "script",
+          "id": "B2"
+        }
+      ],
+      "intendedUnknowns": [
+        "How Jonah became disoriented on a short trail is part of the lost-hiker premise."
+      ]
+    },
+    {
+      "id": "spatial-contradiction",
+      "kind": "flawed",
+      "caught": true,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 6752,
+      "issues": [
+        {
+          "category": "spatial",
+          "severity": "blocking",
+          "kind": "contradiction",
+          "location": "Resolution",
+          "evidence": "\"her phone was on the kitchen counter\" / \"So she grabbed her phone off the counter, called her brother\"",
+          "problem": "The narration establishes Priya is stuck on the roof with her phone inside on the kitchen counter, but then says she grabs it from the counter without explaining how she got inside or reached it. This breaks the rescue logic.",
+          "repair": "Before the call, add the missing means of access: for example, establish an open skylight/window within reach, or change the setup so the phone is already in her pocket/on the roof.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        }
+      ],
+      "intendedUnknowns": [
+        "Priya being trapped on her roof after the ladder falls is the allowed premise."
+      ]
+    },
+    {
+      "id": "inconsistent-rule",
+      "kind": "flawed",
+      "caught": true,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 8270,
+      "issues": [
+        {
+          "category": "rule-violation",
+          "severity": "blocking",
+          "kind": "contradiction",
+          "location": "Final sentence",
+          "evidence": "\"Even battery torches stayed dark, as if electricity itself had stopped.\" / \"That night Ben plugged his phone into her wall socket, called his sister, and told her they were safe.\"",
+          "problem": "The narration establishes that all electrical devices are dead, including batteries, and gives no moment where electricity or phones start working again. Ben using a wall socket and phone that same night breaks the central rule the viewer has just been given.",
+          "repair": "Before the call, establish that electricity briefly returned or that this particular communication method works for a specific reason. Otherwise, change the final action to a non-electrical one, such as Ben writing a note or walking to his sister.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        }
+      ],
+      "intendedUnknowns": [
+        "Why every electrical device in the world stops working overnight is the premise and can remain unexplained."
+      ]
+    },
+    {
+      "id": "missing-motivation",
+      "kind": "flawed",
+      "caught": true,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 15416,
+      "issues": [
+        {
+          "category": "motivation",
+          "severity": "blocking",
+          "kind": "contradiction",
+          "location": "Final sentence",
+          "evidence": "\"Then, for no reason he could explain, he stripped to his shorts and swam across the freezing lake in the dark, climbed out on the far side, and knocked on the door.\"",
+          "problem": "Luis makes an extreme, dangerous choice immediately after the police say they will come in the morning, but the narration gives him no sufficient reason to risk swimming across a freezing lake at night. Because this action drives the scene, the lack of motivation feels like the plot forcing him to the house rather than a believable decision.",
+          "repair": "Before he swims, add a clear trigger that makes waiting impossible: for example, he sees someone trapped in the window, hears a scream across the lake, sees the light flash SOS, or establishes a supernatural compulsion as part of the mystery.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        }
+      ],
+      "intendedUnknowns": [
+        "Why there is a light on in the abandoned house across the lake, and who or what is inside, is the central mystery of the premise."
+      ]
+    },
+    {
+      "id": "unpaid-setup",
+      "kind": "flawed",
+      "caught": true,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 15421,
+      "issues": [
+        {
+          "category": "unpaid-setup",
+          "severity": "significant",
+          "kind": "contradiction",
+          "location": "Opening / ending",
+          "evidence": "\"Ada's grandmother pressed a sealed envelope into her hand and said, very seriously, do not open this until midnight, whatever happens.\" / \"Ada walked home happy and went to bed early.\"",
+          "problem": "The narration strongly establishes the envelope and the midnight rule as the central setup, but the story ends before midnight with no return to the envelope. A viewer would expect either Ada to open it, resist opening it, forget it for a reason, or learn why it mattered.",
+          "repair": "Add a final beat at or after midnight that pays off the envelope, or, if the friendship conflict is the whole story, remove or greatly downplay the envelope setup.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        }
+      ],
+      "intendedUnknowns": [
+        "The reason the envelope must wait until midnight and what is inside it are initially withheld as the story’s mystery."
+      ]
+    },
+    {
+      "id": "unjustified-ending",
+      "kind": "flawed",
+      "caught": true,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 8632,
+      "issues": [
+        {
+          "category": "convenient-resolution",
+          "severity": "blocking",
+          "kind": "contradiction",
+          "location": "Resolution",
+          "evidence": "“Then a coastguard helicopter appeared out of the cloud, though nobody knew he was out there, and lowered a man on a line.”",
+          "problem": "The rescue resolves the central danger, but the narration explicitly says nobody knew Rory was out there. With the radio gone and no other distress signal or search trigger established, the helicopter’s arrival has no causal basis, so the climax feels like it happens only because the story needs it to.",
+          "repair": "Establish earlier that someone expected him back, saw the storm, tracked his route, or that he had an EPIRB/flare/automatic distress beacon before the helicopter appears.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        }
+      ],
+      "intendedUnknowns": [
+        "Rory's engine dying in a storm far from shore is the allowed premise."
+      ]
+    },
+    {
+      "id": "unsupported-hook",
+      "kind": "flawed",
+      "caught": false,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 8176,
+      "issues": [],
+      "intendedUnknowns": [
+        "Why Kenny has forty-seven missed calls is not explained; this is the premise/mystery.",
+        "Why the calls appear to come from his own phone number is unexplained, but the narration presents it as the central uncanny detail rather than something the sequence needs to solve."
+      ]
+    },
+    {
+      "id": "dropped-stakes",
+      "kind": "flawed",
+      "caught": true,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 16002,
+      "issues": [
+        {
+          "category": "dropped-stakes",
+          "severity": "significant",
+          "kind": "contradiction",
+          "location": "Ending",
+          "evidence": "“the radio said the pass would be closed for two days and temperatures would fall to minus twenty. She had a quarter tank of fuel and no blanket. She ran the engine for heat in short bursts, watching the gauge. Then she found a box…”",
+          "problem": "The narration establishes an immediate survival problem—two days stranded in extreme cold with limited fuel and no blanket—but then shifts to the cake and ends without any survival plan, rescue prospect, or indication that the danger remains the focus. A viewer may feel the central threat has been quietly dropped.",
+          "repair": "Add one early clarifying line after the radio/fuel setup, such as that she has called for help and must last until morning, or that no call can get out and the cake is her only food while she tries to conserve heat.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        }
+      ],
+      "intendedUnknowns": [
+        "Whether Tasha ultimately survives the blizzard is not explained in the narration; if this is meant as an unresolved vignette, that may be deliberate.",
+        "Who the wedding cake was for is treated as unknown to Tasha: “wondering who was getting married.”"
+      ]
+    },
+    {
+      "id": "time-loop-coherent",
+      "kind": "sound",
+      "caught": null,
+      "falseBlock": true,
+      "falseSignificant": true,
+      "ms": 14116,
+      "issues": [
+        {
+          "category": "rule-violation",
+          "severity": "blocking",
+          "kind": "contradiction",
+          "location": "Ending",
+          "evidence": "“Whatever she did, she woke at seven in her own bed and it was Tuesday again, and nobody else remembered a thing.” / “he looked at her and said, ten. You're quicker than the last one.”",
+          "problem": "The narration establishes that nobody except Nell remembers the repeated Tuesdays, but the old man appears to know both that this is her tenth Tuesday and that there was a previous person in her situation. Without establishing him as an exception, this breaks the core rule given to the viewer.",
+          "repair": "At the earliest setup, soften the rule or establish an exception: for example, change “nobody else remembered a thing” to “nobody else seemed to remember a thing,” or add a hint that someone at that stop is outside the loop.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        }
+      ],
+      "intendedUnknowns": [
+        "Why Nell is reliving Tuesday is unexplained by design.",
+        "Who the old man is and what he means by “the last one” can function as a mystery, as long as it does not violate the stated rule that only Nell remembers."
+      ]
+    },
+    {
+      "id": "continuation-consistent",
+      "kind": "sound",
+      "caught": null,
+      "falseBlock": false,
+      "falseSignificant": false,
+      "ms": 12170,
+      "issues": [],
+      "intendedUnknowns": [
+        "Who wrote the notes and how they can access Kenny’s flat/radio station.",
+        "Who or what “they” are in “They can hear it too” / “Now they know where you live.”",
+        "Why the note-writer wants the broadcast turned off."
+      ]
+    },
+    {
+      "id": "continuation-contradiction",
+      "kind": "flawed",
+      "caught": true,
+      "falseBlock": null,
+      "falseSignificant": null,
+      "ms": 19258,
+      "issues": [
+        {
+          "category": "series-continuity",
+          "severity": "blocking",
+          "kind": "contradiction",
+          "location": "NARRATION",
+          "evidence": "\"He'd never been inside the radio station, he realised, never even noticed it was there.\"",
+          "problem": "This contradicts Part 1 and the story bible: Kenny already broadcast from the radio station above the bakery. If he used that station, he cannot now realize he has never been inside it or never noticed it existed.",
+          "repair": "Change this to preserve prior continuity: he knows the radio station because he used it, but perhaps notices something new about it, such as a locked back room, a second antenna, or a door he had missed.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        },
+        {
+          "category": "series-continuity",
+          "severity": "blocking",
+          "kind": "contradiction",
+          "location": "NARRATION",
+          "evidence": "\"His dog Biscuit trotted beside him, nose down, the only other living thing he'd seen all week.\"",
+          "problem": "The series constraint says Kenny lives alone and has seen no living creature since everyone vanished. Introducing Biscuit as present all week directly contradicts that established isolation.",
+          "repair": "Remove Biscuit, or if an animal is important, introduce it as the first living creature Kenny has seen since the vanishings and adjust the line so it does not imply it has been with him all week.",
+          "verified": true,
+          "stage": "script",
+          "id": "B2"
+        },
+        {
+          "category": "series-continuity",
+          "severity": "significant",
+          "kind": "contradiction",
+          "location": "NARRATION",
+          "evidence": "\"Somebody had baked it that morning.\"",
+          "problem": "The premise is that Kenny is alone in an empty world, and the bible says no other characters are established yet. The narration states as fact that somebody baked bread that morning, which implies another person is present and active. That is not framed as Kenny’s suspicion or a mystery; it contradicts the current premise.",
+          "repair": "Frame it as Kenny’s unsettled inference instead of fact, or give a non-human/automatic explanation: for example, the ovens were on timers, or Kenny wonders whether somebody baked it rather than the narration confirming it.",
+          "verified": true,
+          "stage": "script",
+          "id": "B3"
+        }
+      ],
+      "intendedUnknowns": [
+        "How everyone vanished is part of the premise and not an issue.",
+        "Who wrote the note and what “They can hear it too” means is withheld by the premise, not an issue in itself."
+      ]
+    },
+    {
+      "id": "reference-builtin-last-bus",
+      "kind": "sound",
+      "caught": null,
+      "falseBlock": false,
+      "falseSignificant": true,
+      "ms": 15566,
+      "issues": [
+        {
+          "category": "causal-gap",
+          "severity": "significant",
+          "kind": "contradiction",
+          "location": "Final reveal",
+          "evidence": "“Then he said the police had been on the phone all night… they'd been searching every stop on the route. Every stop except the depot.”",
+          "problem": "If the police were already calling about a missing woman on the last bus, and the bus had ended up locked in the depot, the depot is the most obvious place to check. The narration gives no reason why the police, the bus company, the driver, or the man in the depot office never inspected the parked buses, even though the issue was known ‘all night.’",
+          "repair": "Add one early or reveal-line detail explaining why the depot was excluded, e.g. the driver had radioed that the bus was empty, the depot was an overflow lot no one expected that bus to use, or the office man had only just heard the message.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        }
+      ],
+      "intendedUnknowns": [
+        "The premise situation is accepted: Dana sleeps through the end of the route and wakes locked inside the bus at the depot.",
+        "The reveal that the search focused on the route stops rather than the depot is treated as the story’s ironic twist."
+      ]
+    },
+    {
+      "id": "reference-builtin-car-moved",
+      "kind": "sound",
+      "caught": null,
+      "falseBlock": false,
+      "falseSignificant": true,
+      "ms": 24166,
+      "issues": [
+        {
+          "category": "rule-violation",
+          "severity": "significant",
+          "kind": "creative-concern",
+          "location": "Final line",
+          "evidence": "Her fifteen-year-old son slid in behind the wheel, pushed the seat back, and turned up the country music. She followed them to the empty school car park and watched him practise parking, badly, for an hour. His driving test was booked for her birthday.",
+          "problem": "A viewer may question how a fifteen-year-old has a driving test booked, especially with the narration using 'car park,' which may suggest a setting where practical driving tests are not available at fifteen. The secret practice itself can be illegal, but the booked test makes the age feel potentially inconsistent rather than merely rebellious.",
+          "repair": "Clarify the licensing context at the same moment: make him old enough for the test, change it to a learner's permit test, or add that her birthday falls after he becomes eligible.",
+          "verified": true,
+          "stage": "script",
+          "id": "B1"
+        }
+      ],
+      "intendedUnknowns": [
+        "Why Mara's car has been moving at night is deliberately treated as a mystery until the reveal that her father and son are using it for secret practice."
+      ]
+    },
+    {
+      "id": "reference-builtin-empty-world",
+      "kind": "sound",
+      "caught": null,
+      "falseBlock": false,
+      "falseSignificant": false,
+      "ms": 8337,
+      "issues": [],
+      "intendedUnknowns": [
+        "Why everyone vanished is the central impossible premise and is not explained here by design.",
+        "Whether Kenny is truly the only person left, and how that squares with the note, is being treated as a mystery/reveal hook.",
+        "Who wrote the note under Kenny's door is deliberately withheld.",
+        "Who or what “They” are in “They can hear it too” is deliberately withheld."
+      ]
+    },
+    {
+      "id": "reference-builtin-act-normal",
+      "kind": "sound",
+      "caught": null,
+      "falseBlock": false,
+      "falseSignificant": false,
+      "ms": 9483,
+      "issues": [],
+      "intendedUnknowns": [
+        "The exact context of Marcus’s brother’s text — “She’s going to be weird about it. Just act normal.” — is left as the comic twist and does not need full explanation in this narration."
+      ]
+    },
+    {
+      "id": "reference-builtin-monitor",
+      "kind": "sound",
+      "caught": null,
+      "falseBlock": false,
+      "falseSignificant": false,
+      "ms": 9711,
+      "issues": [],
+      "intendedUnknowns": [
+        "How the woman on the monitor knows Jess's name: \"I know you can hear me, Jess.\"",
+        "Why the woman tells Jess to close her daughter's window, and whether the danger is human, supernatural, or technological: \"Close her window.\"",
+        "Whether the signal is truly from the couple next door or from something else; Jess's explanation is presented as temporary reassurance before the final turn."
+      ]
+    }
+  ]
+}

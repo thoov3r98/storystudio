@@ -27,6 +27,9 @@ import { normalizeTitle } from "@/lib/text";
 import { CharacterEditSchema } from "@/lib/schemas/character";
 import { createCharacterFromBrief, drawCharacterSheet } from "@/lib/pipeline/characters";
 import { productionDeps } from "@/lib/pipeline/deps";
+import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
+import { ARCHETYPES, ENDING_TYPES, HOOK_STYLES } from "@/lib/schemas/story-plan";
+import { withDismissal } from "@/lib/story/review";
 
 export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -145,7 +148,7 @@ export async function produceEpisodes(episodeIds: string[], batchId?: string | n
           batchId: batch?.id ?? null,
           budgetUsd: batch ? Number(batch.maxBudgetUsd) : null,
           continueProduction: true,
-          request: { action: "produce", allowContinuityConflicts: false },
+          request: { action: "produce" },
         });
         queued.push(episodeId);
       } catch (err) {
@@ -168,6 +171,7 @@ export async function promoteConcept(conceptId: string) {
         category: concept.category,
         premise: concept.premise,
         logline: concept.logline,
+        storySeed: concept.storySeed ?? undefined,
         keywords: concept.keywords,
         factMode: concept.factMode,
         styleKey: concept.batch.styleKey,
@@ -198,7 +202,7 @@ export async function generateNextEpisode(storyId: string, direction?: string) {
         episodeId: episode.id,
         type: "CONTINUATION",
         continueProduction: true,
-        request: { action: "produce", direction: direction?.trim() || null, allowContinuityConflicts: false },
+        request: { action: "produce", direction: direction?.trim() || null },
       });
     } catch (err) {
       await db.episode.delete({ where: { id: episode.id } });
@@ -292,7 +296,9 @@ const MetricsSchema = z.object({
   saves: z.coerce.number().int().nonnegative().optional(),
   followersGained: z.coerce.number().int().optional(),
   avgWatchTimeSec: z.coerce.number().nonnegative().optional(),
+  earlyRetention: z.coerce.number().min(0).max(100).optional(),
   completionRate: z.coerce.number().min(0).max(100).optional(),
+  rewatchRate: z.coerce.number().min(0).optional(),
   notes: z.string().max(2000).optional(),
 });
 
@@ -312,6 +318,62 @@ export async function runEpisodeAction(episodeId: string, request: EpisodeReques
     if (episode.story.status === "ARCHIVED") throw new Error("Unarchive the story first.");
     const jobId = await enqueueEpisodeJob({ episodeId, request, continueProduction });
     return { jobId };
+  });
+}
+
+// ───────────────────────────── Script checks ───────────────────────────
+
+/** The producer judges a flagged issue to be wrong. Recorded (it counts as a false positive) and the gate is re-evaluated. */
+export async function dismissScriptIssue(versionId: string, issueId: string, note: string) {
+  return attempt(async () => {
+    const version = await db.episodeVersion.findUniqueOrThrow({ where: { id: versionId }, include: { episode: true } });
+    if (version.episode.currentVersionId !== versionId) throw new Error("This is not the current script version.");
+    const spec = version.spec as EpisodeSpecRecord;
+    if (!spec.quality) throw new Error("This script has no checks to dismiss.");
+    const quality = withDismissal(spec.quality, issueId, z.string().max(500).parse(note ?? ""));
+    await db.episodeVersion.update({ where: { id: versionId }, data: { spec: { ...spec, quality }, qualityStatus: quality.status } });
+  });
+}
+
+/** The producer's own 1–5 rating of a script's story. */
+export async function rateScript(versionId: string, rating: number | null) {
+  return attempt(async () => {
+    const value = rating === null ? null : z.number().int().min(1).max(5).parse(rating);
+    await db.episodeVersion.update({ where: { id: versionId }, data: { humanRating: value } });
+  });
+}
+
+// ───────────────────────────── Reference stories ───────────────────────────
+
+const ReferenceInput = z.object({
+  title: z.string().trim().min(1).max(200),
+  text: z.string().trim().min(40, "Paste the full script or transcript.").max(8000),
+  archetype: z.enum(ARCHETYPES),
+  hookStyle: z.enum(HOOK_STYLES),
+  endingType: z.enum(ENDING_TYPES),
+  structure: z.string().trim().max(400).default(""),
+  tone: z.string().trim().max(100).default(""),
+  pacing: z.string().trim().max(200).default(""),
+  qualities: z.array(z.string().trim().min(1).max(120)).max(8).default([]),
+});
+
+export async function saveReferenceStory(id: string | null, input: z.input<typeof ReferenceInput>) {
+  return attempt(async () => {
+    const data = ReferenceInput.parse(input);
+    if (id) await db.referenceStory.update({ where: { id }, data });
+    else await db.referenceStory.create({ data });
+  });
+}
+
+export async function setReferenceActive(id: string, active: boolean) {
+  return attempt(async () => {
+    await db.referenceStory.update({ where: { id }, data: { active } });
+  });
+}
+
+export async function deleteReferenceStory(id: string) {
+  return attempt(async () => {
+    await db.referenceStory.delete({ where: { id } });
   });
 }
 

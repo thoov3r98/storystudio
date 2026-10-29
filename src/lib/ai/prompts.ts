@@ -1,8 +1,7 @@
 import { CRITERIA } from "@/lib/schemas/concept";
 import type { StoryBible } from "@/lib/schemas/story-bible";
-import { CATEGORIES, categoryLabel, sceneCountRange, styleSpec as styleSpecFor, targetWordRange } from "@/lib/constants";
+import { CATEGORIES, categoryLabel, styleSpec as styleSpecFor } from "@/lib/constants";
 import { CONCEPT_DEVELOPER } from "@/lib/ai/concept-prompt";
-import type { StoryOutline } from "@/lib/schemas/story-plan";
 
 const PRESET_CATEGORIES = CATEGORIES.filter((c) => c.value !== "custom" && c.value !== "mixed");
 
@@ -15,20 +14,6 @@ const TRUTHFULNESS = `Grounding:
 - Keep practical details believable, and never show something dangerous as a safe thing to copy.
 - Don't invent statistics or named real incidents. Stories with a fictional hero need no disclaimers or hedging.`;
 
-/** What makes a viewer keep watching; shared by outlining, writing and the story editor. */
-const STORY_CRAFT = `What makes a viewer keep watching:
-- The hero causes it. The trouble starts or gets worse because of a choice the hero makes that fits their personality or flaw. Things do not just happen to them.
-- Stakes the viewer can feel: what they will lose (warmth, money, their phone, their pride, someone's trust) and a ticking clock.
-- Escalation: at least three complications, each worse than the last, each caused by the one before or by the hero's own attempt to fix things.
-- Inner life: the hero reacts. Fear, stubbornness, embarrassment and jokes come through at least two short inner thoughts or spoken lines, and one moment of humour that comes from who they are.
-- Show, don't lecture: the clever move is shown through what the hero does. Never turn to the viewer with advice ("you should...", "in most places...") and never add safety disclaimers.
-- Big premise, told simply: say the situation plainly up front, the way you'd tell a friend ("Kenny woke up and there was nobody left in the world"). Don't explain how or why it happened unless the story needs it; a mystery can stay open across episodes.
-- Vivid, not logistical: one striking image or feeling per beat (a silent street, a coffee still warm in an empty café, the sound of their own footsteps). Never logistics: no deadlines, schedules, clock times, notices, maps, routes, official procedures or packing lists.
-- The hero solves it, at least partly. Rescuers, luck or other people never solve the main problem for them.
-- The ending is a turn, not a status report: the last line makes things worse or forces a hard choice. Never end by summarising where they are.
-- Avoid logistics lists ("he did X, then Y, then Z") with no reaction or consequence.
-- Stay true to the premise exactly. Never shrink it into something smaller, safer or more explainable (if everyone vanished, they vanished; it was not an evacuation).`;
-
 export const HOUSE_STYLE = `You write narrated, illustrated short vertical story videos (TikTok, YouTube Shorts, Reels) on whatever subject the producer chooses: hidden systems, history, science, fiction, true stories, what-ifs and more.
 
 Voice:
@@ -40,7 +25,7 @@ Voice:
 - Grounded in how a real person would feel and react, even when the situation itself is impossible. Never over-explain.
 - Avoid AI clichés: "little did you know", "buckle up", "let's dive in", "here's the thing", "spoiler alert", "mind-blowing", "but here's where it gets interesting", "the answer may surprise you", rhetorical question chains, "game-changer", "delve", and forced-twist formulas such as "the real danger isn't X, it's Y", "what nobody realizes is", "the surprising part is", "but the real problem is".
 - No engagement bait. Never ask viewers to like, follow, comment or subscribe.
-- Endings deliver a real payoff AND turn the screw: the last line makes things worse or forces a choice. Never a cheap cliffhanger that withholds the point of the episode.
+- Endings pay off what the episode set up. A cliffhanger is fine when it is earned, never one that withholds the point of the episode.
 
 ${TRUTHFULNESS}`;
 
@@ -80,6 +65,7 @@ ${TRUTHFULNESS}`,
 
 ${premise}${brief}
 ${starring}
+For each concept, also sketch how one episode would actually go (beatSketch): a strong idea is one that becomes a complete story with believable cause and effect and a satisfying payoff in about a minute, not just an exciting first line.
 Write each premise the way you'd say it out loud in one breath ("Kenny wakes up and everyone in the world is gone"). Big and simple beats detailed: no clock times, deadlines, notices, routes or official procedures.
 ${direction ? "Each concept must open differently (a different first moment or first problem)." : "Each concept must have a different central situation."}
 Do not repeat ${direction ? "the opening" : "the central situation"} of any existing story (reusing a familiar setting is fine):
@@ -87,7 +73,7 @@ ${input.avoidTitles.length ? input.avoidTitles.map((t) => `- ${t}`).join("\n") :
   };
 }
 
-export function evaluationPrompt(input: { concepts: { title: string; premise: string; logline: string; seriesPotential: string }[]; existingTitles: string[]; premise?: string | null }) {
+export function evaluationPrompt(input: { concepts: { title: string; premise: string; logline: string; seriesPotential: string; dramaticQuestion?: string; beatSketch?: string }[]; existingTitles: string[]; premise?: string | null }) {
   return {
     system: `You are a demanding story editor for short-form vertical video. You score concepts consistently on a 1–10 integer scale per criterion, where 5 is an average pitch and 9–10 is rare.
 These are editorial heuristics, not predictions of view counts.
@@ -99,6 +85,7 @@ The audience is everyday adults scrolling short-form video, not experts. Favor c
 - relatability, curiosity, hookStrength and audienceAppeal: high only if an ordinary person would understand the idea within two seconds, could picture themselves in it, and would want to know what happens next.
 - A concept that cannot be explained to a friend in one plain sentence, needs world-building or specialist knowledge, has manufactured stakes, or rests on a forced twist ("the real danger isn't X, it's Y") scores at most 4 on curiosity, hookStrength and audienceAppeal.
 - A big, simple premise ("everyone in the world vanished overnight") is easy to understand in one sentence; it is not world-building. Penalise detail and logistics (deadlines, notices, procedures), not scale.
+- episodeFeasibility: can this become a coherent, satisfying 45–90 second episode? Judge the episode sketch: a clear dramatic question, a believable chain of cause and effect, character choices that make sense, a payoff that doesn't rely on luck or conveniences, and a plot small enough for the length. A thrilling premise with no workable episode scores at most 4; a slightly quieter idea that makes a great episode beats it.
 - seriesPotential: a credible natural continuation scores well; two strong episodes beat six stretched ones. Do not reward convoluted plots.
 For originality, compare against the producer's existing stories: penalise only repeating the same central situation, not reusing a familiar setting (lost luggage and a missed connection are different stories).
 Give one honest sentence of rationale per score. Evaluate every concept, using its index.`,
@@ -114,7 +101,7 @@ ${input.concepts
   .map(
     (c, i) => `[${i}] ${c.title}
 Premise: ${c.premise}
-Logline: ${c.logline}
+Logline: ${c.logline}${c.dramaticQuestion ? `\nDramatic question: ${c.dramaticQuestion}` : ""}${c.beatSketch ? `\nEpisode sketch: ${c.beatSketch}` : ""}
 Series potential: ${c.seriesPotential}`,
   )
   .join("\n\n")}`,
@@ -185,7 +172,7 @@ ${n.name} is the same person in every episode: keep their voice, habits and know
 }
 
 /** The per-episode material shared by the outline and writing calls. */
-function episodeContext(input: WriterInput): string {
+export function episodeContext(input: WriterInput): string {
   const hero = input.narrator?.name ?? "the main character";
   const isContinuation = input.partNumber > 1;
   return `Story ID: ${input.storyId}
@@ -209,143 +196,10 @@ This is Part ${input.partNumber}. It must:
 - Pick up directly from where Part ${input.partNumber - 1} ended, with a one-line re-orientation inside the opening, not a recap.
 - Move the situation forward with a new concrete problem and a real result.
 - Not repeat already-revealed information as if new.
-- End on a turn that sets up Part ${input.partNumber + 1}.`
+- End on a payoff, and set up Part ${input.partNumber + 1} only if the story naturally continues.`
     : `
-This is Part 1, the opening episode. It must stand alone as a satisfying story while leaving ${hero} facing a sharp next problem.`
+This is Part 1, the opening episode. It must stand alone as a satisfying story; it may leave ${hero} facing a next problem if the story earns it.`
 }`;
-}
-
-/** Step 1 of writing: several different beat outlines for the same episode. */
-export function outlinePrompt(input: WriterInput, count = 3) {
-  const hero = input.narrator?.name ?? "the main character";
-  return {
-    system: `You are the story editor of a short-form vertical video series. Before anything is written, you outline the episode.
-
-${STORY_CRAFT}
-
-${TRUTHFULNESS}
-
-The episode runs about ${input.durationSec} seconds read aloud, so it fits six to nine beats. Keep it simple enough to follow without pausing: one situation, one hero, at most two other characters.`,
-    user: `${episodeContext(input)}
-
-Outline ${count} genuinely different versions of this episode for ${hero}: different triggers, complications and endings, not variations of one plan.`,
-  };
-}
-
-/** Step 2 of writing: an editor picks the outline most likely to hold a viewer. */
-export function outlinePickPrompt(input: { outlines: StoryOutline[]; hero: string; premise: string; partNumber: number }) {
-  return {
-    system: `You are a demanding story editor for short-form vertical video. Score each outline honestly on a 1–10 scale (5 is average, 9–10 is rare) and choose the one an everyday viewer is most likely to watch to the end and come back for.
-
-${STORY_CRAFT}
-
-Score stakes, escalation, character (does ${input.hero}'s personality drive the story, with real reactions and humour?) and ending (a turn that makes them need the next part, not a status report).`,
-    user: `Premise: ${input.premise}
-Part ${input.partNumber}
-
-${input.outlines.map((o, i) => `[${i}] ${JSON.stringify(o)}`).join("\n\n")}`,
-  };
-}
-
-export function writerPrompt(input: WriterInput & { outline?: StoryOutline | null; outlineNotes?: string[] }) {
-  const [minWords, maxWords] = targetWordRange(input.durationSec, input.wordsPerSecond);
-  const [minScenes, maxScenes] = sceneCountRange(input.durationSec);
-  const hero = input.narrator?.name ?? "the main character";
-
-  return {
-    system: `${HOUSE_STYLE}
-
-${STORY_CRAFT}
-
-You are the head writer. You write one episode in three steps, in this order.
-
-STEP 1 — storyNarration: write the whole episode as one continuous story told aloud, ${minWords}–${maxWords} words (about ${input.durationSec}s at ~${input.wordsPerSecond.toFixed(2)} words/second for this narrator). Write it as a story, not as captions.
-${input.outline ? "Follow the chosen outline's beats, trigger, escalations and ending turn, applying the editor's notes." : "Plan it first: how the hero's choice causes the trouble, three escalating complications, a clever move, a moment of humour and an ending turn."}
-- Tell it in time order. No flash-forwards, no "one second ago", no rewinding after the opening.
-- The opening line is the hook: it drops the viewer straight into the moment things go wrong and flows directly into the next sentence.
-- Within the first two sentences the viewer knows who, where and what is at stake.
-- Numbers written as they are spoken; no abbreviations that read awkwardly.
-
-STEP 2 — visualState: the physical facts every illustration must respect. Where exactly ${hero} is through the whole episode, what they wear and carry, time of day and how the light changes, weather, and rules that must hold in every shot (e.g. "he never leaves the chair").
-
-STEP 3 — scenes: cut storyNarration into ${minScenes}–${maxScenes} shots, in order. Each shot's narration is an exact, contiguous excerpt of storyNarration (usually one or two sentences, 4–8 seconds). Joined in order, the shots must reproduce storyNarration word for word: do not rewrite, add or drop anything.
-Plan the shots like a storyboard artist:
-- Each shot shows the exact moment its narration describes, true to visualState: if ${hero} is stuck somewhere, every shot shows them stuck there.
-- Vary the framing: wide establishing shots, medium action, close-ups on hands, faces and key objects, and cutaways to other characters or the danger. Never two near-identical framings in a row; at least two close-ups or cutaways per episode.
-- characters lists only who is visible in that shot. A cutaway to someone else does not include ${hero}.
-- imagePrompt: one or two specific sentences naming who does what, exactly where they are, their expression, the key object and the light. Subject only: no art-style words, no text, labels, signs with words or brand names.
-- continuity: what must be true in this shot, including anything that changed since the previous one (e.g. "sun now behind the ridge, slope in shadow; Ridge still seated on the chair").
-- Characters use the exact names from the bible; new characters need a stable visual description.
-- motionPreset supports the beat: slow-zoom-in for tension, pan for movement, still for a reaction or punchline.
-
-selectedHook is the opening line(s) of storyNarration, copied exactly.
-
-Continuity:
-- "bibleUpdate" lists only what THIS episode adds or changes. Thread ids must be short stable slugs; resolve threads by their existing ids.
-- arcSummary in bibleUpdate replaces the series summary; keep it under 150 words and include this episode.`,
-    user: `${episodeContext(input)}
-${
-  input.outline
-    ? `
-CHOSEN OUTLINE
-${JSON.stringify(input.outline, null, 1)}
-${input.outlineNotes?.length ? `Editor's notes for the script:\n${input.outlineNotes.map((n) => `- ${n}`).join("\n")}` : ""}`
-    : ""
-}`,
-  };
-}
-
-/** The story editor's read of a finished script; failing scores trigger one revision. */
-export function storyReviewPrompt(input: { storyNarration: string; hero: string; partNumber: number; personality?: string }) {
-  return {
-    system: `You are a demanding story editor for short-form vertical video, reading a narrated script before it is produced. Score it 1–10 (5 is average, 9–10 is rare) for the everyday adult scrolling past.
-
-${STORY_CRAFT}
-
-- hook: does the first line drop us into a moment worth staying for?
-- stakes: do we feel what ${input.hero} could lose, and the clock?
-- escalation: does it keep getting worse, with each problem caused by the last?
-- character: does ${input.hero}'s personality drive choices, with real reactions and a funny moment?${input.personality ? ` (${input.personality})` : ""}
-- ending: is the last line a turn that makes us need the next part?
-- flow: does it read naturally aloud, with no lecturing, hedging or logistics lists?
-Notes must be specific and quote the lines they fix. Leave notes empty if every score is 7 or more.`,
-    user: `Part ${input.partNumber}
-
-${input.storyNarration}`,
-  };
-}
-
-export function revisionPrompt(input: { draftJson: string; continuityIssues: string[]; lengthIssues: string[]; editorNotes?: string[] }) {
-  return {
-    system: `${HOUSE_STYLE}
-
-${STORY_CRAFT}
-
-You are revising an episode draft to fix specific problems while keeping everything else as close to the original as possible. Return the complete revised episode in the same structure.
-Keep storyNarration and the scenes in sync: change the story in storyNarration first, then make the scenes' narration the exact contiguous excerpts of it again, and update visualState, imagePrompt and continuity wherever the story changed. Keep the story flowing; fixes must read naturally aloud.`,
-    user: `Problems to fix:
-${[...(input.editorNotes ?? []).map((n) => `Story editor: ${n}`), ...input.continuityIssues, ...input.lengthIssues].map((i) => `- ${i}`).join("\n")}
-
-Current draft (JSON):
-${input.draftJson}`,
-  };
-}
-
-export function continuityPrompt(input: { bible: StoryBible; previousSummaries: string[]; draftSummary: string; narrationByScene: { sceneNumber: number; narration: string }[]; partNumber: number }) {
-  return {
-    system: `You are the continuity supervisor for a serialized story. Compare a new episode draft with the canonical story bible and earlier episodes.
-Flag: character contradictions, location contradictions, impossible timelines, repeated reveals presented as new, broken causal chains, and unexplained new facts that the story relies on.
-Severity "material" means a viewer who watched earlier parts would notice and be confused; "minor" otherwise.
-Do not flag deliberate new developments that are set up and explained.`,
-    user: `${bibleContextBlock(input.bible)}
-
-Earlier episode summaries:
-${input.previousSummaries.map((s) => `- ${s}`).join("\n") || "- none"}
-
-NEW DRAFT — Part ${input.partNumber}
-Summary: ${input.draftSummary}
-${input.narrationByScene.map((s) => `[${s.sceneNumber}] ${s.narration}`).join("\n")}`,
-  };
 }
 
 export function sceneRewritePrompt(input: { title: string; sceneNumber: number; before: string; current: string; after: string; instruction?: string | null; bible: StoryBible }) {

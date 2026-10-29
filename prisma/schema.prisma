@@ -200,6 +200,8 @@ model Story {
   category             String
   premise              String
   logline              String?
+  /// Archetype, dramatic question and beat sketch from the pitch; guides plot planning.
+  storySeed            Json?
   keywords             String[]
   status               StoryStatus @default(CONCEPT)
   factMode             FactMode    @default(MIXED)
@@ -326,6 +328,10 @@ model EpisodeVersion {
   factCheckStatus      FactCheckStatus @default(PENDING)
   factReview           Json?
   continuityReview     Json?
+  /// Script gate verdict from the quality checks: passed, needs-attention or blocked. Null on versions written before them.
+  qualityStatus        String?
+  /// The producer's 1–5 rating of the story.
+  humanRating          Int?
   /// Global style + per-story visual notes used to build image prompts.
   styleKey             String
   voiceoverId          String?
@@ -483,7 +489,11 @@ model PerformanceMetric {
   saves           Int?
   followersGained Int?
   avgWatchTimeSec Float?
+  /// % of viewers still watching after the first few seconds.
+  earlyRetention  Float?
   completionRate  Float?
+  /// Rewatches as a % of views.
+  rewatchRate     Float?
   notes           String?
   recordedAt      DateTime @default(now())
 }
@@ -523,6 +533,7 @@ model Concept {
   keywords         String[]
   factMode         FactMode @default(MIXED)
   seriesPotential  String
+  storySeed        Json?
   scores           Json?
   totalScore       Float?
   rank             Int?
@@ -610,4 +621,21 @@ model AudioAsset {
   source      String
   attribution String?
   createdAt   DateTime       @default(now())
+}
+
+/// A reference script the writer learns craft from (not copied). Built-in examples live in code.
+model ReferenceStory {
+  id         String   @id @default(cuid())
+  title      String
+  text       String
+  archetype  String
+  hookStyle  String
+  structure  String   @default("")
+  tone       String   @default("")
+  pacing     String   @default("")
+  endingType String   @default("")
+  qualities  String[]
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
