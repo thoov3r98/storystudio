@@ -616,6 +616,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(f.text.calls.plot_candidates).toBeUndefined();
     expect(f.text.calls.hook_candidates).toBeUndefined();
     expect(f.text.prompts.process_narration[0]).toContain("about 80 degrees Celsius");
+    expect(f.text.prompts.process_narration[0]).toContain("Main route (follow this): From paraffin wax");
     expect(f.text.prompts.process_audit[0]).toContain("RESEARCH NOTES");
     // Research costs tokens plus each web search.
     const research = await db.costEntry.findFirstOrThrow({ where: { operation: "research" } });

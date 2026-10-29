@@ -237,6 +237,7 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
           return out({
             product: "Crayons",
             overview: "Crayons are paraffin wax and pigment, melted, moulded, wrapped and boxed.",
+            mainRoute: "From paraffin wax, melted and moulded.",
             stages: ["Melting the wax", "Moulding", "Wrapping", "Boxing"].map((name, i) => ({
               id: `T${i + 1}`,
               name,

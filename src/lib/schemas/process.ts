@@ -9,6 +9,9 @@ import { z } from "zod";
 export const ResearchNotesSchema = z.object({
   product: z.string(),
   overview: z.string().describe("Two or three plain sentences: what the product is made of and the process from start to finish."),
+  mainRoute: z
+    .string()
+    .describe("The most common way the product is made today, in one plain sentence (e.g. 'from wood chips, pulped and bleached'). Scripts follow this route; other routes get a sentence at most."),
   stages: z.array(
     z.object({
       id: z.string().describe('"T1", "T2"… in factory order.'),
@@ -28,6 +31,8 @@ export type ResearchNotes = z.infer<typeof ResearchNotesSchema>;
 
 /** Stored on the story: the notes, the sources they came from, and when they were gathered. */
 export const ResearchRecordSchema = ResearchNotesSchema.extend({
+  // Research gathered before main routes were marked has none.
+  mainRoute: z.string().default(""),
   sources: z.array(z.object({ n: z.string(), title: z.string(), url: z.string() })),
   researchedAt: z.string(),
 });

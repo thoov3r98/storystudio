@@ -98,6 +98,7 @@ export const LOGIC_CATEGORIES = [
   // Process explainers: checked against the research instead of a plot.
   "unsupported-claim",
   "tone",
+  "too-technical",
 ] as const;
 
 export const SEVERITIES = ["blocking", "significant", "minor"] as const;

@@ -277,6 +277,7 @@ describe("process explainer plans", () => {
   const research: ResearchNotes = {
     product: "Crayons",
     overview: "o",
+    mainRoute: "m",
     stages: ["Melt", "Mould", "Wrap", "Box"].map((name, i) => ({ id: `T${i + 1}`, name, steps: [{ what: name, details: "", sources: ["1"] }] })),
     uncertain: [],
   };

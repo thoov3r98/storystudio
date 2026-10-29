@@ -15,12 +15,17 @@ export type ProcessPromptInput = {
   wordsPerSecond: number;
 };
 
-const VOICE = `How the narration sounds:
-- An unseen narrator, third person, present tense ("The wax is heated to..."). Never "you", "we" or "I".
-- Calm and strictly factual: what happens, in the order it happens. No jokes, puns, opinions, hype words, rhetorical questions or drama.
-- Each step says what goes in, what the machine or worker does, and what comes out. Join steps with plain links ("next", "then", "once it cools", "from there").
-- Use the real specifics from the research (temperatures, speeds, quantities, times) where they help the viewer picture it. Numbers as they are spoken.
-- Write for the ear: flowing spoken sentences, no colons, semicolons, parentheses or lists.
+const VOICE = `Who it's for: ordinary adults with everyday knowledge, not engineers or chemists. Explain it the way you'd tell a curious friend. If a viewer would have to look up a word, the script has failed.
+
+How the narration sounds:
+- An unseen narrator, third person, present tense ("The wax is heated until..."). Never "you", "we" or "I".
+- Calm and factual: what happens, in the order it happens. No jokes, puns, opinions, hype words, rhetorical questions or drama.
+- Describe things, don't name them. Say what a machine, chemical or part is or does, and leave out its industry name: "it's pumped through a heated tube to 130 degrees", not "it's pumped through a coil cooker, a heated tube, to 130 degrees". Never give a name and then explain it. Use a name only when it is an everyday word ("oven", "conveyor belt", "roller") or the product itself.
+- Plain words throughout: "a chemical mix", not "white liquor"; "pulp", not "furnish".
+- Help the viewer picture it with everyday comparisons ("a brown, oatmeal-like mush", "about as thick as a pancake"). Comparisons describe what things are like; they never add facts.
+- One or two striking numbers per video at most, said so they mean something ("about 160 degrees, well above boiling"). Never a run of figures, ranges or alternatives.
+- Each main step says what goes in, what happens to it, and what comes out. Join steps with plain links ("next", "then", "once it cools", "from there").
+- Never list more than two or three things in a row. Write for the ear: flowing spoken sentences, no colons, semicolons or parentheses.
 - No brand names or named companies.`;
 
 /** The research the writer may use, numbered so every claim can be checked against it. */
@@ -29,6 +34,7 @@ export function researchText(r: ResearchNotes | ResearchRecord, only?: string[])
   return [
     `Product: ${r.product}`,
     `Overview: ${r.overview}`,
+    ...("mainRoute" in r && r.mainRoute ? [`Main route (follow this): ${r.mainRoute}`] : []),
     ...stages.map((s) => `${s.id} ${s.name}\n${s.steps.map((st) => `  - ${st.what}${st.details ? ` (${st.details})` : ""}`).join("\n")}`),
     `Uncertain, never state as fact: ${r.uncertain.join("; ") || "none"}`,
   ].join("\n");
@@ -51,6 +57,7 @@ ${input.premise}${input.arc ? `\nThe pitch sketched these stages (check them, do
 export function researchNotesPrompt(input: { product: string; text: string; sources: { n: string; title: string; url: string }[]; minStages: number }) {
   return {
     system: `You turn a researcher's report into structured notes a scriptwriter will use, and that every line of the script will be checked against. Use only what the report says: never add a fact, number or step it doesn't contain. Where the report is unsure or sources disagree, put it in uncertain instead of in a step.
+mainRoute: when there are several ways in (different raw materials or methods), name the most common one today. The stages follow that route; mention other routes in a step only where they join it.
 Split the process into ${input.minStages}–10 stages in factory order (raw materials first, packing last), each a distinct, visual phase with its own steps.`,
     user: `Product: ${input.product}
 
@@ -89,10 +96,12 @@ ${VOICE}
 
 You write the narration for Part ${input.part} of ${input.plan.parts.length} of a How It's Made style series, ${minWords}–${maxWords} words (about ${input.durationSec}s at ~${input.wordsPerSecond.toFixed(2)} words/second).
 - Open with this line, or a close spoken version of it: ${p.opening}
-- Tell every step of this part's stages (${p.stages.join(", ")}), in factory order, using only the research below. Never add a fact, number, material or machine it doesn't contain, and never state anything listed as uncertain.
+- Tell the main steps of this part's stages (${p.stages.join(", ")}) that a viewer can picture, in factory order, folding small steps together. Never skip a step a later one depends on.
+- Follow the main route. Another route (a different raw material or method) gets one short sentence at most.
+- Use only the research below. Simplifying is right; adding a fact, number, material or machine it doesn't contain, or stating anything listed as uncertain, is not.
 - A viewer who starts here must understand what is being made and where in the process we are. Don't recap earlier parts beyond that.
 - ${last ? "End on the finished product, packed and ready to ship." : `End plainly where the next stage begins (${next?.title ?? p.endsAt}), without a cliffhanger.`}
-- If the words run short of the steps, describe each one more simply; never skip a step a later one depends on.`,
+- If the words run short of the steps, describe each one more simply.`,
     user: `${input.title}
 
 PLAN
@@ -113,12 +122,15 @@ Look for:
 - clarity: a viewer would be confused about what is being made, where in the process we are, or what a machine does.
 - series-continuity: it contradicts an earlier part.
 - tone: jokes, puns, opinions, hype, drama, rhetorical questions, "you", or brand names.
+- too-technical: the audience is ordinary adults, not experts. An industry name for a machine, chemical or part where a plain description would do (including a name followed by its explanation, like "a coil cooker, a heated tube"), a run of numbers, ranges or alternatives, a list of more than three items, or detail beyond what a viewer can picture.
+
+Simplifying is not a problem: leaving out minor steps, alternative routes or numbers, or using an everyday comparison, is intended. Only a simplification that makes a statement wrong is an issue.
 
 Severity:
 - blocking: a stated fact or number that contradicts the research.
-- significant: an unsupported claim, steps out of order, a confusing jump, or a tone problem a viewer would notice.
+- significant: an unsupported claim, steps out of order, a confusing jump, a tone problem a viewer would notice, or narration too technical for an ordinary viewer.
 - minor: a nitpick that doesn't affect understanding or accuracy.
-kind is "contradiction" for factual and order problems, "creative-concern" for tone and style.
+kind is "contradiction" for factual and order problems, "creative-concern" for tone, style and too-technical.
 
 First list intendedUnknowns: anything deliberately left out. Then report issues, most severe first, at most eight, each quoting the script's exact words as evidence. If the script is accurate and clear, return no issues: never invent problems.`;
 
