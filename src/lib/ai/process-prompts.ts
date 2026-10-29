@@ -75,7 +75,7 @@ export function processPlanPrompt(input: ProcessPromptInput & { research: Resear
 
 ${channelBlock(input.channel)}
 
-Split the research's stages into consecutive parts in factory order. Choose the number of parts the process needs: each part should cover one or two stages that fill about ${input.durationSec} seconds of calm narration, no more. Group short stages; never split a stage. Write each part's opening line and where it ends, plainly.`,
+Split the research's stages into consecutive parts in factory order. Choose the number of parts the process needs: each part should cover one or two stages that fill about ${input.durationSec} seconds of calm narration, no more. Group short stages; never split a stage. The parts are one continuous story cut into pieces: each part's first step follows straight on from the previous part's last step.`,
     user: `${input.title}
 ${input.premise}
 
@@ -88,19 +88,18 @@ export function processNarrationPrompt(input: ProcessPromptInput & { research: R
   const [minWords, maxWords] = targetWordRange(input.durationSec, input.wordsPerSecond);
   const p = input.plan.parts.find((x) => x.part === input.part)!;
   const last = input.part === input.plan.parts.length;
-  const next = input.plan.parts.find((x) => x.part === input.part + 1);
   return {
     system: `${channelBlock(input.channel)}
 
 ${VOICE}
 
 You write the narration for Part ${input.part} of ${input.plan.parts.length} of a How It's Made style series, ${minWords}–${maxWords} words (about ${input.durationSec}s at ~${input.wordsPerSecond.toFixed(2)} words/second).
-- Open with this line, or a close spoken version of it: ${p.opening}
+- The parts are one continuous story cut into pieces: played back to back they must sound like a single video. Never mention parts, videos, stages or what comes next, and never use framing like "picks up", "this part", "next" as a preview, "so far" or "in the next step we'll see".
+- ${input.part === 1 ? `Open by saying plainly what the product starts as: ${p.opening}` : `Begin straight into the next step (${p.opening}), as if the previous sentence had just ended. Naming the product or the material in that first sentence is fine; a recap is not.`}
 - Tell the main steps of this part's stages (${p.stages.join(", ")}) that a viewer can picture, in factory order, folding small steps together. Never skip a step a later one depends on.
 - Follow the main route. Another route (a different raw material or method) gets one short sentence at most.
 - Use only the research below. Simplifying is right; adding a fact, number, material or machine it doesn't contain, or stating anything listed as uncertain, is not.
-- A viewer who starts here must understand what is being made and where in the process we are. Don't recap earlier parts beyond that.
-- ${last ? "End on the finished product, packed and ready to ship." : `End plainly where the next stage begins (${next?.title ?? p.endsAt}), without a cliffhanger.`}
+- ${last ? "End on the finished product, packed and ready to ship." : `End on the last step itself (${p.endsAt}), told like any other step: no summary, no announcement of what happens next, no cliffhanger.`}
 - If the words run short of the steps, describe each one more simply.`,
     user: `${input.title}
 
@@ -121,7 +120,7 @@ Look for:
 - missing-connection: a step that doesn't follow from the one before, or a later step relying on something never explained.
 - clarity: a viewer would be confused about what is being made, where in the process we are, or what a machine does.
 - series-continuity: it contradicts an earlier part.
-- tone: jokes, puns, opinions, hype, drama, rhetorical questions, "you", or brand names.
+- tone: jokes, puns, opinions, hype, drama, rhetorical questions, "you", or brand names. Also any framing that breaks the one continuous story: mentioning parts or videos, recaps of earlier parts, "picks up", or announcing what happens next.
 - too-technical: the audience is ordinary adults, not experts. An industry name for a machine, chemical or part where a plain description would do (including a name followed by its explanation, like "a coil cooker, a heated tube"), a run of numbers, ranges or alternatives, a list of more than three items, or detail beyond what a viewer can picture.
 
 Simplifying is not a problem: leaving out minor steps, alternative routes or numbers, or using an everyday comparison, is intended. Only a simplification that makes a statement wrong is an issue.

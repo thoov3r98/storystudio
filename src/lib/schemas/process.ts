@@ -44,8 +44,10 @@ export const ProcessPlanSchema = z.object({
       part: z.number().int().describe("1..P"),
       title: z.string().describe("What this video covers, e.g. 'Melting the wax'."),
       stages: z.array(z.string()).describe("The stage ids this video tells, consecutive, in factory order."),
-      opening: z.string().describe("How the video opens, in one spoken line: Part 1 says what the product is and where it starts; later parts name the product and the stage they pick up from."),
-      endsAt: z.string().describe("Where the video ends: the point the next stage begins, or the finished, packed product for the final part."),
+      opening: z
+        .string()
+        .describe("The first step this video tells. Part 1: what the product starts as. Later parts: the step that comes straight after the previous part's last step."),
+      endsAt: z.string().describe("The last step this video tells; for the final part, the finished, packed product."),
     }),
   ),
 });
