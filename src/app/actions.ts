@@ -4,7 +4,7 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { cancelJob, enqueueEpisodeJob, enqueueIdeation, retryJob } from "@/lib/enqueue";
+import { cancelJob, enqueueEpisodeJob, enqueueIdeation, enqueueTopicDiscovery, retryJob } from "@/lib/enqueue";
 import { ILLUSTRATION_STYLES, TARGET_DURATIONS } from "@/lib/constants";
 import { PricingSchema } from "@/lib/costs/pricing";
 import {
@@ -20,7 +20,19 @@ import {
 import { approveEpisode as approve, ensureEditableVersion, forkVersion, refreshStoryStatus } from "@/lib/pipeline/versions";
 import { listElevenLabsVoices } from "@/lib/providers/speech";
 import { normalizeTitle } from "@/lib/text";
-import { createChannelFromBrief, PITCHES_SHOWN, storyFromPitch } from "@/lib/pipeline/channels";
+import { conceptFromCandidate, createChannelFromBrief, PITCHES_SHOWN, storyFromPitch } from "@/lib/pipeline/channels";
+import {
+  addMetricObservation,
+  addStarterReferences,
+  createReference,
+  deleteMetricObservation,
+  deleteReference,
+  fetchVideoMetadata,
+  type ImportedMetadata,
+  importReferenceMetadata,
+  updateReference,
+} from "@/lib/topics/references";
+import type { MetricInput, ReferenceInput } from "@/lib/schemas/topics";
 import { ChannelEditSchema } from "@/lib/schemas/channel";
 import { productionDeps } from "@/lib/pipeline/deps";
 import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
@@ -114,6 +126,76 @@ export async function writePitch(conceptId: string): Promise<ActionResult<{ stor
   });
   if (result.ok) redirect(`/stories/${storyId}`);
   return result;
+}
+
+// ───────────────────────────── Topic research ─────────────────────────────
+
+export async function createReferenceAction(input: ReferenceInput, metrics?: MetricInput | null) {
+  return attempt(async () => {
+    const ref = await createReference(input);
+    if (metrics) await addMetricObservation(ref.id, metrics);
+    return { id: ref.id };
+  });
+}
+
+export async function updateReferenceAction(id: string, input: ReferenceInput) {
+  return attempt(async () => void (await updateReference(id, input)));
+}
+
+export async function deleteReferenceAction(id: string) {
+  return attempt(() => deleteReference(id));
+}
+
+export async function addMetricAction(referenceId: string, input: MetricInput) {
+  return attempt(async () => void (await addMetricObservation(referenceId, input)));
+}
+
+export async function deleteMetricAction(id: string) {
+  return attempt(() => deleteMetricObservation(id));
+}
+
+/** Reads title and creator (and, with a YouTube API key, verified numbers) from the platform for a saved reference. */
+export async function importReferenceAction(id: string) {
+  return attempt(async () => {
+    const meta = await importReferenceMetadata(id);
+    return { method: meta.method, metrics: Boolean(meta.metrics) };
+  });
+}
+
+/** Fills the add form from a link via the platform's official endpoint. Nothing is saved. */
+export async function previewVideoMetadata(url: string): Promise<ActionResult<ImportedMetadata | null>> {
+  try {
+    return { ok: true, data: await fetchVideoMetadata(z.string().trim().url().parse(url)) };
+  } catch (err) {
+    return { ok: false, error: err instanceof z.ZodError ? "Enter a valid URL." : err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function addStarterReferencesAction() {
+  return attempt(async () => ({ added: await addStarterReferences() }));
+}
+
+export async function discoverTopicsAction(channelId: string) {
+  return attempt(async () => ({ jobId: await enqueueTopicDiscovery(channelId) }));
+}
+
+export async function setTopicStatus(candidateId: string, status: "APPROVED" | "REJECTED" | "PROPOSED") {
+  return attempt(async () => {
+    const value = z.enum(["APPROVED", "REJECTED", "PROPOSED"]).parse(status);
+    const c = await db.manufacturingTopicCandidate.findUniqueOrThrow({ where: { id: candidateId } });
+    if (c.status === "USED" || c.status === "DUPLICATE") throw new Error("This topic can't be changed.");
+    await db.manufacturingTopicCandidate.update({ where: { id: candidateId }, data: { status: value } });
+  });
+}
+
+/** An approved topic goes into the normal production pipeline: its story is created and its scripts written. */
+export async function makeVideoFromTopic(candidateId: string): Promise<ActionResult<{ storyId: string }>> {
+  let conceptId = "";
+  const made = await attempt(async () => {
+    conceptId = await conceptFromCandidate(candidateId);
+  });
+  if (!made.ok) return made;
+  return writePitch(conceptId);
 }
 
 // ───────────────────────────── Stories ─────────────────────────────

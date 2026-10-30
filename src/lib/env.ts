@@ -32,6 +32,9 @@ const EnvSchema = z.object({
   STUDIO_APP_URL: optionalString,
   VERCEL_AUTOMATION_BYPASS_SECRET: optionalString,
   RENDER_SANDBOX_VCPUS: z.coerce.number().int().min(1).max(8).default(4),
+
+  /** Optional: verified view counts for YouTube references (YouTube Data API v3). */
+  YOUTUBE_API_KEY: optionalString,
 });
 
 export type Env = z.infer<typeof EnvSchema>;

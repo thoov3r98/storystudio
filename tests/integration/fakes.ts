@@ -16,7 +16,30 @@ const PRODUCTS = ["Pencils", "Glass bottles", "Tennis balls", "Chocolate bars", 
 export type FakeTextOptions = {
   /** Fact-check: an unsupported claim that one revision fixes or that never goes away, or a contradiction that never goes away. */
   processAudit?: "pass" | "significant-once" | "significant-always" | "blocking-always";
+  /** Attention audit: a pacing problem that never goes away (never blocking). */
+  attention?: "pass" | "significant-always";
+  /** Topic ideas: the first attempt cites a reference id that doesn't exist. */
+  topicBadReferenceOnce?: boolean;
 };
+
+/** The hook the fakes recommend for each pattern; FACTORY_REVEAL's matches the existing opening. */
+export const FAKE_HOOKS: Record<string, string> = {
+  FACTORY_REVEAL: "This is how crayons are made.",
+  TRANSFORMATION: "Melted wax turns into crayons.",
+  HIDDEN_PROBLEM: "Moulding crayons takes real care.",
+};
+
+const TOPIC_PRODUCTS = [
+  ["Plastic buckets", "household"],
+  ["Glass marbles", "toys"],
+  ["Ice cube trays", "kitchen tools"],
+  ["Steel nails", "hardware"],
+  ["Paper cups", "packaging"],
+  ["Toothbrushes", "personal care"],
+  ["Rubber balls", "sports"],
+  ["Clothes pegs", "household goods"],
+  ["Crayons", "art supplies"],
+] as const;
 
 const AUDIT_ISSUE = (severity: string, evidence: string) => ({
   category: "unsupported-claim",
@@ -68,19 +91,22 @@ export function makeDraft(hook: string, part: number, sceneCount = 12): EpisodeD
   };
 }
 
-export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { calls: Record<string, number>; prompts: Record<string, string[]>; models: Record<string, string> } {
+export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { calls: Record<string, number>; prompts: Record<string, string[]>; systems: Record<string, string[]>; models: Record<string, string> } {
   const calls: Record<string, number> = {};
   const prompts: Record<string, string[]> = {};
+  const systems: Record<string, string[]> = {};
   const models: Record<string, string> = {};
   let pitchCounter = 0;
   return {
     calls,
     prompts,
+    systems,
     models,
     async generate({ schemaName, system, user, model }) {
       calls[schemaName] = (calls[schemaName] ?? 0) + 1;
       models[schemaName] = model;
       (prompts[schemaName] ??= []).push(user);
+      (systems[schemaName] ??= []).push(system);
       const usage = { inputTokens: 1000, cachedInputTokens: 0, outputTokens: 500 };
       const out = (parsed: unknown) => ({ parsed, usage, model: "fake-model" });
 
@@ -153,8 +179,92 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
         }
         case "process_narration": {
           const part = Number(/Narration for Part (\d+)/i.exec(system)?.[1] ?? 1);
-          const d = makeDraft(part === 1 ? "This is how crayons are made." : `Crayons, part ${part}.`, part);
+          const hook = /Open with this approved hook, word for word or tightened, never replaced or embellished: "(.*?)"\./.exec(system)?.[1];
+          const d = makeDraft(part === 1 ? (hook ?? "This is how crayons are made.") : `Crayons, part ${part}.`, part);
           return out({ title: `How crayons are made, part ${part}`, storyNarration: d.storyNarration, summary: `Part ${part} of crayons.` });
+        }
+        case "storytelling_decision": {
+          const stages = [...user.matchAll(/^(T\d+) /gm)].map((m) => m[1]);
+          const pattern = /The producer has chosen (\w+)\./.exec(system)?.[1] ?? "FACTORY_REVEAL";
+          return out({
+            pattern,
+            reason: `The research shows a fast moulding line (${pattern}).`,
+            curiosityMechanism: "How liquid wax becomes a crayon.",
+            featuredStageId: stages[1] ?? stages[0],
+            visualPayoff: "Crayons pop out of the mould.",
+            alternatives: ["TRANSFORMATION", "HIDDEN_PROBLEM", "FACTORY_REVEAL"].filter((x) => x !== pattern).slice(0, 1),
+            stageVisuals: stages.map((id) => ({ stageId: id, visualSubject: `Stage ${id}`, operation: "It happens.", materialBefore: "wax", materialAfter: "crayons", machinery: "", visualMoment: "The moment.", claimIds: [`${id}.1`] })),
+          });
+        }
+        case "hook_candidates": {
+          const pattern = /^Pattern: (TRANSFORMATION|HIDDEN_PROBLEM|FACTORY_REVEAL) \(/m.exec(system)?.[1] ?? "FACTORY_REVEAL";
+          const visual = { visualSubject: "wax", operation: "melting", materialBefore: "wax blocks", materialAfter: "liquid wax", machinery: "", visualMoment: "Wax melts." };
+          const hook = (line: string, strategy: string, claimIds: string[]) => ({ line, strategy, claimIds, featuredStageId: "T2", firstFrameVisual: "A tray of wax.", whyItWorks: "It is clear.", uncertainty: "", visual });
+          return out({
+            hooks: [
+              hook(FAKE_HOOKS[pattern], "intriguing-operation", ["T1.1", "T2.1"]),
+              hook("Wax is heated to about 80 degrees Celsius before it becomes a crayon.", "counterintuitive-fact", ["T1.1"]),
+              // Unsupported: the research never says 999.
+              hook("Crayon wax is heated to 999 degrees.", "material-contrast", ["T1.1"]),
+              // Cites a claim that doesn't exist.
+              hook("Every crayon is checked by hand.", "hidden-difficulty", ["T9.9"]),
+              hook("A box of crayons starts as melted wax.", "unexpected-transformation", ["T1.1", "T4.1"]),
+            ],
+          });
+        }
+        case "hook_review": {
+          const lines = [...user.matchAll(/^\[(\d+)\] "(.*)" \(/gm)].map((m) => m[2]);
+          return out({
+            reviews: lines.map((line, index) => {
+              const v = index === 0 ? 5 : 3;
+              const supported = !line.includes("999");
+              return { index, clarity: v, curiosity: v, specificity: v, connection: v, factualSupport: supported ? v : 1, visualPotential: v, naturalLanguage: v, supported, unsupportedDetail: supported ? "" : "999 degrees is not in the research.", note: "ok" };
+            }),
+          });
+        }
+        case "process_attention": {
+          const narration = between(user, "SCRIPT\n");
+          const quote = narration.split(" ").slice(2, 8).join(" ");
+          return out({
+            issues:
+              opts.attention === "significant-always"
+                ? [{ category: "filler", severity: "blocking", kind: "contradiction", location: "Sentence 1", evidence: quote, problem: "Repeats itself.", repair: "Cut the repeat." }]
+                : [],
+          });
+        }
+        case "topic_ideas": {
+          const n = Number(/Propose exactly (\d+)/.exec(user)?.[1] ?? 9);
+          const refs = [...user.matchAll(/^- (\S+) · (.+?) · /gm)].map((m) => ({ id: m[1], product: m[2] }));
+          const bad = opts.topicBadReferenceOnce && (calls.topic_ideas ?? 0) === 1;
+          return out({
+            ideas: Array.from({ length: n }, (_, i) => {
+              // Idea 0 repeats the first library product; the rest are new.
+              const [product, category] = i === 0 && refs[0] ? [refs[0].product, "footwear"] : TOPIC_PRODUCTS[i % TOPIC_PRODUCTS.length];
+              const strategy = (["EVIDENCE_BACKED", "ADJACENT", "EXPLORATORY"] as const)[i % 3];
+              return {
+                product,
+                category,
+                title: `How ${product} Are Made`,
+                concept: `How ${product.toLowerCase()} are made, quill${i}.`,
+                premise: `How ${product.toLowerCase()} are made in a factory, zest${i}.`,
+                arc: "Raw material. Shaping. Packing.",
+                strategy,
+                referenceIds: strategy === "EXPLORATORY" || !refs[0] ? [] : bad && i === 1 ? ["not-a-ref"] : [refs[0].id],
+                comparableReason: strategy === "EXPLORATORY" ? "" : "Same moulding operation.",
+                whyViewers: "Everyone owns one.",
+                featuredStage: "Moulding",
+                curiosityAngle: `How is ${product.toLowerCase()} shaped?`,
+                visualPayoff: "It pops out of the mould.",
+                researchFeasibility: "Well documented.",
+                visualFeasibility: "Easy to draw.",
+              };
+            }),
+          });
+        }
+        case "topic_evaluation": {
+          const indexes = [...user.matchAll(/^\[(\d+)\] /gm)].map((m) => Number(m[1]));
+          const r = (score: number) => ({ score, note: "n" });
+          return out({ evaluations: indexes.map((index) => ({ index, visual: r(8 - (index % 4)), familiarity: r(7), surprise: r(6), researchAvailability: r(9), visualFeasibility: r(8) })) });
         }
         case "process_audit": {
           const narration = between(user, "SCRIPT\n");

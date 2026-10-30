@@ -92,6 +92,7 @@ See `.env.example` for the full list with comments. Summary:
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_MODEL_ID`, `ELEVENLABS_DEFAULT_VOICE_ID` | Narration with timestamps |
 | `BLOB_READ_WRITE_TOKEN` | Asset storage |
 | `TRIGGER_SECRET_KEY`, `TRIGGER_PROJECT_REF` | Background jobs |
+| `YOUTUBE_API_KEY` (optional) | Verified, dated view/like/comment counts for YouTube references on Topic Research. Without it, only title and creator are read (oEmbed). |
 | `RENDER_PROVIDER` | `vercel-sandbox` (prod) or `local` |
 | `RENDER_API_SECRET` | Shared secret for internal render routes (≥32 chars) |
 | `STUDIO_APP_URL` | Deployment URL Trigger.dev calls for renders |

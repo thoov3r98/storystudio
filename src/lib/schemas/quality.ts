@@ -10,16 +10,22 @@ export const LOGIC_CATEGORIES = ["unsupported-claim", "temporal", "missing-conne
 export const SEVERITIES = ["blocking", "significant", "minor"] as const;
 export type Severity = (typeof SEVERITIES)[number];
 
-export const AuditIssueSchema = z.object({
-  category: z.enum(LOGIC_CATEGORIES),
+/** Attention and payoff: editorial pacing problems. Never blocking: they can't hold back a factually sound script. */
+export const ATTENTION_CATEGORIES = ["weak-opening", "slow-start", "unanswered-question", "filler", "missing-payoff", "weak-ending", "name-dropping"] as const;
+export const ISSUE_CATEGORIES = [...LOGIC_CATEGORIES, ...ATTENTION_CATEGORIES] as const;
+
+const issueFields = {
   severity: z.enum(SEVERITIES),
   kind: z.enum(["contradiction", "creative-concern"]).describe('"contradiction": objectively inconsistent or unexplained. "creative-concern": works, but could be better.'),
   location: z.string().describe("Where: the line it is in."),
   evidence: z.string().describe("An exact quote from the material you were given that shows the problem."),
   problem: z.string().describe("Why a viewer would be confused or stop believing it."),
   repair: z.string().describe("The smallest change that fixes it."),
-});
-export type AuditIssue = z.infer<typeof AuditIssueSchema>;
+};
+
+export const AuditIssueSchema = z.object({ category: z.enum(LOGIC_CATEGORIES), ...issueFields });
+export const AttentionIssueSchema = z.object({ category: z.enum(ATTENTION_CATEGORIES), ...issueFields });
+export type AuditIssue = z.infer<typeof AuditIssueSchema> | z.infer<typeof AttentionIssueSchema>;
 
 export const LogicAuditSchema = z.object({
   intendedUnknowns: z.array(z.string()).describe("Things deliberately left out or simplified by design. These are not issues."),
@@ -30,15 +36,19 @@ export const LogicAuditSchema = z.object({
 });
 export type LogicAudit = z.infer<typeof LogicAuditSchema>;
 
+export const AttentionAuditSchema = z.object({ issues: z.array(AttentionIssueSchema) });
+
 // ── Quality record stored on each version ─────────────────────────────
 
 export const QUALITY_STATUSES = ["passed", "needs-attention", "blocked"] as const;
 export type QualityStatus = (typeof QUALITY_STATUSES)[number];
 
 /** An issue as stored: audit output plus an id, where it was found and whether its quote was verified. */
-export const RecordedIssueSchema = AuditIssueSchema.extend({
+export const RecordedIssueSchema = z.object({
+  category: z.enum(ISSUE_CATEGORIES),
+  ...issueFields,
   id: z.string(),
-  stage: z.enum(["script", "continuity"]),
+  stage: z.enum(["script", "continuity", "attention"]),
   verified: z.boolean(),
 });
 export type RecordedIssue = z.infer<typeof RecordedIssueSchema>;

@@ -7,7 +7,20 @@ import { countWords, DEFAULT_WORDS_PER_SECOND, estimateSpokenDuration, joinNarra
 import { getAudioMix, getPricing, getModels, scriptModels, voiceWordsPerSecond } from "@/lib/settings";
 import { assertWithinBudget, type CostContext } from "@/lib/costs/record";
 import { setJobStage } from "@/lib/jobs";
-import { composeProcess, composeProcessPart, type ProcessDeps, type ProcessInput, type ProcessResult, recheckProcessPart, researchProcess, reviseProcessPart } from "@/lib/process/compose";
+import {
+  composeProcess,
+  composeProcessPart,
+  createCreativePlan,
+  type ProcessDeps,
+  type ProcessInput,
+  type ProcessResult,
+  recheckProcessPart,
+  researchProcess,
+  reviseProcessPart,
+} from "@/lib/process/compose";
+import { type CreativePlan, creativeFor } from "@/lib/process/creative";
+import type { Creative, Pattern, ReviewedHook } from "@/lib/schemas/storytelling";
+import { DiscoverySnapshotSchema } from "@/lib/schemas/topics";
 import { type ProcessSpec, type ResearchRecord, ResearchRecordSchema } from "@/lib/schemas/process";
 import type { PipelineDeps } from "./deps";
 import { channelGuide } from "./channels";
@@ -58,6 +71,7 @@ function processContext(ctx: WriteContext, setup: Setup): { input: ProcessInput;
       wordsPerSecond: setup.wps,
       arc: seed?.beatSketch ?? null,
       parts: [channel.minParts, channel.maxParts],
+      topic: topicHint(story.discovery),
     },
     deps: {
       text: ctx.deps.text,
@@ -69,6 +83,75 @@ function processContext(ctx: WriteContext, setup: Setup): { input: ProcessInput;
       checkBudget: (usd) => assertWithinBudget(ctx.cost, usd),
       onStage: ctx.jobId ? (label, progress) => setJobStage(ctx.jobId!, "WRITING_STORY", label, progress * 0.3) : undefined,
     },
+  };
+}
+
+/** The approved topic's angle from discovery, when the story came from it. */
+function topicHint(discovery: unknown): Creative["topic"] {
+  const d = DiscoverySnapshotSchema.safeParse(discovery);
+  if (!d.success || !d.data.curiosityAngle) return null;
+  return { curiosityAngle: d.data.curiosityAngle, visualPayoff: d.data.visualPayoff, featuredStage: d.data.featuredStage };
+}
+
+// ── Storytelling decision and hooks (stored per story) ────────────────
+
+/** The story's saved storytelling decision and selected hook, as the writer uses them. Null for stories written before them. */
+async function savedCreative(storyId: string, topic: Creative["topic"]): Promise<Creative | null> {
+  const d = await db.manufacturingStorytellingDecision.findUnique({ where: { storyId }, include: { selectedHook: true } });
+  if (!d) return null;
+  const decision = {
+    pattern: d.pattern,
+    reason: d.reason,
+    curiosityMechanism: d.curiosityMechanism,
+    featuredStageId: d.featuredStageId,
+    visualPayoff: d.visualPayoff,
+    alternatives: d.alternatives,
+    stageVisuals: d.stageVisuals as Creative["decision"]["stageVisuals"],
+  };
+  const h = d.selectedHook;
+  return creativeFor({ decision }, h ? { id: h.id, line: h.line, claimIds: h.claimIds, featuredStageId: h.featuredStageId } : null, topic);
+}
+
+/** Saves a creative plan: the decision (replacing any earlier one) and every hook, selecting the recommended one. */
+async function persistCreative(storyId: string, research: ResearchRecord, plan: CreativePlan, source: "recommended" | "producer"): Promise<string | null> {
+  return db.$transaction(async (tx) => {
+    const rows = [];
+    for (const h of plan.hooks) rows.push(await tx.manufacturingHookCandidate.create({ data: hookRow(storyId, h) }));
+    const selectedHookId = plan.recommended === null ? null : rows[plan.recommended].id;
+    const d = plan.decision;
+    const data = {
+      pattern: d.pattern,
+      patternSource: source,
+      reason: d.reason,
+      curiosityMechanism: d.curiosityMechanism,
+      featuredStageId: d.featuredStageId,
+      visualPayoff: d.visualPayoff,
+      alternatives: d.alternatives,
+      stageVisuals: d.stageVisuals,
+      selectedHookId,
+      researchedAt: research.researchedAt,
+    };
+    await tx.manufacturingStorytellingDecision.upsert({ where: { storyId }, create: { storyId, ...data }, update: data });
+    return selectedHookId;
+  });
+}
+
+function hookRow(storyId: string, h: ReviewedHook) {
+  return {
+    storyId,
+    pattern: h.pattern,
+    line: h.line,
+    strategy: h.strategy,
+    claimIds: h.claimIds,
+    featuredStageId: h.featuredStageId,
+    firstFrameVisual: h.firstFrameVisual,
+    whyItWorks: h.whyItWorks,
+    uncertainty: h.uncertainty,
+    visual: h.visual,
+    flags: h.flags,
+    review: h.review ?? undefined,
+    total: h.total,
+    rank: h.rank,
   };
 }
 
@@ -99,7 +182,8 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; replanS
 
   if (saved && research && !(episode.partNumber === 1 && ctx.replanStory) && episode.partNumber <= saved.plan.parts.length) {
     const earlier = saved.episodes.filter((e) => e.partNumber < episode.partNumber).map((e) => e.currentVersion?.narration ?? "");
-    const result = await composeProcessPart(input, deps, { research, plan: saved.plan, part: episode.partNumber, earlier });
+    const creative = await ensureCreative(setup, input, deps, research, episode.partNumber);
+    const result = await composeProcessPart(input, deps, { research, plan: saved.plan, part: episode.partNumber, earlier, creative });
     return saveProcessPart(setup, episode, result, ctx.reason);
   }
   if (episode.partNumber !== 1) throw new Error("Write Part 1 first: it researches the product and plans every part.");
@@ -111,7 +195,13 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; replanS
     // Kept even if writing fails, so a retry doesn't pay for the search again.
     await db.story.update({ where: { id: story.id }, data: { research } });
   }
-  const { results } = await composeProcess(input, deps, { research });
+  // A replan keeps the producer's storytelling choices; a first write makes them.
+  const kept = await savedCreative(story.id, input.topic);
+  const { results, creative } = await composeProcess(input, deps, { research, creative: kept ? { plan: kept, hook: kept.hook } : null });
+  if (creative) {
+    const hookId = await persistCreative(story.id, research, creative, "recommended");
+    for (const r of results) if (r.creative?.hook) r.creative.hook.id = hookId ?? undefined;
+  }
   await settlePartCount(story.id, results.length);
   let first: WriteResult | null = null;
   for (const result of results) {
@@ -126,8 +216,83 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; replanS
   return { ...first!, parts: results.length };
 }
 
+/**
+ * The creative choices a part is written with. Stories written before them get
+ * a decision and hooks the first time Part 1 is rewritten (cheap: no research).
+ */
+async function ensureCreative(setup: Setup, input: ProcessInput, deps: ProcessDeps, research: ResearchRecord, part: number): Promise<Creative | null> {
+  const kept = await savedCreative(setup.story.id, input.topic);
+  if (kept || part !== 1) return kept;
+  await persistCreative(setup.story.id, research, await createCreativePlan(input, deps, research), "recommended");
+  return savedCreative(setup.story.id, input.topic);
+}
+
 function saveProcessPart(setup: Setup, episode: { id: string; partNumber: number; currentVersionId: string | null }, result: ProcessResult, reason: string) {
-  return saveComposed(setup, episode, { draft: result.draft, quality: result.quality, process: { plan: result.plan, part: result.part } }, reason);
+  const c = result.creative;
+  const hook = result.part === 1 ? (c?.hook ?? null) : null;
+  return saveComposed(
+    setup,
+    episode,
+    {
+      draft: result.draft,
+      quality: result.quality,
+      process: { plan: result.plan, part: result.part, ...(c ? { creative: { pattern: c.decision.pattern, hookId: hook?.id ?? null, hookLine: hook?.line ?? null } } : {}) },
+    },
+    reason,
+  );
+}
+
+/**
+ * The producer picks another opening for Part 1. Only Part 1 is rewritten,
+ * from the saved research and plan: nothing is researched again.
+ */
+export async function chooseHook(ctx: WriteContext & { hookId: string }): Promise<WriteResult> {
+  const setup = await loadEpisodeSetup(ctx.episodeId);
+  if (setup.episode.partNumber !== 1) throw new Error("The opening hook belongs to Part 1.");
+  const decision = await db.manufacturingStorytellingDecision.findUniqueOrThrow({ where: { storyId: setup.story.id } });
+  const hook = await db.manufacturingHookCandidate.findUniqueOrThrow({ where: { id: ctx.hookId } });
+  if (hook.storyId !== setup.story.id) throw new Error("That opening belongs to another story.");
+  if (hook.pattern !== decision.pattern) throw new Error("That opening was written for another storytelling pattern. Switch pattern first.");
+  await db.manufacturingStorytellingDecision.update({ where: { id: decision.id }, data: { selectedHookId: hook.id } });
+  return rewriteFromSaved(ctx, setup, [1], "choose-hook");
+}
+
+/**
+ * The producer switches storytelling pattern: a new decision and openings are
+ * made from the saved research, and every part not yet produced is rewritten
+ * with them. The research and the part plan are reused as they are.
+ */
+export async function switchPattern(ctx: WriteContext & { pattern: Pattern }): Promise<WriteResult> {
+  const setup = await loadEpisodeSetup(ctx.episodeId);
+  const { input, deps } = processContext(ctx, setup);
+  const research = storedResearch(setup.story);
+  const saved = await loadProcessPlan(setup.story.id);
+  if (!research || !saved) throw new Error("Write the scripts first: switching pattern reuses their research and plan.");
+  const open = saved.episodes.filter((e) => ["DRAFT", "SCRIPTED", "FAILED"].includes(e.status)).map((e) => e.partNumber);
+  if (!open.length) throw new Error("Every part has been produced, so there is nothing left to rewrite.");
+  await persistCreative(setup.story.id, research, await createCreativePlan(input, deps, research, { pattern: ctx.pattern }), "producer");
+  return rewriteFromSaved(ctx, setup, open, `pattern-${ctx.pattern.toLowerCase()}`);
+}
+
+/** Rewrites the given parts, in order, from the saved research, plan and creative choices. */
+async function rewriteFromSaved(ctx: WriteContext, setup: Setup, parts: number[], reason: string): Promise<WriteResult> {
+  const { input, deps } = processContext(ctx, setup);
+  const research = storedResearch(setup.story);
+  const saved = await loadProcessPlan(setup.story.id);
+  if (!research || !saved) throw new Error("This story has no saved research and plan. Write the scripts first.");
+  const creative = await savedCreative(setup.story.id, input.topic);
+  const narrations = new Map(saved.episodes.map((e) => [e.partNumber, e.currentVersion?.narration ?? ""]));
+  let first: WriteResult | null = null;
+  for (const part of [...parts].sort((a, b) => a - b)) {
+    const episode = saved.episodes.find((e) => e.partNumber === part);
+    if (!episode) continue;
+    const earlier = saved.episodes.filter((e) => e.partNumber < part).map((e) => narrations.get(e.partNumber) ?? "");
+    const result = await composeProcessPart(input, deps, { research, plan: saved.plan, part, earlier, creative });
+    const written = await saveProcessPart(setup, episode, result, reason);
+    narrations.set(part, result.draft.storyNarration);
+    first ??= written;
+  }
+  return { ...first!, parts: parts.length };
 }
 
 /** What revising or re-checking a saved process part needs. */
@@ -136,7 +301,8 @@ async function processPartState(setup: Setup, spec: EpisodeSpecRecord, narration
   if (!research || !spec.process || !spec.quality) throw new Error("This script has no saved research. Regenerate it instead.");
   const { part, plan } = spec.process;
   const eps = await db.episode.findMany({ where: { storyId: setup.story.id, partNumber: { lt: part } }, orderBy: { partNumber: "asc" }, include: { currentVersion: { select: { narration: true } } } });
-  return { research, plan, part, earlier: eps.map((e) => e.currentVersion?.narration ?? ""), title: spec.title, narration, summary: spec.summary, quality: spec.quality };
+  const creative = await savedCreative(setup.story.id, topicHint(setup.story.discovery));
+  return { research, plan, part, earlier: eps.map((e) => e.currentVersion?.narration ?? ""), title: spec.title, narration, summary: spec.summary, quality: spec.quality, creative };
 }
 
 /** Fixes the open issues flagged on the current script with targeted revisions, as a new version. */

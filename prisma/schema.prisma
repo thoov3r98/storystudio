@@ -26,7 +26,6 @@ enum StoryStatus {
   ARCHIVED
 }
 
-
 enum EpisodeStatus {
   DRAFT // concept/hooks only, no script yet
   SCRIPTED // script exists, not yet produced
@@ -43,17 +42,12 @@ enum VersionStatus {
   SUPERSEDED
 }
 
-
-
-
-
 enum AssetStatus {
   PENDING
   GENERATING
   SUCCEEDED
   FAILED
 }
-
 
 enum Quality {
   DRAFT
@@ -70,6 +64,7 @@ enum ConceptStatus {
 
 enum JobType {
   BATCH_IDEATION
+  TOPIC_DISCOVERY
   EPISODE_PRODUCTION
   REGENERATE_SCRIPT
   REGENERATE_SCENE_NARRATION
@@ -101,12 +96,49 @@ enum Provider {
   VERCEL_SANDBOX
 }
 
-
 enum AudioAssetKind {
   MUSIC
   SFX
 }
 
+/// How far a reference's details can be trusted.
+enum ReferenceVerification {
+  NEEDS_SOURCE // no confirmed URL yet
+  USER_ENTERED // details typed in by the producer, not checked
+  SOURCE_CONFIRMED // title and creator fetched from the platform (oEmbed / API)
+}
+
+/// Where a metric observation came from. Only API observations count as verified.
+enum MetricSource {
+  MANUAL
+  YOUTUBE_API
+}
+
+enum TopicStrategy {
+  EVIDENCE_BACKED // a close comparable in the library has audience evidence
+  ADJACENT // related to successful references, but a new product
+  EXPLORATORY // little or no comparable evidence
+}
+
+enum EvidenceLevel {
+  VERIFIED // a linked reference has API-observed metrics
+  REPORTED // linked references have only producer-entered metrics
+  NONE // no comparable with any metrics
+}
+
+enum TopicStatus {
+  PROPOSED
+  APPROVED
+  REJECTED
+  DUPLICATE
+  USED
+}
+
+enum StorytellingPattern {
+  TRANSFORMATION
+  HIDDEN_PROBLEM
+  FACTORY_REVEAL
+}
 
 /// How a channel's videos are made. Only process explainers ("How it's made") for now.
 enum ChannelFormat {
@@ -117,7 +149,7 @@ enum ChannelFormat {
 
 /// A TikTok channel. Everything is generated for a channel: its profile steers pitching, writing and checking.
 model Channel {
-  id                String               @id @default(cuid())
+  id                String        @id @default(cuid())
   name              String
   /// The producer's prompt the profile was generated from.
   brief             String
@@ -125,64 +157,67 @@ model Channel {
   /// Generated from the brief, then editable: subjects, voice, story shape, things to avoid, Surprise me guidance.
   profile           Json
   voiceId           String?
-  styleKey          String               @default("stick-figure-color")
-  targetDurationSec Int                  @default(75)
+  styleKey          String        @default("stick-figure-color")
+  targetDurationSec Int           @default(75)
   /// Each story is planned across minParts..maxParts videos; the planner picks the count.
-  minParts          Int                  @default(3)
-  maxParts          Int                  @default(5)
-  quality           Quality              @default(STANDARD)
+  minParts          Int           @default(3)
+  maxParts          Int           @default(5)
+  quality           Quality       @default(STANDARD)
   archivedAt        DateTime?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   stories Story[]
   batches Batch[]
+  topics  ManufacturingTopicCandidate[]
 }
-
 
 // ───────────────────────────── Stories ─────────────────────────────
 
 model Story {
-  id                   String      @id @default(cuid())
-  title                String
-  normalizedTitle      String
-  premise              String
-  logline              String?
+  id                String                       @id @default(cuid())
+  title             String
+  normalizedTitle   String
+  premise           String
+  logline           String?
   /// The pitch's sketch of the stages (`beatSketch`); a lead for the researcher, never a source.
-  storySeed            Json?
-  keywords             String[]
-  status               StoryStatus @default(CONCEPT)
-  styleKey             String      @default("stick-figure")
-  voiceId              String?
-  targetDurationSec    Int         @default(75)
+  storySeed         Json?
+  keywords          String[]
+  status            StoryStatus                  @default(CONCEPT)
+  styleKey          String                       @default("stick-figure")
+  voiceId           String?
+  targetDurationSec Int                          @default(75)
   /// How many videos one story is planned across. Writing Part 1 plans and writes every part.
-  plannedParts         Int         @default(1)
-  quality              Quality     @default(STANDARD)
-  thumbnailUrl         String?
-  channelId            String?
-  channel              Channel?    @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  plannedParts      Int                          @default(1)
+  quality           Quality                      @default(STANDARD)
+  thumbnailUrl      String?
+  channelId         String?
+  channel           Channel?                     @relation(fields: [channelId], references: [id], onDelete: SetNull)
   /// Process explainers: the web research every part is written from (see src/lib/process).
-  research             Json?
-  archivedAt           DateTime?
-  lastActivityAt       DateTime    @default(now())
-  createdAt            DateTime    @default(now())
-  updatedAt            DateTime    @updatedAt
+  research          Json?
+  /// Topic discovery snapshot from the chosen pitch (score, evidence, angle). See src/lib/topics.
+  discovery         Json?
+  topicCandidateId  String?
+  topicCandidate    ManufacturingTopicCandidate? @relation(fields: [topicCandidateId], references: [id], onDelete: SetNull)
+  archivedAt        DateTime?
+  lastActivityAt    DateTime                     @default(now())
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
 
   conceptId String?  @unique
   concept   Concept? @relation(fields: [conceptId], references: [id], onDelete: SetNull)
 
-  episodes         Episode[]
-  jobs             Job[]
-  costs            CostEntry[]
+  episodes     Episode[]
+  jobs         Job[]
+  costs        CostEntry[]
+  storytelling ManufacturingStorytellingDecision?
+  hooks        ManufacturingHookCandidate[]
 
   @@index([status])
   @@index([normalizedTitle])
   @@index([lastActivityAt])
   @@index([channelId])
 }
-
-
-
 
 // ───────────────────────────── Episodes ─────────────────────────────
 
@@ -212,12 +247,12 @@ model Episode {
 
 /// An immutable-once-approved script version with its scenes and generated media.
 model EpisodeVersion {
-  id                   String          @id @default(cuid())
+  id                   String        @id @default(cuid())
   episodeId            String
-  episode              Episode         @relation("EpisodeVersions", fields: [episodeId], references: [id], onDelete: Cascade)
-  currentOf            Episode?        @relation("CurrentVersion")
+  episode              Episode       @relation("EpisodeVersions", fields: [episodeId], references: [id], onDelete: Cascade)
+  currentOf            Episode?      @relation("CurrentVersion")
   version              Int
-  status               VersionStatus   @default(DRAFT)
+  status               VersionStatus @default(DRAFT)
   parentVersionId      String?
   /// Why this version exists: "initial", "regenerate-script", "regenerate-hook", "edit-scene", "fork-locked".
   reason               String
@@ -234,18 +269,17 @@ model EpisodeVersion {
   /// Global style + per-story visual notes used to build image prompts.
   styleKey             String
   voiceoverId          String?
-  voiceover            Voiceover?      @relation("CurrentVoiceover", fields: [voiceoverId], references: [id], onDelete: SetNull)
+  voiceover            Voiceover?    @relation("CurrentVoiceover", fields: [voiceoverId], references: [id], onDelete: SetNull)
   /// Scene timing derived from the current voiceover alignment; null when stale.
   timing               Json?
-  createdAt            DateTime        @default(now())
+  createdAt            DateTime      @default(now())
 
   scenes     Scene[]
-  voiceovers Voiceover[]          @relation("VersionVoiceovers")
+  voiceovers Voiceover[] @relation("VersionVoiceovers")
   renders    Render[]
 
   @@unique([episodeId, version])
 }
-
 
 model Scene {
   id                  String         @id @default(cuid())
@@ -340,7 +374,6 @@ model Render {
   @@index([episodeVersionId])
 }
 
-
 model PerformanceMetric {
   id              String   @id @default(cuid())
   episodeId       String
@@ -365,21 +398,22 @@ model PerformanceMetric {
 // ───────────────────────────── Batches & concepts ─────────────────────────────
 
 model Batch {
-  id                String     @id @default(cuid())
+  id                String   @id @default(cuid())
   customDirection   String?
   requestedCount    Int
   targetDurationSec Int
   styleKey          String
   voiceId           String
   quality           Quality
-  maxBudgetUsd      Decimal    @db.Decimal(12, 6)
-  estimatedCostUsd  Decimal    @default(0) @db.Decimal(12, 6)
+  maxBudgetUsd      Decimal  @db.Decimal(12, 6)
+  estimatedCostUsd  Decimal  @default(0) @db.Decimal(12, 6)
   channelId         String?
-  channel           Channel?   @relation(fields: [channelId], references: [id], onDelete: SetNull)
-  createdAt         DateTime   @default(now())
+  channel           Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  createdAt         DateTime @default(now())
 
   concepts Concept[]
   jobs     Job[]
+  topics   ManufacturingTopicCandidate[]
 }
 
 model Concept {
@@ -398,9 +432,12 @@ model Concept {
   status           ConceptStatus @default(CANDIDATE)
   duplicateOfTitle String?
   similarity       Float?
+  /// Topic discovery snapshot when the pitch came from evidence-based discovery.
+  discovery        Json?
   createdAt        DateTime      @default(now())
 
   story Story?
+  topic ManufacturingTopicCandidate?
 
   @@index([batchId])
 }
@@ -429,30 +466,31 @@ model Job {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  costs CostEntry[]
+  costs  CostEntry[]
+  topics ManufacturingTopicCandidate[]
 
   @@index([status])
   @@index([createdAt])
 }
 
 model CostEntry {
-  id          String     @id @default(cuid())
-  provider    Provider
-  model       String
-  operation   String
+  id        String   @id @default(cuid())
+  provider  Provider
+  model     String
+  operation String
   /// Provider usage units (tokens, characters, seconds, images).
-  usage       Json
-  costUsd     Decimal    @db.Decimal(12, 6)
+  usage     Json
+  costUsd   Decimal  @db.Decimal(12, 6)
   /// True when cost was computed from configured pricing rather than reported by the provider.
-  estimated   Boolean    @default(true)
-  jobId       String?
-  job         Job?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  storyId     String?
-  story       Story?     @relation(fields: [storyId], references: [id], onDelete: SetNull)
-  episodeId   String?
-  episode     Episode?   @relation(fields: [episodeId], references: [id], onDelete: SetNull)
-  batchId     String?
-  createdAt   DateTime   @default(now())
+  estimated Boolean  @default(true)
+  jobId     String?
+  job       Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  storyId   String?
+  story     Story?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  episodeId String?
+  episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  batchId   String?
+  createdAt DateTime @default(now())
 
   @@index([batchId])
   @@index([storyId])
@@ -479,3 +517,172 @@ model AudioAsset {
   createdAt   DateTime       @default(now())
 }
 
+// ───────────────────────────── Topic discovery ─────────────────────────────
+// See src/lib/topics. References are evidence of audience interest; their
+// metrics are timestamped observations, never timeless values.
+
+/// A successful manufacturing video by someone else, kept as evidence of what audiences watch.
+model ManufacturingContentReference {
+  id                 String                @id @default(cuid())
+  /// "youtube", "tiktok", "instagram", "other".
+  platform           String
+  creator            String
+  /// Null while the source hasn't been found (verification NEEDS_SOURCE).
+  url                String?               @unique
+  title              String
+  product            String
+  normalizedProduct  String
+  category           String
+  publishedAt        DateTime?
+  durationSec        Int?
+  /// The step that makes the video worth watching, e.g. "a ribbon of ice cream cut and sandwiched".
+  notableStep        String                @default("")
+  curiosityMechanism String                @default("")
+  /// The opening as actually observed; empty when not watched.
+  observedHook       String                @default("")
+  /// e.g. "molding", "forging", "recycling", "assembly line".
+  transformationType String                @default("")
+  verification       ReferenceVerification @default(USER_ENTERED)
+  notes              String                @default("")
+  /// What we may do with the video: usually "reference only, not reusable".
+  usageRights        String                @default("Reference only; not licensed for reuse")
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  metrics  ReferenceMetricObservation[]
+  evidence TopicEvidence[]
+
+  @@index([platform])
+  @@index([category])
+  @@index([normalizedProduct])
+}
+
+/// Audience numbers for a reference as seen at one moment. Missing numbers stay null.
+model ReferenceMetricObservation {
+  id          String                        @id @default(cuid())
+  referenceId String
+  reference   ManufacturingContentReference @relation(fields: [referenceId], references: [id], onDelete: Cascade)
+  views       Int?
+  likes       Int?
+  comments    Int?
+  shares      Int?
+  observedAt  DateTime
+  source      MetricSource                  @default(MANUAL)
+  note        String                        @default("")
+  createdAt   DateTime                      @default(now())
+
+  @@index([referenceId, observedAt])
+}
+
+/// A product proposed by topic discovery, with its explainable score.
+model ManufacturingTopicCandidate {
+  id                  String        @id @default(cuid())
+  channelId           String
+  channel             Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  /// The Surprise me batch it was proposed for, if any.
+  batchId             String?
+  batch               Batch?        @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  jobId               String?
+  job                 Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  /// The pitch it became when shown on Make Videos.
+  conceptId           String?       @unique
+  concept             Concept?      @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  product             String
+  normalizedProduct   String
+  category            String
+  title               String
+  episodeConcept      String
+  premise             String
+  /// Stages sketch: a lead for the researcher, never a source.
+  arc                 String
+  strategy            TopicStrategy
+  evidenceLevel       EvidenceLevel
+  whyViewers          String
+  featuredStage       String
+  curiosityAngle      String
+  visualPayoff        String
+  researchFeasibility String
+  visualFeasibility   String
+  /// The reviewer's 0–10 ratings and notes per qualitative dimension (null until evaluated).
+  ratings             Json?
+  /// 0–100, computed in code from the ratings and the evidence.
+  score               Float?
+  scoreBreakdown      Json?
+  status              TopicStatus   @default(PROPOSED)
+  duplicateOf         String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  evidence TopicEvidence[]
+  stories  Story[]
+
+  @@index([channelId, createdAt])
+  @@index([normalizedProduct])
+  @@index([batchId])
+  @@index([jobId])
+}
+
+/// Why a reference counts as comparable evidence for a topic.
+model TopicEvidence {
+  id          String                        @id @default(cuid())
+  candidateId String
+  candidate   ManufacturingTopicCandidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  referenceId String
+  reference   ManufacturingContentReference @relation(fields: [referenceId], references: [id], onDelete: Cascade)
+  relation    String
+
+  @@unique([candidateId, referenceId])
+  @@index([referenceId])
+}
+
+/// How a researched product is told: the storytelling pattern, featured stage and selected hook.
+model ManufacturingStorytellingDecision {
+  id                 String                      @id @default(cuid())
+  storyId            String                      @unique
+  story              Story                       @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  pattern            StorytellingPattern
+  /// "recommended" by the model, or "producer" when overridden.
+  patternSource      String                      @default("recommended")
+  reason             String
+  curiosityMechanism String
+  featuredStageId    String
+  visualPayoff       String
+  alternatives       StorytellingPattern[]
+  /// Per research stage: visual subject, operation, material before/after, machinery, moment, claim ids.
+  stageVisuals       Json
+  selectedHookId     String?                     @unique
+  selectedHook       ManufacturingHookCandidate? @relation("SelectedHook", fields: [selectedHookId], references: [id], onDelete: SetNull)
+  /// `researchedAt` of the research this was made from; a mismatch means it is stale.
+  researchedAt       String
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+}
+
+/// One candidate opening line, tied to research claims, with its independent review.
+model ManufacturingHookCandidate {
+  id               String                             @id @default(cuid())
+  storyId          String
+  story            Story                              @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  selectedBy       ManufacturingStorytellingDecision? @relation("SelectedHook")
+  pattern          StorytellingPattern
+  line             String
+  strategy         String
+  /// Research claim ids ("T2.1" = stage T2, step 1).
+  claimIds         String[]
+  featuredStageId  String
+  firstFrameVisual String
+  whyItWorks       String
+  uncertainty      String                             @default("")
+  /// Visual metadata for the future visual engine: subject, operation, before/after, machinery.
+  visual           Json
+  /// Deterministic support problems (unknown claim ids, numbers not in the cited claims...).
+  flags            String[]
+  /// Reviewer's 1–5 scores per criterion, verdict and note (null if not reviewed).
+  review           Json?
+  /// Editorial heuristic, not a performance prediction.
+  total            Float?
+  rank             Int?
+  createdAt        DateTime                           @default(now())
+
+  @@index([storyId, pattern])
+}

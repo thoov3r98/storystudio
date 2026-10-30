@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Lightbulb, Loader2, Shuffle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -58,9 +59,15 @@ export function GenerateForm({ channel }: { channel: GenerateChannel }) {
       <aside className="h-fit space-y-2 rounded-xl border bg-card p-5 text-sm text-muted-foreground">
         <p className="font-medium text-foreground">What happens next</p>
         <ol className="ml-4 list-decimal space-y-1.5">
-          <li>Three pitches for {channel.name} (a few cents).</li>
+          <li>
+            Three pitches for {channel.name} (a few cents). Surprise me proposes products from the{" "}
+            <Link href="/topics" className="underline underline-offset-2">
+              reference library
+            </Link>{" "}
+            and shows each one&apos;s evidence and score.
+          </li>
           <li>You pick one. The product&apos;s real manufacturing process is researched on the web.</li>
-          <li>The process is split across {parts} videos and every script is written and fact-checked.</li>
+          <li>The process is split across {parts} videos. A storytelling pattern and several opening hooks are chosen from the research, then every script is written and fact-checked.</li>
           <li>Each part waits for your approval before images, narration and rendering.</li>
         </ol>
       </aside>

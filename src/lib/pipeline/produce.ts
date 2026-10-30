@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { setJobStage } from "@/lib/jobs";
 import type { CostContext } from "@/lib/costs/record";
 import { computeStaleness } from "@/lib/invalidation";
-import { reviseEpisode, rewriteScene, writeEpisode } from "./writing";
+import { chooseHook, reviseEpisode, rewriteScene, switchPattern, writeEpisode } from "./writing";
+import { PATTERN_KEYS, type Pattern } from "@/lib/schemas/storytelling";
 import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
 import { generateSceneImages } from "./illustrations";
 import { generateVoiceover, synchronizeNarration } from "./voiceover";
@@ -17,6 +18,10 @@ export const EpisodeActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("regenerate-script"), replanStory: z.boolean().optional() }),
   /** Fix the issues flagged on the current script with targeted revisions. */
   z.object({ action: z.literal("revise-script") }),
+  /** Part 1 only: rewrite it to open with another of the story's hooks (no new research). */
+  z.object({ action: z.literal("choose-hook"), hookId: z.string() }),
+  /** New storytelling pattern and hooks from the saved research; every unproduced part is rewritten. */
+  z.object({ action: z.literal("switch-pattern"), pattern: z.enum(PATTERN_KEYS as [Pattern, ...Pattern[]]) }),
   z.object({ action: z.literal("rewrite-scene"), sceneNumber: z.number().int(), instruction: z.string().nullish() }),
   z.object({ action: z.literal("regenerate-image"), sceneNumbers: z.array(z.number().int()).min(1) }),
   z.object({ action: z.literal("regenerate-voiceover") }),
@@ -166,6 +171,16 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
     case "revise-script": {
       await setJobStage(jobId, "WRITING_STORY", "Fixing the flagged issues", 0.02);
       await reviseEpisode({ ...ctx, jobId });
+      return { scripted: true };
+    }
+    case "choose-hook": {
+      await setJobStage(jobId, "WRITING_STORY", "Rewriting the opening with the chosen hook", 0.05);
+      await chooseHook({ ...ctx, jobId, hookId: req.hookId });
+      return { scripted: true };
+    }
+    case "switch-pattern": {
+      await setJobStage(jobId, "WRITING_STORY", "Switching storytelling pattern", 0.05);
+      await switchPattern({ ...ctx, jobId, pattern: req.pattern });
       return { scripted: true };
     }
     case "rewrite-scene": {

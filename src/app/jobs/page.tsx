@@ -71,7 +71,9 @@ async function JobsContent({ searchParams }: { searchParams: PageProps<"/jobs">[
                 ? { href: `/batches/${j.batch.id}`, label: "Pitches" }
                 : j.story
                   ? { href: `/stories/${j.story.id}`, label: j.story.title }
-                  : null;
+                  : j.type === "TOPIC_DISCOVERY"
+                    ? { href: "/topics", label: "Topic research" }
+                    : null;
             const active = ACTIVE_JOB_STATUSES.includes(j.status);
             return (
               <div key={j.id} className="rounded-xl border bg-card p-4">

@@ -22,7 +22,7 @@ function IssueCard({ issue, dismissed, versionId, canDismiss }: { issue: Recorde
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-medium">
           {issue.severity} · {issue.category.replaceAll("-", " ")} · {issue.kind === "contradiction" ? "contradiction" : "creative concern"} · {issue.location}
-          {issue.stage === "continuity" ? " · series" : ""}
+          {issue.stage === "continuity" ? " · series" : issue.stage === "attention" ? " · attention & payoff" : ""}
           {!issue.verified ? " · quote not found in script" : ""}
           {dismissed ? " · dismissed by you" : ""}
         </span>
@@ -125,7 +125,7 @@ export function ScriptChecks(props: {
   return (
     <Section
       title="Script checks"
-      description="An independent fact-check of this script against the web research, plus clarity and tone. Read the sources for anything that matters."
+      description="An independent fact-check of this script against the web research, plus clarity, tone, and an attention and payoff review (which can flag pacing, never block). Read the sources for anything that matters."
     >
       <div className="space-y-4">
         <div className={cn("flex flex-col gap-3 rounded-xl border p-4 text-sm sm:flex-row sm:items-center sm:justify-between", status.className)}>

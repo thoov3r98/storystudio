@@ -6,7 +6,7 @@ import { failJob } from "@/lib/jobs";
 import { refreshStoryStatus } from "@/lib/pipeline/versions";
 import type { JobType } from "@/generated/prisma/enums";
 import type { EpisodeJobPayload } from "@/lib/pipeline/produce";
-import type { episodeJobTask, ideateBatchTask } from "@/trigger/tasks";
+import type { discoverTopicsTask, episodeJobTask, ideateBatchTask } from "@/trigger/tasks";
 
 /*
  * Server-side job submission. A Job row is created first so the UI shows the
@@ -38,10 +38,28 @@ export async function enqueueIdeation(batchId: string) {
   return job.id;
 }
 
+/** Topic Research: proposes and scores products for a channel from the reference library. */
+export async function enqueueTopicDiscovery(channelId: string) {
+  const active = await db.job.findFirst({ where: { type: "TOPIC_DISCOVERY", status: { in: ACTIVE_JOB_STATUSES } }, select: { id: true } });
+  if (active) throw new Error("Topic discovery is already running. Wait for it to finish.");
+  const job = await db.job.create({ data: { type: "TOPIC_DISCOVERY", input: { channelId } } });
+  try {
+    assertTriggerConfigured();
+    const handle = await tasks.trigger<typeof discoverTopicsTask>("discover-topics", { jobId: job.id, channelId }, { tags: [`channel:${channelId}`] });
+    await db.job.update({ where: { id: job.id }, data: { triggerRunId: handle.id } });
+  } catch (err) {
+    await markSubmitFailed(job.id, err);
+    throw err;
+  }
+  return job.id;
+}
+
 const ACTION_JOB_TYPE: Record<EpisodeJobPayload["request"]["action"], JobType> = {
   produce: "EPISODE_PRODUCTION",
   "regenerate-script": "REGENERATE_SCRIPT",
   "revise-script": "REGENERATE_SCRIPT",
+  "choose-hook": "REGENERATE_SCRIPT",
+  "switch-pattern": "REGENERATE_SCRIPT",
   "rewrite-scene": "REGENERATE_SCENE_NARRATION",
   "regenerate-image": "REGENERATE_IMAGE",
   "regenerate-voiceover": "REGENERATE_VOICEOVER",
@@ -127,7 +145,10 @@ export async function retryJob(jobId: string) {
   assertTriggerConfigured();
   await db.job.update({ where: { id: jobId }, data: { status: "QUEUED", stage: "Queued for retry", completedAt: null } });
   try {
-    if (job.type === "BATCH_IDEATION") {
+    if (job.type === "TOPIC_DISCOVERY") {
+      const handle = await tasks.trigger<typeof discoverTopicsTask>("discover-topics", { jobId, channelId: (job.input as { channelId: string }).channelId });
+      await db.job.update({ where: { id: jobId }, data: { triggerRunId: handle.id } });
+    } else if (job.type === "BATCH_IDEATION") {
       const handle = await tasks.trigger<typeof ideateBatchTask>("ideate-batch", { jobId, batchId: job.batchId! });
       await db.job.update({ where: { id: jobId }, data: { triggerRunId: handle.id } });
     } else {

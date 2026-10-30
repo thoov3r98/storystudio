@@ -122,6 +122,62 @@ async function main() {
   });
   await db.episode.update({ where: { id: scripted.id }, data: { currentVersionId: soapVersion.id } });
 
+  // How the soap story is told: a recommended pattern and two reviewed openings, one selected.
+  const review = (n: number) => ({ clarity: n, curiosity: n, specificity: n, connection: n, factualSupport: n, visualPotential: n, naturalLanguage: n, supported: true, unsupportedDetail: "", note: "Clear and concrete." });
+  const visual = { visualSubject: "a vat of oil", operation: "heating", materialBefore: "oil", materialAfter: "soap paste", machinery: "", visualMoment: "The paste thickens." };
+  const hookA = await db.manufacturingHookCandidate.create({
+    data: { storyId: soapStory.id, pattern: "FACTORY_REVEAL", line: "Every bar of soap starts as a vat of oil.", strategy: "material-contrast", claimIds: ["T1.1"], featuredStageId: "T2", firstFrameVisual: "A steel vat of oil.", whyItWorks: "A surprising start.", visual, flags: [], review: review(5), total: 100, rank: 1 },
+  });
+  await db.manufacturingHookCandidate.create({
+    data: { storyId: soapStory.id, pattern: "FACTORY_REVEAL", line: "Soap paste is poured into long moulds to set.", strategy: "intriguing-operation", claimIds: ["T2.1"], featuredStageId: "T2", firstFrameVisual: "Paste pouring.", whyItWorks: "Satisfying motion.", visual, flags: [], review: review(4), total: 75, rank: 2 },
+  });
+  await db.manufacturingStorytellingDecision.create({
+    data: {
+      storyId: soapStory.id,
+      pattern: "FACTORY_REVEAL",
+      reason: "The research describes a continuous line from vat to wrapped bar.",
+      curiosityMechanism: "How oil turns into a hard bar.",
+      featuredStageId: "T2",
+      visualPayoff: "Bars are stamped and pushed out of the line.",
+      alternatives: ["TRANSFORMATION"],
+      stageVisuals: [],
+      selectedHookId: hookA.id,
+      researchedAt: "2026-10-01T00:00:00.000Z",
+    },
+  });
+
+  // Topic research: one reference with hand-entered numbers, one with none, and a proposal from them.
+  const flip = await db.manufacturingContentReference.create({
+    data: { platform: "youtube", creator: "Factory Works", url: "https://www.youtube.com/watch?v=seedflip", title: "Flip-flop factory tour", product: "Rubber flip-flops", normalizedProduct: "rubber flip flops", category: "footwear", publishedAt: new Date("2025-10-01"), transformationType: "molding", notableStep: "Soles are cut from pressed sheets." },
+  });
+  await db.referenceMetricObservation.create({ data: { referenceId: flip.id, views: 4_000_000, likes: 90_000, observedAt: new Date("2026-10-01"), source: "MANUAL" } });
+  await db.manufacturingContentReference.create({
+    data: { platform: "youtube", creator: "Science Channel", url: null, title: "Ice cream sandwiches", product: "Ice cream sandwiches", normalizedProduct: "ice cream sandwiches", category: "frozen desserts", verification: "NEEDS_SOURCE" },
+  });
+  await db.manufacturingTopicCandidate.create({
+    data: {
+      channelId: channel.id,
+      product: "Glass marbles",
+      normalizedProduct: "glass marbles",
+      category: "toys",
+      title: "How Glass Marbles Are Made",
+      episodeConcept: "Molten glass is cut and rolled into perfect spheres.",
+      premise: "How glass marbles are made.",
+      arc: "Melting. Cutting. Rolling. Sorting.",
+      strategy: "EXPLORATORY",
+      evidenceLevel: "NONE",
+      whyViewers: "Everyone has played with one.",
+      featuredStage: "Rolling between screws",
+      curiosityAngle: "How do blobs of glass become round?",
+      visualPayoff: "Glowing blobs roll into spheres.",
+      researchFeasibility: "Well documented.",
+      visualFeasibility: "Simple shapes.",
+      ratings: {},
+      score: 61.5,
+      scoreBreakdown: [{ key: "evidence", label: "Comparable content with audience evidence", weight: 0.25, value: 0, points: 0, note: "No comparable video in the library." }],
+    },
+  });
+
   const batch = await db.batch.create({
     data: { requestedCount: 3, targetDurationSec: 75, styleKey: "stick-figure-color", voiceId: "test-voice", quality: "STANDARD", maxBudgetUsd: 10, channelId: channel.id },
   });

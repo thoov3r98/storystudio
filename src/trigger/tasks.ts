@@ -2,7 +2,7 @@ import { AbortTaskRunError, logger, schemaTask } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { runTrackedJob } from "@/lib/jobs";
-import { runChannelIdeation } from "@/lib/pipeline/channels";
+import { runChannelIdeation, runTopicDiscovery } from "@/lib/pipeline/channels";
 import { EpisodeJobPayloadSchema, runEpisodeJob } from "@/lib/pipeline/produce";
 import { productionDeps } from "@/lib/pipeline/deps";
 import { refreshStoryStatus } from "@/lib/pipeline/versions";
@@ -41,6 +41,22 @@ export const ideateBatchTask = schemaTask({
       return await runTrackedJob(jobId, ctx.run.id, () => runChannelIdeation({ batchId, jobId, deps: productionDeps }));
     } catch (err) {
       if (isPermanent(err)) throw new AbortTaskRunError(err instanceof Error ? err.message : String(err));
+      throw err;
+    }
+  },
+});
+
+export const discoverTopicsTask = schemaTask({
+  id: "discover-topics",
+  schema: z.object({ jobId: z.string(), channelId: z.string() }),
+  maxDuration: 600,
+  retry: { maxAttempts: 2 },
+  run: async ({ jobId, channelId }, { ctx }) => {
+    try {
+      // Saved candidates are kept on retry, so a retry never pays for the same ideas twice.
+      return await runTrackedJob(jobId, ctx.run.id, () => runTopicDiscovery({ channelId, jobId, deps: productionDeps }));
+    } catch (err) {
+      if (isPermanent(err) || (err instanceof Error && err.name === "EmptyLibraryError")) throw new AbortTaskRunError(err instanceof Error ? err.message : String(err));
       throw err;
     }
   },

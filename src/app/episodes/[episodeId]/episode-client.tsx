@@ -84,7 +84,7 @@ export function RewriteSceneDialog({
         </DialogHeader>
         <div className="space-y-2">
           <Label htmlFor={`ins-${sceneNumber}`}>Instruction (optional)</Label>
-          <Textarea id={`ins-${sceneNumber}`} rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder={opening ? "e.g. Start in the moment the chair stops, and make it funnier" : "e.g. Make this beat more tense and remove the statistic"} />
+          <Textarea id={`ins-${sceneNumber}`} rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder={opening ? "e.g. Lead with the moment the strip is hardened, in fewer words" : "e.g. Say it more simply and drop the second number"} />
         </div>
         {produced ? (
           <div className="flex items-center justify-between rounded-lg border p-3">
@@ -215,6 +215,35 @@ export function ScriptRating({ versionId, rating }: { versionId: string; rating:
           <Star className={cn("size-5", rating !== null && n <= rating ? "fill-current" : "")} />
         </button>
       ))}
+    </div>
+  );
+}
+
+/** Switch storytelling pattern: new openings from the saved research, and every unproduced part rewritten. */
+export function PatternSwitcher({ episodeId, current, options, disabled }: { episodeId: string; current: string; options: { value: string; label: string }[]; disabled?: boolean }) {
+  const [pattern, setPattern] = useState(options.find((o) => o.value !== current)?.value ?? "");
+  const label = options.find((o) => o.value === pattern)?.label ?? "";
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <select value={pattern} onChange={(e) => setPattern(e.target.value)} className="h-7 rounded-md border bg-background px-2 text-xs" aria-label="Storytelling pattern" disabled={disabled}>
+        {options
+          .filter((o) => o.value !== current)
+          .map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+      </select>
+      <EpisodeActionButton
+        episodeId={episodeId}
+        request={{ action: "switch-pattern", pattern: pattern as "TRANSFORMATION" }}
+        disabled={disabled || !pattern}
+        label="Switch pattern"
+        size="xs"
+        variant="outline"
+        continueProduction={false}
+        confirm={`Tells the story as "${label}": new openings are written and reviewed, and every part not yet produced is rewritten and fact-checked as a new version. The saved research and part plan are reused; nothing is researched again or spent on media.`}
+      />
     </div>
   );
 }

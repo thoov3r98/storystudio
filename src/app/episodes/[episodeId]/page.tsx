@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { EpisodeStatusBadge, JobStatusBadge, Money, PageHeader, PageSkeleton, Section, relativeTime } from "@/components/studio";
 import { AutoRefresh } from "@/components/client-helpers";
-import { getEpisode } from "@/lib/queries";
+import { getEpisode, getStorytelling } from "@/lib/queries";
 import { reconcileStaleJobs } from "@/lib/enqueue";
 import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
 import { estimateEpisodeCost, formatUsd } from "@/lib/costs/estimate";
@@ -20,6 +20,8 @@ import { downloadUrl, previewUrl } from "@/lib/urls";
 import { ApproveEpisodeButton } from "@/app/stories/[storyId]/story-client";
 import { EpisodeActionButton, RewriteSceneDialog, SceneImageHistory, VersionRestoreButton } from "./episode-client";
 import { ScriptChecks } from "./script-checks";
+import { CreativeDecisions } from "./creative-decisions";
+import { DiscoverySnapshotSchema } from "@/lib/schemas/topics";
 
 export const metadata: Metadata = { title: "Episode" };
 
@@ -85,6 +87,9 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
   const partsPlanned = spec?.process?.plan.parts.length ?? 1;
   const multiPart = partsPlanned > 1;
   const anyPartProduced = episode.story.episodes.some((e) => !["DRAFT", "SCRIPTED", "FAILED"].includes(e.status));
+  const anyUnproduced = episode.story.episodes.some((e) => ["DRAFT", "SCRIPTED", "FAILED"].includes(e.status));
+  const storytelling = await getStorytelling(episode.storyId);
+  const research = ResearchRecordSchema.safeParse(episode.story.research).data ?? null;
 
   return (
     <>
@@ -264,10 +269,21 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
           </div>
 
           <div className="min-w-0 space-y-10">
+            <CreativeDecisions
+              storytelling={storytelling}
+              research={research}
+              process={spec?.process}
+              discovery={DiscoverySnapshotSchema.safeParse(episode.story.discovery).data ?? null}
+              part={episode.partNumber}
+              episodeId={episode.id}
+              busy={busy}
+              anyUnproduced={anyUnproduced}
+            />
+
             <ScriptChecks
               quality={quality}
               process={spec?.process}
-              research={ResearchRecordSchema.safeParse(episode.story.research).data ?? null}
+              research={research}
               versionId={v.id} episodeId={episode.id} humanRating={v.humanRating} busy={busy} atGate={awaitingReview} />
 
             <Section

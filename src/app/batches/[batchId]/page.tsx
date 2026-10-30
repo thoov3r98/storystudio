@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { getBatch } from "@/lib/queries";
 import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
 import { PitchBoard } from "./concept-board";
+import { DiscoverySnapshotSchema } from "@/lib/schemas/topics";
 
 export const metadata: Metadata = { title: "Pitches" };
 
@@ -76,6 +77,7 @@ async function BatchContent({ params }: { params: PageProps<"/batches/[batchId]"
           reason: (c.scores as { summary?: string } | null)?.summary ?? null,
           duplicateOfTitle: c.duplicateOfTitle,
           storyId: c.story?.id ?? null,
+          discovery: DiscoverySnapshotSchema.safeParse(c.discovery).data ?? null,
         }))}
       />
     </>

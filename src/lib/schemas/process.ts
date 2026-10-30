@@ -53,8 +53,12 @@ export const ProcessPlanSchema = z.object({
 });
 export type ProcessPlan = z.infer<typeof ProcessPlanSchema>;
 
-/** What a process script's version stores: the plan it was told from and which part it is. */
-export const ProcessSpecSchema = z.object({ plan: ProcessPlanSchema, part: z.number().int() });
+/** What a process script's version stores: the plan it was told from, which part it is, and the storytelling it was written with. */
+export const ProcessSpecSchema = z.object({
+  plan: ProcessPlanSchema,
+  part: z.number().int(),
+  creative: z.object({ pattern: z.string(), hookId: z.string().nullable(), hookLine: z.string().nullable() }).optional(),
+});
 export type ProcessSpec = z.infer<typeof ProcessSpecSchema>;
 
 const processNarrationFields = {

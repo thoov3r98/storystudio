@@ -201,3 +201,40 @@ export async function getChannel(channelId: string) {
     },
   });
 }
+
+/** Topic Research: the reference library (filtered) and recent proposals with their evidence. */
+export async function getTopicResearch(params: { platform?: string; category?: string; q?: string }) {
+  await connection();
+  const q = params.q?.trim();
+  const where: Prisma.ManufacturingContentReferenceWhereInput = {
+    AND: [
+      params.platform && params.platform !== "all" ? { platform: params.platform } : {},
+      params.category && params.category !== "all" ? { category: params.category } : {},
+      q ? { OR: [{ product: { contains: q, mode: "insensitive" } }, { title: { contains: q, mode: "insensitive" } }, { creator: { contains: q, mode: "insensitive" } }] } : {},
+    ],
+  };
+  const [references, categories, total, candidates, activeJob, channels] = await Promise.all([
+    db.manufacturingContentReference.findMany({ where, orderBy: { updatedAt: "desc" }, include: { metrics: { orderBy: { observedAt: "desc" } } } }),
+    db.manufacturingContentReference.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } }),
+    db.manufacturingContentReference.count(),
+    db.manufacturingTopicCandidate.findMany({
+      where: { batchId: null },
+      orderBy: [{ createdAt: "desc" }],
+      take: 60,
+      include: { evidence: { include: { reference: { include: { metrics: true } } } }, concept: { select: { story: { select: { id: true } } } } },
+    }),
+    db.job.findFirst({ where: { type: "TOPIC_DISCOVERY" }, orderBy: { createdAt: "desc" } }),
+    db.channel.findMany({ where: { archivedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
+  ]);
+  return { references, categories: categories.map((c) => c.category), total, candidates, activeJob, channels };
+}
+
+/** A story's storytelling decision and every hook written for it. */
+export async function getStorytelling(storyId: string) {
+  await connection();
+  const [decision, hooks] = await Promise.all([
+    db.manufacturingStorytellingDecision.findUnique({ where: { storyId } }),
+    db.manufacturingHookCandidate.findMany({ where: { storyId }, orderBy: [{ createdAt: "desc" }, { rank: "asc" }] }),
+  ]);
+  return { decision, hooks };
+}

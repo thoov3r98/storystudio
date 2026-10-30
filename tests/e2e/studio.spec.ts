@@ -127,6 +127,38 @@ test.describe("studio pages", () => {
     await expect(page.getByRole("button", { name: "Regenerate image" }).first()).toBeVisible();
   });
 
+  test("topic research shows the library with dated, honest evidence and scored proposals", async ({ page }) => {
+    await page.goto("/topics");
+    await expect(page.getByRole("heading", { name: "Topic research" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Flip-flop factory tour/ })).toBeVisible();
+    await expect(page.getByText(/4\.0M views over 12 months .*observed 2026-10-01, entered by hand, unverified/)).toBeVisible();
+    await expect(page.getByText("No audience numbers recorded")).toBeVisible();
+    await expect(page.getByText("Needs source URL")).toBeVisible();
+    await expect(page.getByText("How Glass Marbles Are Made")).toBeVisible();
+    await expect(page.getByText("No audience evidence", { exact: false }).first()).toBeVisible();
+    await expect(page.getByText(/No comparable video in the reference library/).first()).toBeVisible();
+    await expect(page.getByText("/100 opportunity estimate")).toBeVisible();
+    await page.getByLabel("Audience traction").selectOption("unknown");
+    await page.getByRole("button", { name: "Filter" }).click();
+    await expect(page.getByText("Ice cream sandwiches").first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /Flip-flop factory tour/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Add reference" }).click();
+    await expect(page.getByRole("dialog")).toContainText("Blank numbers stay unknown");
+  });
+
+  test("a script under review shows how it's told, its openings and the overrides", async ({ page }) => {
+    const { scriptedEpisodeId } = seedIds();
+    await page.goto(`/episodes/${scriptedEpisodeId}`);
+    await expect(page.getByRole("heading", { name: "How it's told" })).toBeVisible();
+    await expect(page.getByText("Factory reveal", { exact: true })).toBeVisible();
+    await expect(page.getByText("The research describes a continuous line from vat to wrapped bar.")).toBeVisible();
+    await expect(page.getByText("“Every bar of soap starts as a vat of oil.”")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Use this opening" })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Switch pattern" })).toBeVisible();
+    await page.getByRole("button", { name: "Use this opening" }).click();
+    await expect(page.getByRole("alertdialog")).toContainText("The research, plan and other parts are unchanged");
+  });
+
   test("jobs page shows failures with error details and retry", async ({ page }) => {
     await page.goto("/jobs");
     await expect(page.getByText("TRIGGER_SECRET_KEY is not configured.")).toBeVisible();

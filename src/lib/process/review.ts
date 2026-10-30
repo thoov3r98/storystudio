@@ -27,9 +27,11 @@ export function recordIssues(issues: AuditIssue[], opts: { stage: RecordedIssue[
   return issues.map((issue, i) => {
     const verified = evidenceFound(issue.evidence, opts.source);
     let severity = issue.severity;
-    if (issue.kind === "creative-concern" && severity === "blocking") severity = "significant";
+    // Attention findings are editorial: never blocking, whatever the reviewer said.
+    const kind = opts.stage === "attention" ? "creative-concern" : issue.kind;
+    if (kind === "creative-concern" && severity === "blocking") severity = "significant";
     if (!verified) severity = "minor";
-    return { ...issue, severity, verified, stage: opts.stage, id: `${opts.prefix}${i + 1}` };
+    return { ...issue, kind, severity, verified, stage: opts.stage, id: `${opts.prefix}${i + 1}` };
   });
 }
 

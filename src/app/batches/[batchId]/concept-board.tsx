@@ -8,6 +8,8 @@ import { ActionButton } from "@/components/client-helpers";
 import { EmptyState } from "@/components/studio";
 import { writePitch } from "@/app/actions";
 import { cn } from "@/lib/utils";
+import { EvidenceLevelBadge, EvidenceList, ScoreBreakdown, StrategyBadge, TopicAngle, TopicScore } from "@/components/topic-evidence";
+import type { DiscoverySnapshot } from "@/lib/schemas/topics";
 
 type Pitch = {
   id: string;
@@ -20,15 +22,31 @@ type Pitch = {
   reason: string | null;
   duplicateOfTitle: string | null;
   storyId: string | null;
+  discovery: DiscoverySnapshot | null;
 };
 
 function PitchCard({ p, canWrite, writingElsewhere }: { p: Pitch; canWrite: boolean; writingElsewhere: boolean }) {
+  const d = p.discovery;
   return (
     <div className={cn("rounded-xl border bg-card p-4", p.storyId && "border-primary/40")}>
-      <h3 className="font-medium text-balance">{p.title}</h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-medium text-balance">{p.title}</h3>
+        {d?.score != null ? <TopicScore score={d.score} /> : null}
+      </div>
       <p className="mt-1 text-sm text-pretty">{p.premise}</p>
+      {d ? (
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {d.generation !== "library-match" ? <StrategyBadge strategy={d.strategy} /> : null}
+            <EvidenceLevelBadge level={d.evidenceLevel} />
+          </div>
+          <TopicAngle d={d} />
+          <EvidenceList evidence={d.evidence} />
+          <ScoreBreakdown breakdown={d.breakdown} />
+        </div>
+      ) : null}
       {p.arc ? <p className="mt-2 text-sm text-muted-foreground text-pretty">{p.arc}</p> : null}
-      {p.reason ? <p className="mt-2 text-xs italic text-muted-foreground">{p.reason}</p> : null}
+      {p.reason && !d ? <p className="mt-2 text-xs italic text-muted-foreground">{p.reason}</p> : null}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {p.status === "DUPLICATE" ? (
           <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">

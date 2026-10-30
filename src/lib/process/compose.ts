@@ -2,6 +2,7 @@ import type { ResearchClient } from "@/lib/ai/research";
 import { recordCost } from "@/lib/costs/record";
 import { textCost } from "@/lib/costs/pricing";
 import {
+  processAttentionPrompt,
   processAuditPrompt,
   processBreakdownPrompt,
   processNarrationPrompt,
@@ -20,17 +21,20 @@ import {
   ResearchNotesSchema,
   validateProcessPlan,
 } from "@/lib/schemas/process";
-import { LogicAuditSchema, type QualityRecord, type RecordedIssue } from "@/lib/schemas/quality";
+import { AttentionAuditSchema, LogicAuditSchema, type QualityRecord, type RecordedIssue } from "@/lib/schemas/quality";
+import { type Creative, hookOpeningIssues, type Pattern } from "@/lib/schemas/storytelling";
 import { type EpisodeDraft, SceneBreakdownSchema } from "@/lib/schemas/episode";
 import { changeLogIssues, firstSentence, makeRunner, MAX_SCRIPT_REVISIONS, narrationLengthIssues, type Run, type ScriptDeps, validateDraft } from "./script";
 import { issueBrief, needsRevision, qualityStatus, recordIssues } from "./review";
+import { type CreativePlan, creativeFor, planCreative } from "./creative";
 
 /*
  * Process explainers ("How it's made"). Research first, then the plan and
  * every script are built only from the research notes, and each script is
  * fact-checked against them:
- *   web research → notes → plan (parts) → for each part: narration →
- *   fact/clarity audit (targeted revisions) → storyboard.
+ *   web research → notes → plan (parts) + storytelling decision → hooks →
+ *   hook review → for each part: narration (Part 1 opens with the hook) →
+ *   fact/clarity audit + attention audit (targeted revisions) → storyboard.
  * Never touches the database.
  */
 
@@ -38,11 +42,13 @@ export type ProcessInput = ProcessPromptInput & {
   /** The pitch's sketch of the stages; a lead for the researcher, never a source. */
   arc: string | null;
   parts: [number, number];
+  /** The approved topic's angle from discovery; a hint the research must back. */
+  topic?: Creative["topic"];
 };
 
 export type ProcessDeps = ScriptDeps & { research: ResearchClient };
 
-export type ProcessResult = { draft: EpisodeDraft; plan: ProcessPlan; part: number; quality: QualityRecord };
+export type ProcessResult = { draft: EpisodeDraft; plan: ProcessPlan; part: number; quality: QualityRecord; creative: Creative | null };
 
 type Round = QualityRecord["scriptRounds"][number];
 type PartState = { part: number; title: string; narration: string; summary: string };
@@ -86,28 +92,41 @@ function partInput(input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, p
   return { ...input, research: notes, plan: p, part, earlier };
 }
 
-async function narrate(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, part: number, earlier: string[]): Promise<PartState> {
+/** The hook only opens Part 1; later parts continue the one story. */
+const hookFor = (creative: Creative | null | undefined, part: number) => (part === 1 ? (creative?.hook?.line ?? null) : null);
+
+async function narrate(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, part: number, earlier: string[], creative?: Creative | null): Promise<PartState> {
+  const hook = hookFor(creative, part);
   const v = await run({
-    prompt: processNarrationPrompt(partInput(input, notes, p, part, earlier)),
+    prompt: processNarrationPrompt({ ...partInput(input, notes, p, part, earlier), creative }),
     schema: ProcessNarrationSchema,
     schemaName: "process_narration",
     role: "writer",
     operation: "write-narration",
     budget: 0.12,
-    validate: (x) => narrationLengthIssues(x.storyNarration, input),
+    validate: (x) => [...narrationLengthIssues(x.storyNarration, input), ...(hook ? hookOpeningIssues(x.storyNarration, hook) : [])],
   });
   return { part, title: v.title, narration: v.storyNarration, summary: v.summary };
 }
 
-async function audit(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, s: PartState, earlier: string[], previous: { id: string; text: string }[] | undefined, round: number) {
-  const prompt = processAuditPrompt({ title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, earlier, previous });
-  const result = await run({ prompt, schema: LogicAuditSchema, schemaName: "process_audit", role: "reviewer", operation: "script-audit", budget: 0.08 });
-  const issues = recordIssues(result.issues, { stage: "script", source: prompt.user, prefix: `S${round}.` }).map((i) => (i.category === "series-continuity" ? { ...i, stage: "continuity" as const } : i));
+/** The fact/clarity audit and the attention audit run side by side on each round; their issues share one gate. */
+async function audit(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, s: PartState, earlier: string[], previous: { id: string; text: string }[] | undefined, round: number, creative?: Creative | null) {
+  const prompt = processAuditPrompt({ title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, earlier, previous, hook: hookFor(creative, s.part) });
+  const attentionPrompt = processAttentionPrompt({ title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, creative });
+  const [result, attention] = await Promise.all([
+    run({ prompt, schema: LogicAuditSchema, schemaName: "process_audit", role: "reviewer", operation: "script-audit", budget: 0.08 }),
+    run({ prompt: attentionPrompt, schema: AttentionAuditSchema, schemaName: "process_attention", role: "reviewer", operation: "attention-audit", budget: 0.05 }),
+  ]);
+  const issues = [
+    ...recordIssues(result.issues, { stage: "script", source: prompt.user, prefix: `S${round}.` }).map((i) => (i.category === "series-continuity" ? { ...i, stage: "continuity" as const } : i)),
+    // Quotes must come from the script itself, not the research shown alongside it.
+    ...recordIssues(attention.issues, { stage: "attention", source: s.narration, prefix: `A${round}.` }),
+  ];
   return { issues, unresolvedPrevious: result.previousIssues.filter((x) => !x.resolved).map((x) => x.id) };
 }
 
 /** Audits a part and revises it with targeted fixes until it is clean or the revision limit is reached. */
-async function refine(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, start: PartState, earlier: string[], initial?: RecordedIssue[]) {
+async function refine(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, start: PartState, earlier: string[], initial?: RecordedIssue[], creative?: Creative | null) {
   let state = start;
   const rounds: Round[] = [];
   let revisions = 0;
@@ -117,7 +136,7 @@ async function refine(run: Run, input: ProcessInput, notes: ResearchRecord, p: P
     if (pending?.length) {
       const ids = pending.map((x) => x.id);
       const rev = await run({
-        prompt: processRevisionPrompt({ ...partInput(input, notes, p, state.part, earlier), narration: state.narration, issues: pending }),
+        prompt: processRevisionPrompt({ ...partInput(input, notes, p, state.part, earlier), narration: state.narration, issues: pending, hook: hookFor(creative, state.part) }),
         schema: ProcessRevisionSchema,
         schemaName: "process_revision",
         role: "writer",
@@ -129,7 +148,7 @@ async function refine(run: Run, input: ProcessInput, notes: ResearchRecord, p: P
       changeLog = rev.changeLog;
       revisions++;
     }
-    const checked = await audit(run, input, notes, p, state, earlier, pending ?? undefined, rounds.length + 1);
+    const checked = await audit(run, input, notes, p, state, earlier, pending ?? undefined, rounds.length + 1, creative);
     rounds.push({ issues: checked.issues, changeLog, unresolvedPrevious: checked.unresolvedPrevious });
     if (!needsRevision(checked.issues) || revisions >= MAX_SCRIPT_REVISIONS) break;
     pending = issueBrief(checked.issues);
@@ -185,7 +204,11 @@ export async function researchProcess(input: ProcessInput, deps: ProcessDeps): P
  * Writes every part of a process explainer. Pass `saved.research` to reuse
  * earlier research (replanning) instead of searching again.
  */
-export async function composeProcess(input: ProcessInput, deps: ProcessDeps, saved?: { research?: ResearchRecord | null }): Promise<{ research: ResearchRecord; results: ProcessResult[] }> {
+export async function composeProcess(
+  input: ProcessInput,
+  deps: ProcessDeps,
+  saved?: { research?: ResearchRecord | null; creative?: { plan: Pick<CreativePlan, "decision">; hook: Creative["hook"] } | null },
+): Promise<{ research: ResearchRecord; results: ProcessResult[]; creative: CreativePlan | null }> {
   const startedAt = Date.now();
   const shared = { usd: 0 };
   const run = makeRunner(deps, shared);
@@ -196,8 +219,12 @@ export async function composeProcess(input: ProcessInput, deps: ProcessDeps, sav
     await stage("Researching how it's made", 0.04);
     notes = await research(run, input, deps, shared);
   }
-  await stage("Planning the parts", 0.2);
-  const p = await plan(run, input, notes);
+  await stage("Planning the parts and how to tell them", 0.2);
+  // The split into parts and the storytelling choice both come from the research alone, so they run together.
+  const [p, fresh] = await Promise.all([plan(run, input, notes), saved?.creative ? Promise.resolve(null) : planCreative(run, input, notes, { topic: input.topic })]);
+  const creative: Creative = saved?.creative
+    ? creativeFor(saved.creative.plan, saved.creative.hook, input.topic)
+    : creativeFor(fresh!, fresh!.recommended === null ? null : fresh!.hooks[fresh!.recommended], input.topic);
   const count = p.parts.length;
 
   const written: { state: PartState; rounds: Round[]; revisions: number; spent: { usd: number } }[] = [];
@@ -207,9 +234,9 @@ export async function composeProcess(input: ProcessInput, deps: ProcessDeps, sav
     const at = 0.25 + (0.6 * (part - 1)) / count;
     const earlier = written.map((w) => w.state.narration);
     await stage(`Writing Part ${part}`, at);
-    const first = await narrate(partRun, input, notes, p, part, earlier);
+    const first = await narrate(partRun, input, notes, p, part, earlier, creative);
     await stage(`Fact-checking Part ${part}`, at + 0.05);
-    const refined = await refine(partRun, input, notes, p, first, earlier);
+    const refined = await refine(partRun, input, notes, p, first, earlier, undefined, creative);
     written.push({ ...refined, spent });
   }
 
@@ -217,57 +244,63 @@ export async function composeProcess(input: ProcessInput, deps: ProcessDeps, sav
   const drafts = await Promise.all(written.map((w) => breakdown(makeRunner(deps, w.spent), input, notes!, p, w.state)));
   return {
     research: notes,
+    creative: fresh,
     results: written.map((w, i) => ({
       draft: drafts[i],
       plan: p,
       part: w.state.part,
       // Research and planning are shared, so each part carries an equal share of them.
       quality: quality(w.state.part, w.rounds, w.revisions, startedAt, shared.usd / count + w.spent.usd),
+      creative,
     })),
   };
 }
 
 /** Rewrites one part from the saved research and plan. */
-export async function composeProcessPart(input: ProcessInput, deps: ProcessDeps, saved: { research: ResearchRecord; plan: ProcessPlan; part: number; earlier: string[] }): Promise<ProcessResult> {
+export async function composeProcessPart(
+  input: ProcessInput,
+  deps: ProcessDeps,
+  saved: { research: ResearchRecord; plan: ProcessPlan; part: number; earlier: string[]; creative?: Creative | null },
+): Promise<ProcessResult> {
   const startedAt = Date.now();
   const spent = { usd: 0 };
   const run = makeRunner(deps, spent);
   await deps.onStage?.(`Writing Part ${saved.part}`, 0.2);
-  const first = await narrate(run, input, saved.research, saved.plan, saved.part, saved.earlier);
+  const first = await narrate(run, input, saved.research, saved.plan, saved.part, saved.earlier, saved.creative);
   await deps.onStage?.(`Fact-checking Part ${saved.part}`, 0.5);
-  const refined = await refine(run, input, saved.research, saved.plan, first, saved.earlier);
+  const refined = await refine(run, input, saved.research, saved.plan, first, saved.earlier, undefined, saved.creative);
   await deps.onStage?.("Planning the shots", 0.85);
   const draft = await breakdown(run, input, saved.research, saved.plan, refined.state);
-  return { draft, plan: saved.plan, part: saved.part, quality: quality(saved.part, refined.rounds, refined.revisions, startedAt, spent.usd) };
+  return { draft, plan: saved.plan, part: saved.part, quality: quality(saved.part, refined.rounds, refined.revisions, startedAt, spent.usd), creative: saved.creative ?? null };
 }
 
 /** Fixes a saved part's open issues with targeted revisions, re-checks it and re-cuts the shots. */
 export async function reviseProcessPart(
   input: ProcessInput,
   deps: ProcessDeps,
-  saved: { research: ResearchRecord; plan: ProcessPlan; part: number; earlier: string[]; title: string; narration: string; summary: string; quality: QualityRecord },
+  saved: { research: ResearchRecord; plan: ProcessPlan; part: number; earlier: string[]; title: string; narration: string; summary: string; quality: QualityRecord; creative?: Creative | null },
 ): Promise<ProcessResult> {
   const startedAt = Date.now();
   const spent = { usd: 0 };
   const run = makeRunner(deps, spent);
   const dismissed = new Set(saved.quality.dismissed.map((d) => d.issueId));
   await deps.onStage?.("Fixing the flagged issues", 0.3);
-  const refined = await refine(run, input, saved.research, saved.plan, { part: saved.part, title: saved.title, narration: saved.narration, summary: saved.summary }, saved.earlier, saved.quality.issues.filter((i) => !dismissed.has(i.id)));
+  const refined = await refine(run, input, saved.research, saved.plan, { part: saved.part, title: saved.title, narration: saved.narration, summary: saved.summary }, saved.earlier, saved.quality.issues.filter((i) => !dismissed.has(i.id)), saved.creative);
   await deps.onStage?.("Planning the shots", 0.85);
   const draft = await breakdown(run, input, saved.research, saved.plan, refined.state);
   const q = quality(saved.part, [...saved.quality.scriptRounds, ...refined.rounds], saved.quality.metrics.scriptRevisions + refined.revisions, startedAt, spent.usd);
-  return { draft, plan: saved.plan, part: saved.part, quality: { ...q, metrics: { ...q.metrics, firstPass: saved.quality.metrics.firstPass } } };
+  return { draft, plan: saved.plan, part: saved.part, quality: { ...q, metrics: { ...q.metrics, firstPass: saved.quality.metrics.firstPass } }, creative: saved.creative ?? null };
 }
 
 /** Re-checks a part after a hand edit (no automatic revision: the producer is editing). */
 export async function recheckProcessPart(
   input: ProcessInput,
   deps: ProcessDeps,
-  saved: { research: ResearchRecord; plan: ProcessPlan; part: number; earlier: string[]; title: string; narration: string; summary: string; quality: QualityRecord },
+  saved: { research: ResearchRecord; plan: ProcessPlan; part: number; earlier: string[]; title: string; narration: string; summary: string; quality: QualityRecord; creative?: Creative | null },
 ): Promise<QualityRecord> {
   const spent = { usd: 0 };
   const run = makeRunner(deps, spent);
-  const checked = await audit(run, input, saved.research, saved.plan, { part: saved.part, title: saved.title, narration: saved.narration, summary: saved.summary }, saved.earlier, undefined, saved.quality.scriptRounds.length + 1);
+  const checked = await audit(run, input, saved.research, saved.plan, { part: saved.part, title: saved.title, narration: saved.narration, summary: saved.summary }, saved.earlier, undefined, saved.quality.scriptRounds.length + 1, saved.creative);
   return {
     ...saved.quality,
     status: qualityStatus({ issues: checked.issues }),
@@ -277,4 +310,10 @@ export async function recheckProcessPart(
     override: null,
     metrics: { ...saved.quality.metrics, textCostUsd: Math.round((saved.quality.metrics.textCostUsd + spent.usd) * 10000) / 10000 },
   };
+}
+
+/** The creative stage on its own, from saved research: for switching pattern or a script written before it existed. */
+export async function createCreativePlan(input: ProcessInput, deps: ProcessDeps, research: ResearchRecord, opts: { pattern?: Pattern | null } = {}): Promise<CreativePlan> {
+  await deps.onStage?.(opts.pattern ? "Writing openings for the new pattern" : "Choosing how to tell it", 0.1);
+  return planCreative(makeRunner(deps, { usd: 0 }), input, research, { pattern: opts.pattern, topic: input.topic });
 }
