@@ -6,6 +6,7 @@
 import type { StructuredTextClient } from "@/lib/ai/structured";
 import type { ImageProvider } from "@/lib/providers/images";
 import type { SpeechProvider } from "@/lib/providers/speech";
+import type { SoundProvider } from "@/lib/providers/sound";
 import type { RenderClient } from "@/lib/render/client";
 import type { PipelineDeps } from "@/lib/pipeline/deps";
 import type { EpisodeDraft } from "@/lib/schemas/episode";
@@ -75,6 +76,7 @@ function cutScenes(narration: string) {
     characters: [] as string[],
     objects: ["mould"],
     motionPreset: "slow-zoom-in" as const,
+    soundEffect: i % 2 === 0 ? ("press" as const) : ("conveyor" as const),
   }));
 }
 
@@ -284,7 +286,7 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
         }
         case "scene_breakdown": {
           const narration = between(user, "FINAL NARRATION", "\u0000").replace(/^— ".*"\n/, "");
-          return out({ visualState: makeDraft("x", 1).visualState, scenes: cutScenes(narration) });
+          return out({ onScreenHook: "It starts as wax", visualState: makeDraft("x", 1).visualState, scenes: cutScenes(narration) });
         }
         case "scene_rewrite": {
           const current = /CURRENT shot \d+ narration: (.*)/.exec(user)?.[1] ?? "x";
@@ -363,19 +365,35 @@ export function fakeSpeech(): SpeechProvider & { count: number } {
   return provider;
 }
 
-type RenderCall = { durationInFrames: number; scenes: number; layout: string; seriesTitle: string; partLabel: string; accentColor: string };
+type RenderCall = { durationInFrames: number; scenes: number; layout: string; seriesTitle: string; partLabel: string; accentColor: string; hookText: string; sounds: number; music: boolean };
 
 export function fakeRender(): RenderClient & { renders: RenderCall[] } {
   const client = {
     renders: [] as RenderCall[],
     async render({ props, onProgress }: Parameters<RenderClient["render"]>[0]) {
       await onProgress({ progress: 0.5, stage: "Rendering frames" });
-      const { durationInFrames, layout, seriesTitle, partLabel, accentColor } = props;
-      client.renders.push({ durationInFrames, scenes: props.scenes.length, layout, seriesTitle, partLabel, accentColor });
+      const { durationInFrames, layout, seriesTitle, partLabel, accentColor, hookText } = props;
+      client.renders.push({ durationInFrames, scenes: props.scenes.length, layout, seriesTitle, partLabel, accentColor, hookText, sounds: props.scenes.filter((s) => s.sound).length, music: Boolean(props.music) });
       return { url: `https://blob.test/render-${client.renders.length}.mp4?download=1`, sizeBytes: 1234, renderSeconds: 10 };
     },
   };
   return client;
+}
+
+/** Sound effects and music: a tiny valid MP3 per call. */
+export function fakeSound(): SoundProvider & { calls: { effects: number; music: number } } {
+  const provider = {
+    calls: { effects: 0, music: 0 },
+    async effect({ durationSeconds }: { durationSeconds: number }) {
+      provider.calls.effects++;
+      return { mp3: cbrMp3(durationSeconds * 1000), model: "fake-sfx" };
+    },
+    async music({ lengthMs }: { lengthMs: number }) {
+      provider.calls.music++;
+      return { mp3: cbrMp3(lengthMs), model: "fake-music" };
+    },
+  };
+  return provider;
 }
 
 /** Web research that returns a fixed report about crayons. */
@@ -400,8 +418,9 @@ export function fakeDeps(opts: FakeTextOptions = {}, imageOpts: { rejectOnce?: S
   const text = fakeText(opts);
   const images = fakeImages(new Set(), imageOpts);
   const speech = fakeSpeech();
+  const sound = fakeSound();
   const render = fakeRender();
   const research = fakeResearch();
-  const deps: PipelineDeps = { text, research, images, speech, render: () => render };
-  return { deps, text, images, speech, render, research };
+  const deps: PipelineDeps = { text, research, images, speech, sound, render: () => render };
+  return { deps, text, images, speech, sound, render, research };
 }

@@ -112,6 +112,10 @@ export async function planCreative(run: Run, input: ProcessInput, research: Rese
 }
 
 /** What the writer receives from a creative plan and the chosen hook. */
-export function creativeFor(plan: Pick<CreativePlan, "decision">, hook: ReviewedHook | { id?: string; line: string; claimIds: string[]; featuredStageId: string } | null, topic?: Creative["topic"]): Creative {
-  return { decision: plan.decision, hook: hook ? { id: "id" in hook ? hook.id : undefined, line: hook.line, claimIds: hook.claimIds, featuredStageId: hook.featuredStageId } : null, topic: topic ?? null };
+export function creativeFor(plan: Pick<CreativePlan, "decision">, hook: ReviewedHook | NonNullable<Creative["hook"]> | null, topic?: Creative["topic"]): Creative {
+  return {
+    decision: plan.decision,
+    hook: hook ? { id: "id" in hook ? hook.id : undefined, line: hook.line, claimIds: hook.claimIds, featuredStageId: hook.featuredStageId, firstFrameVisual: hook.firstFrameVisual } : null,
+    topic: topic ?? null,
+  };
 }

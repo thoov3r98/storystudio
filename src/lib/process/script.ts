@@ -73,6 +73,19 @@ export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; 
     );
   }
   if (!startsWith(draft.storyNarration, draft.selectedHook)) issues.push("selectedHook must be the opening line(s) of storyNarration, copied exactly.");
+  if (draft.onScreenHook !== undefined) issues.push(...onScreenHookIssues(draft.onScreenHook, draft.storyNarration));
+  return issues;
+}
+
+/** The on-screen hook is read in a glance and may only repeat what the narration says. */
+export function onScreenHookIssues(text: string, narration: string): string[] {
+  const issues: string[] = [];
+  const words = countWords(text);
+  if (words < 2 || words > 7) issues.push(`onScreenHook must be 3–6 words (it is ${words}).`);
+  if (text.includes("?")) issues.push("onScreenHook must be a plain statement, not a question.");
+  const said = new Set(narration.match(/\d[\d,.]*\d|\d/g) ?? []);
+  const unsaid = (text.match(/\d[\d,.]*\d|\d/g) ?? []).filter((n) => !said.has(n));
+  if (unsaid.length) issues.push(`onScreenHook says ${unsaid.join(", ")}, which the narration doesn't.`);
   return issues;
 }
 

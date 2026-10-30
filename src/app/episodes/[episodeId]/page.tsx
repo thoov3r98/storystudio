@@ -10,7 +10,7 @@ import { EpisodeStatusBadge, JobStatusBadge, Money, PageHeader, PageSkeleton, Se
 import { AutoRefresh } from "@/components/client-helpers";
 import { getEpisode, getStorytelling } from "@/lib/queries";
 import { reconcileStaleJobs } from "@/lib/enqueue";
-import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
+import { ACTIVE_JOB_STATUSES, SOUND_EFFECTS, type SoundEffectKey } from "@/lib/constants";
 import { estimateEpisodeCost, formatUsd } from "@/lib/costs/estimate";
 import { getModels, getPricing } from "@/lib/settings";
 import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
@@ -327,6 +327,12 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                     <RewriteSceneDialog episodeId={episode.id} sceneNumber={1} disabled={busy} opening produced={produced} />
                   </div>
                   <p className="mt-1 text-lg font-medium text-balance">{spec?.selectedHook}</p>
+                  {spec?.onScreenHook ? (
+                    <p className="mt-2 text-sm">
+                      <span className="text-muted-foreground">On screen for the first seconds: </span>
+                      <span className="rounded bg-yellow-200 px-1.5 py-0.5 font-semibold text-black">{spec.onScreenHook}</span>
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Summary</div>
@@ -377,6 +383,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                             <span>~{s.intendedDurationSec.toFixed(0)}s planned</span>
                           )}
                           <Badge variant="outline">{s.motionPreset}</Badge>
+                          {s.soundEffect in SOUND_EFFECTS ? <Badge variant="outline">♪ {SOUND_EFFECTS[s.soundEffect as SoundEffectKey].label.toLowerCase()}</Badge> : null}
                           {img?.usedReference ? <Badge variant="outline">style-referenced</Badge> : null}
                         </div>
                         <p className="text-sm">{s.narration}</p>

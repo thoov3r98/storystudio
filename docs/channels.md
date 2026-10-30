@@ -61,6 +61,12 @@ web research (OpenAI web_search, cited) → research notes (stages T1..TN, steps
 - Attention audit (stage `attention`): `weak-opening`, `slow-start`, `unanswered-question`, `filler`, `missing-payoff`, `weak-ending`, `name-dropping`. Always a creative concern, so at most significant: it can trigger a targeted revision or leave the script "needs attention", never block it. Every revision is fact-checked again, and the reviser is told engagement never permits a new fact.
 - Unproduced episodes beyond the planned count are removed (`settlePartCount`).
 
+### Storyboard, on-screen hook and sound
+
+- The storyboard is given the story editor's visuals: each stage's look and most watchable moment (`stageVisuals`), the hook's `firstFrameVisual` for shot 1 of Part 1, and a dedicated slow-zoom close-up for the featured stage's payoff. Other parts' shot 1 is asked to be the most striking picture its narration allows.
+- It also writes `onScreenHook` (3–6 words, stored in `spec`): Part 1 condenses the hook, later parts say what the video shows. Code checks the length, rejects questions and numbers the narration doesn't say. The render shows it black-on-yellow in the title band for the first 2.6 s (`VIDEO.hookTextMs`), then the series title. Older scripts have none and show the title from the start.
+- Each shot gets a `soundEffect` from a fixed set (`SOUND_EFFECTS`: conveyor, press, hiss, pour, …, or none). At render, each effect used and a default instrumental bed are generated once with ElevenLabs (sound effects / music) and kept in the audio library under a key (`sfx:press`, `music:default`); every later render reuses them. Loops fade in and out with their shot; one-shots play from its start. Volumes are in Settings → Audio mix (effects default 30%, music 12%). Music is on by default: "Default bed" uses the generated track, a library track replaces it, "No music" turns it off. A failed generation (plan, provider or budget) is logged and the video renders without that sound.
+
 ## The script gate
 
 - **Blocking**: a contradiction with the research, or a missing link a viewer would notice. The script is saved so it can be read, but it can't be approved until it is fixed, regenerated, or the issue is dismissed as a false positive (recorded).

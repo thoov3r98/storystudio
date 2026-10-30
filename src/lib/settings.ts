@@ -24,7 +24,9 @@ export type VoiceSettings = z.infer<typeof VoiceSettingsSchema>;
 export const AudioMixSchema = z.object({
   voiceVolume: z.number().min(0).max(2).default(1),
   musicVolume: z.number().min(0).max(1).default(0.12),
-  sfxVolume: z.number().min(0).max(1).default(0.5),
+  sfxVolume: z.number().min(0).max(1).default(0.3),
+  /** Background music under every video. With no track chosen, a default bed is generated once. */
+  musicEnabled: z.boolean().default(true),
   musicAssetId: z.string().nullable().default(null),
   /** Render-time narration speed-up on top of ElevenLabs' own speed (which caps at 1.2×). Pitch is preserved. */
   narrationSpeed: z.number().min(1).max(1.5).default(1),

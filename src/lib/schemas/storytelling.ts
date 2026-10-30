@@ -126,7 +126,7 @@ export type ReviewedHook = HookCandidate & { pattern: Pattern; flags: string[]; 
 /** What a script is written with: the pattern, featured stage and (Part 1) its approved opening. */
 export type Creative = {
   decision: StorytellingDecision;
-  hook: { id?: string; line: string; claimIds: string[]; featuredStageId: string } | null;
+  hook: { id?: string; line: string; claimIds: string[]; featuredStageId: string; firstFrameVisual?: string } | null;
   /** The approved topic's angle from discovery, a hint the research must back. */
   topic?: { curiosityAngle: string; visualPayoff: string; featuredStage: string } | null;
 };

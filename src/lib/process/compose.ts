@@ -156,10 +156,10 @@ async function refine(run: Run, input: ProcessInput, notes: ResearchRecord, p: P
   return { state, rounds, revisions };
 }
 
-async function breakdown(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, s: PartState): Promise<EpisodeDraft> {
+async function breakdown(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, s: PartState, creative?: Creative | null): Promise<EpisodeDraft> {
   const fixed = { title: s.title, storyNarration: s.narration, selectedHook: firstSentence(s.narration), summary: s.summary };
   const b = await run({
-    prompt: processBreakdownPrompt({ ...partInput(input, notes, p, s.part, []), narration: s.narration, title: s.title }),
+    prompt: processBreakdownPrompt({ ...partInput(input, notes, p, s.part, []), narration: s.narration, title: s.title, creative }),
     schema: SceneBreakdownSchema,
     schemaName: "scene_breakdown",
     role: "writer",
@@ -241,7 +241,7 @@ export async function composeProcess(
   }
 
   await stage("Planning the shots for every part", 0.88);
-  const drafts = await Promise.all(written.map((w) => breakdown(makeRunner(deps, w.spent), input, notes!, p, w.state)));
+  const drafts = await Promise.all(written.map((w) => breakdown(makeRunner(deps, w.spent), input, notes!, p, w.state, creative)));
   return {
     research: notes,
     creative: fresh,
@@ -270,7 +270,7 @@ export async function composeProcessPart(
   await deps.onStage?.(`Fact-checking Part ${saved.part}`, 0.5);
   const refined = await refine(run, input, saved.research, saved.plan, first, saved.earlier, undefined, saved.creative);
   await deps.onStage?.("Planning the shots", 0.85);
-  const draft = await breakdown(run, input, saved.research, saved.plan, refined.state);
+  const draft = await breakdown(run, input, saved.research, saved.plan, refined.state, saved.creative);
   return { draft, plan: saved.plan, part: saved.part, quality: quality(saved.part, refined.rounds, refined.revisions, startedAt, spent.usd), creative: saved.creative ?? null };
 }
 
@@ -287,7 +287,7 @@ export async function reviseProcessPart(
   await deps.onStage?.("Fixing the flagged issues", 0.3);
   const refined = await refine(run, input, saved.research, saved.plan, { part: saved.part, title: saved.title, narration: saved.narration, summary: saved.summary }, saved.earlier, saved.quality.issues.filter((i) => !dismissed.has(i.id)), saved.creative);
   await deps.onStage?.("Planning the shots", 0.85);
-  const draft = await breakdown(run, input, saved.research, saved.plan, refined.state);
+  const draft = await breakdown(run, input, saved.research, saved.plan, refined.state, saved.creative);
   const q = quality(saved.part, [...saved.quality.scriptRounds, ...refined.rounds], saved.quality.metrics.scriptRevisions + refined.revisions, startedAt, spent.usd);
   return { draft, plan: saved.plan, part: saved.part, quality: { ...q, metrics: { ...q.metrics, firstPass: saved.quality.metrics.firstPass } }, creative: saved.creative ?? null };
 }

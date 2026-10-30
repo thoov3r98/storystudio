@@ -8,10 +8,13 @@ import { getAudioMix, getPricing } from "@/lib/settings";
 import { setJobStage } from "@/lib/jobs";
 import { renderClient, type RenderClient } from "@/lib/render/client";
 import type { EpisodeTiming } from "@/lib/timing";
+import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
+import type { SoundProvider } from "@/lib/providers/sound";
 import { buildEpisodeProps } from "./render-props";
+import { resolveSoundtrack } from "./sound";
 import { refreshStoryStatus } from "./versions";
 
-export async function renderVersion(input: { versionId: string; jobId?: string; cost: CostContext; client?: RenderClient }) {
+export async function renderVersion(input: { versionId: string; jobId?: string; cost: CostContext; client?: RenderClient; sound?: SoundProvider }) {
   const version = await db.episodeVersion.findUniqueOrThrow({
     where: { id: input.versionId },
     include: {
@@ -36,13 +39,21 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
   }
 
   const mix = await getAudioMix();
-  const music = mix.musicAssetId ? await db.audioAsset.findUnique({ where: { id: mix.musicAssetId } }) : null;
+  if (input.jobId) await setJobStage(input.jobId, "RENDERING_VIDEO", "Preparing music and sound effects", 0.8);
+  const soundtrack = await resolveSoundtrack({ soundEffects: version.scenes.map((s) => s.soundEffect), mix, cost: input.cost, sound: input.sound });
   const props = buildEpisodeProps({
-    scenes: version.scenes.map((s) => ({ sceneNumber: s.sceneNumber, imageUrl: s.currentImage!.url!, motionPreset: s.motionPreset })),
+    scenes: version.scenes.map((s) => ({
+      sceneNumber: s.sceneNumber,
+      imageUrl: s.currentImage!.url!,
+      motionPreset: s.motionPreset,
+      sound: soundtrack.effects[s.soundEffect as keyof typeof soundtrack.effects] ?? null,
+    })),
     timing: version.timing as unknown as EpisodeTiming,
     voiceoverUrl: version.voiceover!.url!,
     voiceVolume: mix.voiceVolume,
-    music: music ? { url: music.url, volume: mix.musicVolume } : null,
+    music: soundtrack.music ? { url: soundtrack.music.url, volume: mix.musicVolume } : null,
+    sfxVolume: mix.sfxVolume,
+    hookText: (version.spec as EpisodeSpecRecord | null)?.onScreenHook ?? null,
     narrationSpeed: mix.narrationSpeed,
     bands: {
       seriesTitle: version.episode.story.title,

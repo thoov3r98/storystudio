@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MOTION_PRESETS } from "@/lib/constants";
+import { MOTION_PRESETS, SOUND_EFFECT_KEYS } from "@/lib/constants";
 import { QualityRecordSchema } from "./quality";
 import { ProcessSpecSchema } from "./process";
 
@@ -18,6 +18,7 @@ export const SceneSpecSchema = z.object({
   characters: z.array(z.string()).describe("Names of the characters VISIBLE in this shot only. Leave someone out when the shot is about someone or something else."),
   objects: z.array(z.string()),
   motionPreset: z.enum(MOTION_PRESETS),
+  soundEffect: z.enum(SOUND_EFFECT_KEYS).describe('The factory sound of what happens in this shot, or "none" for a quiet shot.'),
 });
 
 /** The physical facts every shot of an episode must respect, so images agree with the story and each other. */
@@ -41,6 +42,8 @@ export const EpisodeDraftSchema = z.object({
   storyNarration: z.string().describe("The complete voiceover as one continuous, flowing story, written to be read aloud."),
   selectedHook: z.string().describe("The opening line(s), copied exactly from the start of storyNarration."),
   summary: z.string().describe("3–5 sentence summary of what happens and what is revealed."),
+  /** Shown big on screen over the opening seconds. Missing on scripts written before it existed. */
+  onScreenHook: z.string().optional(),
   visualState: VisualStateSchema,
   scenes: z.array(SceneSpecSchema),
 });
@@ -71,6 +74,7 @@ export type EpisodeSpecRecord = z.infer<typeof EpisodeSpecRecordSchema>;
 
 /** The storyboard pass: shots cut from the final narration and the physical facts they respect. */
 export const SceneBreakdownSchema = z.object({
+  onScreenHook: z.string().describe("3–6 words shown big on screen over the first seconds, for viewers watching with the sound off."),
   visualState: VisualStateSchema,
   scenes: z.array(SceneSpecSchema),
 });

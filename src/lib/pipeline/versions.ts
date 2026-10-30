@@ -31,6 +31,7 @@ export async function forkVersion(
       objects: s.objects,
       intendedDurationSec: s.intendedDurationSec,
       motionPreset: s.motionPreset,
+      soundEffect: s.soundEffect,
       currentImageId: o?.dropImage ? null : s.currentImageId,
     };
   });

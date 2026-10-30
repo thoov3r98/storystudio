@@ -28,4 +28,6 @@ export const paths = {
     `stories/${storyId}/episodes/${episodeId}/scenes/${String(sceneNumber).padStart(2, "0")}-v${version}.png`,
   voiceover: (storyId: string, episodeId: string, version: number) => `stories/${storyId}/episodes/${episodeId}/voiceover-v${version}.mp3`,
   render: (storyId: string, episodeId: string, version: number) => `stories/${storyId}/episodes/${episodeId}/render-v${version}.mp4`,
+  /** Studio-generated library audio, by key ("sfx:press" → audio/sfx-press.mp3). */
+  libraryAudio: (key: string) => `audio/${key.replace(/[^a-z0-9]+/gi, "-")}.mp3`,
 };

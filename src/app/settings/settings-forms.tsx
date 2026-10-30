@@ -13,7 +13,7 @@ import { useAction } from "@/components/client-helpers";
 import type { AudioMix, Defaults, Voice, VoiceSettings } from "@/lib/settings";
 import { addAudioAsset, importElevenLabsVoices, saveAudioMix, saveDefaults, saveVoices, saveVoiceSettings } from "@/app/actions";
 
-type AudioAssetRow = { id: string; name: string; kind: string; license: string; source: string; attribution: string | null; url: string };
+type AudioAssetRow = { id: string; key: string | null; name: string; kind: string; license: string; source: string; attribution: string | null; url: string };
 
 function Card({ children }: { children: React.ReactNode }) {
   return <div className="space-y-4 rounded-xl border bg-card p-5">{children}</div>;
@@ -109,7 +109,7 @@ export function SettingsForms(props: {
         </Card>
       </Section>
 
-      <Section title="Audio mix" description="Applied at render time. Background music is optional.">
+      <Section title="Audio mix" description="Applied at render time. Each shot's factory sound and the default music bed are generated once and reused.">
         <Card>
           <SliderField
             label="Narration speed-up"
@@ -129,14 +129,18 @@ export function SettingsForms(props: {
           <SliderField label="Sound effects volume" value={mix.sfxVolume} onChange={(v) => setMix({ ...mix, sfxVolume: v })} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} />
           <div className="space-y-2">
             <Label>Background music track</Label>
-            <Select value={mix.musicAssetId ?? "none"} onValueChange={(v) => setMix({ ...mix, musicAssetId: v === "none" ? null : v })}>
+            <Select
+              value={!mix.musicEnabled ? "none" : (mix.musicAssetId ?? "default")}
+              onValueChange={(v) => setMix({ ...mix, musicEnabled: v !== "none", musicAssetId: v === "none" || v === "default" ? null : v })}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="default">Default bed (generated once with ElevenLabs)</SelectItem>
                 <SelectItem value="none">No music</SelectItem>
                 {props.audioAssets
-                  .filter((x) => x.kind === "MUSIC")
+                  .filter((x) => x.kind === "MUSIC" && !x.key)
                   .map((x) => (
                     <SelectItem key={x.id} value={x.id}>
                       {x.name}

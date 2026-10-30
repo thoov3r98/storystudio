@@ -43,7 +43,7 @@ async function SettingsContent() {
         voiceSettings={voiceSettings}
         audioMix={audioMix}
         defaults={defaults}
-        audioAssets={audioAssets.map((a) => ({ id: a.id, name: a.name, kind: a.kind, license: a.license, source: a.source, attribution: a.attribution, url: a.url }))}
+        audioAssets={audioAssets.map((a) => ({ id: a.id, key: a.key, name: a.name, kind: a.kind, license: a.license, source: a.source, attribution: a.attribution, url: a.url }))}
       />
     </div>
   );

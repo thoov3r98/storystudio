@@ -10,6 +10,10 @@ export const EpisodePropsSchema = z.object({
   voiceVolume: z.number().min(0).max(2),
   voicePlaybackRate: z.number().min(1).max(1.5).default(1),
   music: z.object({ url: z.string().url(), volume: z.number().min(0).max(1) }).nullable(),
+  sfxVolume: z.number().min(0).max(1).default(0),
+  /** Shown in place of the series title over the first `hookFrames`. Empty: the title shows from the start. */
+  hookText: z.string().default(""),
+  hookFrames: z.number().int().nonnegative().default(78),
   scenes: z.array(
     z.object({
       sceneNumber: z.number().int(),
@@ -17,6 +21,8 @@ export const EpisodePropsSchema = z.object({
       startFrame: z.number().int().nonnegative(),
       durationInFrames: z.number().int().positive(),
       motionPreset: z.string(),
+      /** The shot's factory sound: looped under the shot, or played once as it starts. */
+      sound: z.object({ url: z.string().url(), loop: z.boolean() }).nullable().default(null),
     }),
   ),
   captions: z.array(

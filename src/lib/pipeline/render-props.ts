@@ -4,11 +4,14 @@ import type { EpisodeProps } from "@/remotion/schema";
 
 /** Pure: converts stored timing + asset URLs into Remotion input props. */
 export function buildEpisodeProps(input: {
-  scenes: { sceneNumber: number; imageUrl: string; motionPreset: string }[];
+  scenes: { sceneNumber: number; imageUrl: string; motionPreset: string; sound?: { url: string; loop: boolean } | null }[];
   timing: EpisodeTiming;
   voiceoverUrl: string;
   voiceVolume: number;
   music: { url: string; volume: number } | null;
+  sfxVolume?: number;
+  /** Big on-screen text over the opening seconds, for viewers with the sound off. */
+  hookText?: string | null;
   showCaptions?: boolean;
   /** Narration playback rate; stored timing is for 1×, so it is compressed to match. */
   narrationSpeed?: number;
@@ -26,7 +29,7 @@ export function buildEpisodeProps(input: {
     if (!t) throw new Error(`No timing for scene ${scene.sceneNumber}. Re-synchronise the narration.`);
     const startFrame = msToFrames(at(t.startMs), fps);
     const endFrame = Math.min(durationInFrames, msToFrames(at(t.endMs), fps));
-    return { sceneNumber: scene.sceneNumber, imageUrl: scene.imageUrl, motionPreset: scene.motionPreset, startFrame, durationInFrames: Math.max(1, endFrame - startFrame) };
+    return { sceneNumber: scene.sceneNumber, imageUrl: scene.imageUrl, motionPreset: scene.motionPreset, startFrame, durationInFrames: Math.max(1, endFrame - startFrame), sound: scene.sound ?? null };
   });
   return {
     fps,
@@ -37,6 +40,9 @@ export function buildEpisodeProps(input: {
     voiceVolume: input.voiceVolume,
     voicePlaybackRate: speed,
     music: input.music,
+    sfxVolume: input.sfxVolume ?? 0,
+    hookText: input.hookText?.trim() || "",
+    hookFrames: msToFrames(VIDEO.hookTextMs, fps),
     scenes,
     captions: input.timing.captions.map((c) => ({
       ...c,

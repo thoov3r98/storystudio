@@ -295,6 +295,8 @@ model Scene {
   objects             String[]
   intendedDurationSec Float
   motionPreset        String
+  /// A key of SOUND_EFFECTS (src/lib/constants.ts), or "none".
+  soundEffect         String         @default("none")
   currentImageId      String?
   currentImage        SceneImage?    @relation("CurrentImage", fields: [currentImageId], references: [id], onDelete: SetNull)
   createdAt           DateTime       @default(now())
@@ -508,6 +510,8 @@ model Setting {
 /// Bundled/licensed audio. Only owned, public-domain, or properly licensed assets belong here.
 model AudioAsset {
   id          String         @id @default(cuid())
+  /// Set on assets the studio generates itself ("music:default", "sfx:press"), so each is made once and reused.
+  key         String?        @unique
   name        String
   kind        AudioAssetKind
   url         String

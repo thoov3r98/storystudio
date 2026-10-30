@@ -21,6 +21,7 @@ vi.mock("@/lib/storage", () => {
       sceneImage: (s: string, e: string, n: number, v: number) => `stories/${s}/episodes/${e}/scenes/${n}-v${v}.png`,
       voiceover: (s: string, e: string, v: number) => `stories/${s}/episodes/${e}/voiceover-v${v}.mp3`,
       render: (s: string, e: string, v: number) => `stories/${s}/episodes/${e}/render-v${v}.mp4`,
+      libraryAudio: (key: string) => `audio/${key}.mp3`,
     },
   };
 });
@@ -227,6 +228,16 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(f.render.renders[0].durationInFrames).toBe(Math.round((timing.totalDurationMs / 1000) * 30));
     // Bands layout: landscape art, the series title and a band colour picked from the story.
     expect(f.render.renders[0]).toMatchObject({ layout: "bands", seriesTitle: story.title, partLabel: "Part 1", accentColor: bandColorFor(story.id) });
+    // On-screen hook from the storyboard; every shot's sound and the default music bed, each generated once into the library.
+    expect(f.render.renders[0]).toMatchObject({ hookText: "It starts as wax", sounds: 12, music: true });
+    expect(v.scenes.map((s) => s.soundEffect)).toContain("press");
+    expect(f.sound.calls).toEqual({ effects: 2, music: 1 });
+    // The storyboard is given the story editor's visuals: the hook's first frame for Part 1, and each stage's look.
+    const storyboard = f.text.systems.scene_breakdown[0];
+    expect(storyboard).toContain("SHOT PLAN");
+    expect(storyboard).toContain("Show exactly this, big and simple, filling the frame: A tray of wax.");
+    expect(storyboard).toMatch(/T1: Stage T1\. It happens\./);
+    expect((await db.audioAsset.findMany({ orderBy: { key: "asc" } })).map((a) => a.key)).toEqual(["music:default", "sfx:conveyor", "sfx:press"]);
     expect(f.images.calls.every((c) => c.size === "1536x1024" && c.prompt.includes("EPISODE FACTS") && c.prompt.includes("THIS MOMENT"))).toBe(true);
 
     expect(await approvalBlockers(episodeId)).toEqual([]);
@@ -257,6 +268,9 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
       expect(s.currentImageId).toBe(before.scenes.find((b) => b.sceneNumber === s.sceneNumber)!.currentImageId);
     }
     expect(f.render.renders).toHaveLength(2);
+    // The re-render reuses the library's sounds and music.
+    expect(f.sound.calls).toEqual({ effects: 2, music: 1 });
+    expect(f.render.renders[1]).toMatchObject({ sounds: 12, music: true });
   });
 
   it("forks a new version instead of editing an approved one", async () => {

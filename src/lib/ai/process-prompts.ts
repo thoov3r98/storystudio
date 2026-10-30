@@ -1,6 +1,6 @@
 import { channelBlock, type ChannelGuide } from "@/lib/schemas/channel";
 import type { ProcessPlan, ResearchNotes, ResearchRecord } from "@/lib/schemas/process";
-import { sceneCountRange, targetWordRange } from "@/lib/constants";
+import { sceneCountRange, SOUND_EFFECTS, targetWordRange } from "@/lib/constants";
 import { type Creative, HOOK_STRATEGIES, type Pattern, PATTERNS, type StorytellingDecision } from "@/lib/schemas/storytelling";
 
 /*
@@ -182,9 +182,27 @@ ${input.narration}`,
   };
 }
 
-export function processBreakdownPrompt(input: ProcessPromptInput & { research: ResearchNotes; plan: ProcessPlan; part: number; narration: string; title: string }) {
+export function processBreakdownPrompt(input: ProcessPromptInput & { research: ResearchNotes; plan: ProcessPlan; part: number; narration: string; title: string; creative?: Creative | null }) {
   const [minScenes, maxScenes] = sceneCountRange(input.durationSec);
   const p = input.plan.parts.find((x) => x.part === input.part)!;
+  const c = input.creative;
+  const hook = input.part === 1 ? c?.hook : null;
+  const visuals = c?.decision.stageVisuals.filter((v) => p.stages.includes(v.stageId)) ?? [];
+  const featured = c && p.stages.includes(c.decision.featuredStageId) ? visuals.find((v) => v.stageId === c.decision.featuredStageId) : undefined;
+  const shotPlan = [
+    hook?.firstFrameVisual
+      ? `- Shot 1 is the first frame a scrolling viewer sees, narrated by the hook. Show exactly this, big and simple, filling the frame: ${hook.firstFrameVisual}`
+      : "- Shot 1 is the first frame a scrolling viewer sees: the single most striking picture its narration allows, close and simple, the material or machine filling the frame.",
+    featured
+      ? `- The payoff: where the narration reaches ${featured.stageId} (${featured.operation}), give it its own close-up shot of this moment, with slow-zoom-in: ${featured.visualMoment}. ${c!.decision.visualPayoff}`
+      : "",
+    ...visuals.map((v) => `- ${v.stageId}: ${v.visualSubject}. ${v.operation}. Goes in: ${v.materialBefore}. Comes out: ${v.materialAfter}.${v.machinery ? ` Machine: ${v.machinery}.` : ""} Most watchable moment: ${v.visualMoment}.`),
+  ].filter(Boolean);
+  const onScreen = hook
+    ? `the approved hook ("${hook.line}") cut to its promise, e.g. "It starts as a liquid"`
+    : input.part === 1
+      ? `what the product starts as, e.g. "It starts as a liquid"`
+      : `what this video shows happening, e.g. "Now the wax gets its colour"`;
   return {
     system: `You are the storyboard artist for a narrated, stick-figure illustrated How It's Made style video. The script is final; you never change it.
 
@@ -196,7 +214,10 @@ STEP 2 — scenes: cut the narration into ${minScenes}–${maxScenes} shots, in 
 - characters: leave empty unless a named character is visible (there are none in this series).
 - imagePrompt: one or two specific sentences: what the machine or worker is doing, to what material, what it looks like at this moment. Subject only: no art-style words, no text, labels, numbers, dials with readings, or brand names.
 - continuity: what must be true in this shot, including how the product looks at this stage.
-- motionPreset: slow-zoom-in for detail, pan for a moving line, still for a finished result.`,
+- motionPreset: slow-zoom-in for detail, pan for a moving line, still for a finished result.
+- soundEffect: the sound of what happens in the shot, from: ${Object.entries(SOUND_EFFECTS).map(([k, v]) => `${k} (${v.label.toLowerCase()})`).join(", ")}. Use "none" when nothing audible happens (an inspection, a finished product at rest). Most shots of a working machine have one.
+${shotPlan.length ? `\nSHOT PLAN (from the story editor; how each step looks, never a new fact)\n${shotPlan.join("\n")}\n` : ""}
+STEP 3 — onScreenHook: 3–6 words shown big on screen over the first two or three seconds, for viewers watching with the sound off: ${onScreen}. A plain statement, never a question; only what the narration says; no number the narration doesn't say; no brand, no "Part".`,
     user: `${input.title}
 Part ${input.part} of ${input.plan.parts.length}: ${p.title}
 

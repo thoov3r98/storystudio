@@ -109,7 +109,7 @@ async function savedCreative(storyId: string, topic: Creative["topic"]): Promise
     stageVisuals: d.stageVisuals as Creative["decision"]["stageVisuals"],
   };
   const h = d.selectedHook;
-  return creativeFor({ decision }, h ? { id: h.id, line: h.line, claimIds: h.claimIds, featuredStageId: h.featuredStageId } : null, topic);
+  return creativeFor({ decision }, h ? { id: h.id, line: h.line, claimIds: h.claimIds, featuredStageId: h.featuredStageId, firstFrameVisual: h.firstFrameVisual } : null, topic);
 }
 
 /** Saves a creative plan: the decision (replacing any earlier one) and every hook, selecting the recommended one. */
@@ -393,6 +393,7 @@ async function persistVersion(input: {
             // Planned length from the word count; real timing comes from the voiceover.
             intendedDurationSec: estimateSpokenDuration(s.narration, input.wps),
             motionPreset: s.motionPreset,
+            soundEffect: s.soundEffect,
           })),
         },
       },

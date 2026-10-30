@@ -23,6 +23,10 @@ export const PricingSchema = z.object({
   sandboxOverheadPerRender: z.number().nonnegative(),
   /** OpenAI web search tool calls (process explainer research), on top of tokens. */
   webSearchPerCall: z.number().nonnegative().default(0.01),
+  /** ElevenLabs sound effects, per second generated. Each effect is made once and reused. */
+  elevenLabsSfxPerSecond: z.number().nonnegative().default(0.004),
+  /** ElevenLabs music, per minute generated. The default music bed is made once and reused. */
+  elevenLabsMusicPerMinute: z.number().nonnegative().default(0.8),
 });
 
 export type Pricing = z.infer<typeof PricingSchema>;
@@ -40,6 +44,8 @@ export const DEFAULT_PRICING: Pricing = {
   sandboxPerVcpuHour: 0.128,
   sandboxOverheadPerRender: 0.02,
   webSearchPerCall: 0.01,
+  elevenLabsSfxPerSecond: 0.004,
+  elevenLabsMusicPerMinute: 0.8,
 };
 
 export function textModelPrice(pricing: Pricing, model: string) {
@@ -72,6 +78,14 @@ export function imageCost(
 
 export function speechCost(pricing: Pricing, characters: number): number {
   return (characters / 1000) * pricing.elevenLabsPer1kChars;
+}
+
+export function soundEffectCost(pricing: Pricing, seconds: number): number {
+  return seconds * pricing.elevenLabsSfxPerSecond;
+}
+
+export function musicCost(pricing: Pricing, lengthMs: number): number {
+  return (lengthMs / 60_000) * pricing.elevenLabsMusicPerMinute;
 }
 
 export function renderCost(pricing: Pricing, vcpus: number, seconds: number): number {

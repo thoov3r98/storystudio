@@ -105,6 +105,39 @@ export function bandColorFor(storyId: string): string {
 export const MOTION_PRESETS = ["slow-zoom-in", "slow-zoom-out", "pan-left", "pan-right", "pan-up", "still"] as const;
 export type MotionPreset = (typeof MOTION_PRESETS)[number];
 
+/**
+ * Factory sounds a shot can carry. Each is generated once (ElevenLabs sound
+ * effects) and kept in the audio library under "sfx:<key>". Loops run under
+ * the whole shot; the others play once as the shot starts.
+ */
+export const SOUND_EFFECTS = {
+  conveyor: { label: "Conveyor belt", prompt: "Steady low rumble and soft rattle of a factory conveyor belt running", loop: true },
+  machine: { label: "Machine hum", prompt: "Industrial machine motor humming and whirring steadily on a factory floor", loop: true },
+  mixer: { label: "Mixer", prompt: "Large industrial mixer churning a thick mixture in a steel tank", loop: true },
+  bubbling: { label: "Bubbling", prompt: "Thick hot liquid bubbling and simmering in a large steel vat", loop: true },
+  furnace: { label: "Furnace", prompt: "Deep steady roar of an industrial furnace", loop: true },
+  pour: { label: "Pouring", prompt: "Thick liquid pouring from a nozzle into moulds", loop: false },
+  press: { label: "Press", prompt: "Heavy hydraulic press stamping down once with a deep metallic thump and a short hiss", loop: false },
+  hiss: { label: "Steam hiss", prompt: "Short burst of hissing steam or compressed air", loop: false },
+  cut: { label: "Cutting", prompt: "Rapid mechanical blades cutting through material several times", loop: false },
+  clatter: { label: "Clatter", prompt: "Many small hard objects clattering onto a metal tray", loop: false },
+  clunk: { label: "Clunk", prompt: "Single heavy metallic clunk of a machine part locking into place", loop: false },
+  spray: { label: "Spray", prompt: "Spray nozzles misting liquid in short bursts", loop: false },
+  wrap: { label: "Wrapping", prompt: "Plastic film rustling and crinkling as products are wrapped by a machine", loop: false },
+  packing: { label: "Packing", prompt: "Cardboard boxes being folded, filled and taped shut on a packing line", loop: false },
+} as const;
+export type SoundEffectKey = keyof typeof SOUND_EFFECTS;
+export const SOUND_EFFECT_KEYS = [...(Object.keys(SOUND_EFFECTS) as SoundEffectKey[]), "none"] as const;
+
+/** Instrumental bed generated once when no music track is chosen. Kept in the audio library as "music:default". */
+export const DEFAULT_MUSIC = {
+  key: "music:default",
+  name: "Default music bed (generated)",
+  prompt:
+    "Light, curious instrumental background music for a calm factory explainer video: soft plucked synths, gentle mallets and light percussion, steady mid tempo, unobtrusive under a narrator, consistent energy with no drops or big build-ups so it loops cleanly. No vocals.",
+  lengthMs: 90_000,
+} as const;
+
 export const QUALITY_PRESETS: Record<
   Quality,
   { label: string; description: string; writerModel: "main" | "fast"; reviewerModel: "main" | "fast"; imageQuality: "low" | "medium" | "high" }
@@ -160,5 +193,7 @@ export const VIDEO = {
   fps: 30,
   /** Silence kept after the last spoken word before the video ends. */
   tailMs: 900,
+  /** How long the on-screen hook text holds the title band before the series title takes over. */
+  hookTextMs: 2600,
   compositionId: "InvisibleWorldEpisode",
 } as const;

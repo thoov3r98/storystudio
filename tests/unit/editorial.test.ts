@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateDraft } from "@/lib/pipeline/writing";
+import { onScreenHookIssues } from "@/lib/process/script";
 import type { EpisodeDraft } from "@/lib/schemas/episode";
 import { estimateEpisodeCost, estimateIdeationCost } from "@/lib/costs/estimate";
 import { DEFAULT_PRICING, textCost } from "@/lib/costs/pricing";
@@ -25,6 +26,7 @@ function draft(sceneWords: number, scenes: number, hook = "You land after ten ho
       characters: [],
       objects: [],
       motionPreset: "still",
+      soundEffect: "none",
     })),
   };
 }
@@ -119,6 +121,23 @@ describe("buildEpisodeProps", () => {
     expect(props.scenes[1]).toMatchObject({ startFrame: 63, durationInFrames: 84 });
   });
 
+  it("carries each shot's sound, the effects volume and the on-screen hook", () => {
+    const props = buildEpisodeProps({
+      scenes: [
+        { sceneNumber: 1, imageUrl: "https://x.test/1.png", motionPreset: "still", sound: { url: "https://x.test/press.mp3", loop: false } },
+        { sceneNumber: 2, imageUrl: "https://x.test/2.png", motionPreset: "pan-left" },
+      ],
+      timing: { audioDurationMs: 4000, speechEndMs: 3900, totalDurationMs: 4900, scenes: [{ sceneNumber: 1, startMs: 0, endMs: 2100 }, { sceneNumber: 2, startMs: 2100, endMs: 4900 }], words: [], captions: [] },
+      voiceoverUrl: "https://x.test/vo.mp3",
+      voiceVolume: 1,
+      music: null,
+      sfxVolume: 0.3,
+      hookText: "  It starts as a liquid ",
+    });
+    expect(props.scenes.map((s) => s.sound)).toEqual([{ url: "https://x.test/press.mp3", loop: false }, null]);
+    expect(props).toMatchObject({ sfxVolume: 0.3, hookText: "It starts as a liquid", hookFrames: 78 });
+  });
+
   it("compresses narration timing for a speed-up but keeps the silent tail", () => {
     const props = buildEpisodeProps({
       scenes: [
@@ -160,5 +179,20 @@ describe("buildImagePrompt", () => {
     expect(prompt).toMatch(/KEY OBJECTS: mould/);
     expect(prompt).toMatch(/no text/i);
     expect(prompt).toMatch(/reference image/);
+  });
+});
+
+describe("on-screen hook", () => {
+  const narration = "Wax is heated to 80 degrees. Then it is poured into moulds.";
+
+  it("accepts a short statement from the narration", () => {
+    expect(onScreenHookIssues("It starts as wax", narration)).toEqual([]);
+    expect(onScreenHookIssues("Heated to 80 degrees", narration)).toEqual([]);
+  });
+
+  it("rejects long lines, questions and numbers the narration doesn't say", () => {
+    expect(onScreenHookIssues("Wax is heated until it is completely runny", narration)[0]).toMatch(/3–6 words/);
+    expect(onScreenHookIssues("Ever seen wax melt?", narration)[0]).toMatch(/not a question/);
+    expect(onScreenHookIssues("Heated to 120 degrees", narration)[0]).toMatch(/says 120/);
   });
 });

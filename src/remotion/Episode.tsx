@@ -4,6 +4,8 @@ import type { EpisodeProps } from "./schema";
 
 const BACKGROUND = "#FAFAF7";
 const CROSSFADE_FRAMES = 8;
+const HIGHLIGHT = "#FFE45C";
+const SOUND_FADE_FRAMES = 6;
 const FONT = "Inter, 'Helvetica Neue', Arial, sans-serif";
 
 /*
@@ -57,7 +59,34 @@ const SceneImage: React.FC<{ src: string; durationInFrames: number; motionPreset
   );
 };
 
-const TitleBand: React.FC<{ title: string; partLabel: string; accentColor: string }> = ({ title, partLabel, accentColor }) => {
+/** The on-screen hook: big black-on-yellow text that pops in, for viewers watching with the sound off. */
+const HookText: React.FC<{ text: string }> = ({ text }) => {
+  const frame = useCurrentFrame();
+  const scale = interpolate(frame, [0, 6], [0.85, 1], { extrapolateRight: "clamp", easing: Easing.out(Easing.back(2)) });
+  return (
+    <div
+      style={{
+        backgroundColor: HIGHLIGHT,
+        color: "#111111",
+        fontWeight: 900,
+        fontSize: text.length > 26 ? 78 : 92,
+        lineHeight: 1.05,
+        padding: "18px 30px",
+        borderRadius: 22,
+        boxShadow: "0 6px 0 rgba(0,0,0,0.28)",
+        textWrap: "balance",
+        transform: `scale(${scale})`,
+      }}
+    >
+      {text}
+    </div>
+  );
+};
+
+const TitleBand: React.FC<{ title: string; partLabel: string; accentColor: string; hookText: string; hookFrames: number }> = ({ title, partLabel, accentColor, hookText, hookFrames }) => {
+  const frame = useCurrentFrame();
+  const showHook = Boolean(hookText) && frame < hookFrames;
+  const titleOpacity = hookText ? interpolate(frame, [hookFrames, hookFrames + 6], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : 1;
   // Long series names step down in size so they fit in at most three lines.
   const fontSize = title.length > 48 ? 64 : title.length > 30 ? 76 : 92;
   return (
@@ -82,7 +111,11 @@ const TitleBand: React.FC<{ title: string; partLabel: string; accentColor: strin
           {partLabel.toUpperCase()}
         </div>
       ) : null}
-      <div style={{ color: "#FFFFFF", fontWeight: 900, fontSize, lineHeight: 1.05, textShadow: "0 4px 0 rgba(0,0,0,0.28)", textWrap: "balance" }}>{title}</div>
+      {showHook ? (
+        <HookText text={hookText} />
+      ) : (
+        <div style={{ color: "#FFFFFF", fontWeight: 900, fontSize, lineHeight: 1.05, textShadow: "0 4px 0 rgba(0,0,0,0.28)", textWrap: "balance", opacity: titleOpacity }}>{title}</div>
+      )}
     </div>
   );
 };
@@ -123,7 +156,7 @@ const Captions: React.FC<{ captions: EpisodeProps["captions"]; layout: EpisodePr
               style={{
                 // Bands are muted and dark, so upcoming words are translucent white.
                 color: current ? "#111111" : onBand ? (spoken ? "#FFFFFF" : "rgba(255,255,255,0.45)") : spoken ? "#111111" : "#9A9A96",
-                backgroundColor: current ? "#FFE45C" : "transparent",
+                backgroundColor: current ? HIGHLIGHT : "transparent",
                 textShadow: onBand && spoken && !current ? "0 3px 0 rgba(0,0,0,0.25)" : undefined,
                 borderRadius: 12,
                 padding: "0 8px",
@@ -137,6 +170,21 @@ const Captions: React.FC<{ captions: EpisodeProps["captions"]; layout: EpisodePr
     </AbsoluteFill>
   );
 };
+
+/** A shot's factory sound, under the narration: a loop fades in and out with the shot; a one-shot plays once from its start. */
+const SceneSound: React.FC<{ url: string; loop: boolean; volume: number; durationInFrames: number }> = ({ url, loop, volume, durationInFrames }) => (
+  <Audio
+    src={url}
+    loop={loop}
+    volume={(f) =>
+      volume *
+      Math.min(
+        loop ? interpolate(f, [0, SOUND_FADE_FRAMES], [0, 1], { extrapolateRight: "clamp" }) : 1,
+        interpolate(f, [durationInFrames - SOUND_FADE_FRAMES, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+      )
+    }
+  />
+);
 
 export const Episode: React.FC<EpisodeProps> = (props) => {
   const bands = props.layout === "bands";
@@ -152,7 +200,24 @@ export const Episode: React.FC<EpisodeProps> = (props) => {
           <SceneImage src={scene.imageUrl} durationInFrames={scene.durationInFrames} motionPreset={scene.motionPreset} fadeIn={i > 0} layout={props.layout} />
         </Sequence>
       ))}
-      {bands ? <TitleBand title={props.seriesTitle} partLabel={props.partLabel} accentColor={props.accentColor} /> : null}
+      {props.sfxVolume > 0
+        ? props.scenes.map((scene) =>
+            scene.sound ? (
+              <Sequence key={`sound-${scene.sceneNumber}`} from={scene.startFrame} durationInFrames={scene.durationInFrames} name={`Sound ${scene.sceneNumber}`}>
+                <SceneSound url={scene.sound.url} loop={scene.sound.loop} volume={props.sfxVolume} durationInFrames={scene.durationInFrames} />
+              </Sequence>
+            ) : null,
+          )
+        : null}
+      {bands ? (
+        <TitleBand title={props.seriesTitle} partLabel={props.partLabel} accentColor={props.accentColor} hookText={props.hookText} hookFrames={props.hookFrames} />
+      ) : props.hookText ? (
+        <Sequence durationInFrames={props.hookFrames} name="Hook text">
+          <AbsoluteFill style={{ alignItems: "center", paddingTop: 200, paddingLeft: 70, paddingRight: 150, fontFamily: FONT, textAlign: "center" }}>
+            <HookText text={props.hookText} />
+          </AbsoluteFill>
+        </Sequence>
+      ) : null}
       {props.showCaptions ? <Captions captions={props.captions} layout={props.layout} /> : null}
       <Audio src={props.voiceoverUrl} volume={props.voiceVolume} playbackRate={props.voicePlaybackRate} />
       {props.music ? <Audio src={props.music.url} volume={props.music.volume} loop /> : null}

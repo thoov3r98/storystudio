@@ -119,7 +119,7 @@ async function produceDownstream(episodeId: string, jobId: string, cost: CostCon
   });
   if (staleness.renderMissing || staleness.renderOutdated) {
     await setJobStage(jobId, "RENDERING_VIDEO", "Rendering video", 0.8);
-    await renderVersion({ versionId, jobId, cost, client: deps.render() });
+    await renderVersion({ versionId, jobId, cost, client: deps.render(), sound: deps.sound });
   } else {
     await db.episode.update({ where: { id: episodeId }, data: { status: "READY" } });
     await refreshStoryStatus(episode.storyId);
