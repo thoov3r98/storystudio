@@ -25,9 +25,8 @@ export const EpisodePropsSchema = z.object({
       sound: z.object({ url: z.string().url(), loop: z.boolean() }).nullable().default(null),
       /** The manufacturing step shown in the title band while this shot plays. */
       stepLabel: z.string().default(""),
-      /** Cuts within the shot: from each frame (relative to the shot) the picture is shown wide, close or in between. */
-      framings: z.array(z.object({ fromFrame: z.number().int().nonnegative(), framing: z.enum(["wide", "close", "medium"]) })).default([{ fromFrame: 0, framing: "wide" }]),
-      side: z.enum(["left", "right"]).default("left"),
+      /** Where the main action sits (fractions of width and height); zooms close in on it. Null: just above the centre. */
+      focus: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).nullable().default(null),
     }),
   ),
   captions: z.array(

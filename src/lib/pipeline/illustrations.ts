@@ -140,7 +140,8 @@ export async function generateSceneImages(input: {
           prompt = promptFor([...review.styleViolations, review.notes].filter(Boolean));
           await assertWithinBudget(input.cost, pricing.imagePerImage[quality]);
           result = await draw(prompt, 2);
-          review = (await check(result.png)) ?? review;
+          // If the second check fails, keep the first verdict but not its focus: that was another drawing.
+          review = (await check(result.png)) ?? { ...review, focus: null };
         }
       }
       const cost = result.cost;

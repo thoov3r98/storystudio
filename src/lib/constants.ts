@@ -98,13 +98,13 @@ export function styleSpec(key: string): string {
 
 /**
  * Illustration shapes. Square art (from November 2026) fills more of the vertical frame; landscape art
- * belongs to versions written before it and keeps the bands layout. Both are cut into wide and close-up
- * framings at render time, so the subject stays near the centre.
+ * belongs to versions written before it and keeps the bands layout. Each shot shows its picture whole,
+ * with one slow camera move toward the action (see imageFocus in render-props).
  */
 export const IMAGE_SHAPES = {
   square: {
     size: "1024x1024",
-    safeArea: "One square picture filling the whole frame. Keep the main subject and action in the centre, large and clear, with a little breathing room, because the video also crops in closer; no empty space reserved for captions.",
+    safeArea: "One square picture filling the whole frame. Use the whole square: the main subject and action large and clear, placed wherever the composition reads best; no empty space reserved for captions.",
   },
   landscape: {
     size: "1536x1024",
@@ -225,7 +225,5 @@ export const VIDEO = {
    * the fallback applies when the spoken line can't be located in the timing.
    */
   hookTextMs: { min: 2200, max: 4500, fallback: 2600 },
-  /** A shot cuts to a closer or wider framing at a caption break, each framing held at least this long. */
-  minFramingMs: 1800,
   compositionId: "InvisibleWorldEpisode",
 } as const;

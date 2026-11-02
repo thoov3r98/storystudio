@@ -5,7 +5,7 @@ import type { EpisodeDraft } from "@/lib/schemas/episode";
 import { estimateEpisodeCost, estimateIdeationCost } from "@/lib/costs/estimate";
 import { DEFAULT_PRICING, textCost } from "@/lib/costs/pricing";
 import { countWords, estimateSpokenDuration } from "@/lib/text";
-import { buildEpisodeProps, framingCuts, hookDurationMs } from "@/lib/pipeline/render-props";
+import { buildEpisodeProps, hookDurationMs, imageFocus } from "@/lib/pipeline/render-props";
 import { postCopyIssues } from "@/lib/pipeline/post";
 import { hookWords } from "@/remotion/Episode";
 import { processNarrationPrompt, processAuditPrompt } from "@/lib/ai/process-prompts";
@@ -227,11 +227,16 @@ describe("on-screen hook", () => {
   });
 });
 
-describe("framing cuts", () => {
-  it("cuts at caption breaks, each framing held at least 1.8s, three framings at most", () => {
-    expect(framingCuts(0, 7000, [0, 900, 2000, 3000, 4100, 5000, 6000])).toEqual([2000, 4100]);
-    expect(framingCuts(0, 3000, [0, 1500])).toEqual([]);
-    expect(framingCuts(1000, 5000, [1000, 2900, 3500])).toEqual([2900]);
+describe("camera focus", () => {
+  it("moves toward the action the image check found, kept off the very edge", () => {
+    expect(imageFocus({ pass: true, focus: { x: 0.3, y: 0.6 } })).toEqual({ x: 0.3, y: 0.6 });
+    expect(imageFocus({ focus: { x: 0.02, y: 1.4 } })).toEqual({ x: 0.2, y: 0.8 });
+  });
+  it("falls back to just above the centre for older or failed checks", () => {
+    expect(imageFocus(null)).toEqual({ x: 0.5, y: 0.45 });
+    expect(imageFocus({ pass: true })).toEqual({ x: 0.5, y: 0.45 });
+    expect(imageFocus({ focus: null })).toEqual({ x: 0.5, y: 0.45 });
+    expect(imageFocus({ focus: { x: "left", y: 0.5 } })).toEqual({ x: 0.5, y: 0.45 });
   });
 });
 

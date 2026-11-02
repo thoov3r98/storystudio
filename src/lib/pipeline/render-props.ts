@@ -2,24 +2,19 @@ import { type ImageShape, VIDEO } from "@/lib/constants";
 import { msToFrames, type EpisodeTiming } from "@/lib/timing";
 import type { EpisodeProps } from "@/remotion/schema";
 
-/** Framings a shot cycles through at its cuts: the whole picture, a close-up on the subject, then in between. */
-const FRAMINGS = ["wide", "close", "medium"] as const;
+const DEFAULT_FOCUS = { x: 0.5, y: 0.45 };
 
 /**
- * Where a shot cuts to its next framing (ms): at caption breaks, each framing held at least
- * VIDEO.minFramingMs, three framings at most. Still pictures change every two or three seconds.
+ * Where a shot's camera moves toward: the main action the image check located, kept away from the very
+ * edge so a push-in still shows its surroundings. Pictures checked before focus existed, or whose check
+ * failed, use a point just above the centre.
  */
-export function framingCuts(startMs: number, endMs: number, captionStarts: number[]): number[] {
-  const cuts: number[] = [];
-  let last = startMs;
-  for (const t of captionStarts) {
-    if (cuts.length === FRAMINGS.length - 1) break;
-    if (t - last >= VIDEO.minFramingMs && endMs - t >= VIDEO.minFramingMs) {
-      cuts.push(t);
-      last = t;
-    }
-  }
-  return cuts;
+export function imageFocus(review: unknown): { x: number; y: number } {
+  const f = (review as { focus?: { x?: unknown; y?: unknown } | null } | null)?.focus;
+  const ok = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+  if (!f || !ok(f.x) || !ok(f.y)) return DEFAULT_FOCUS;
+  const clamp = (v: number) => Math.min(0.8, Math.max(0.2, v));
+  return { x: clamp(f.x), y: clamp(f.y) };
 }
 
 /** How long the on-screen hook holds (ms): while its spoken line plays, within VIDEO.hookTextMs's bounds. */
@@ -31,7 +26,7 @@ export function hookDurationMs(timing: Pick<EpisodeTiming, "words">, spokenWords
 
 /** Pure: converts stored timing + asset URLs into Remotion input props. */
 export function buildEpisodeProps(input: {
-  scenes: { sceneNumber: number; imageUrl: string; motionPreset: string; stepLabel?: string; sound?: { url: string; loop: boolean } | null }[];
+  scenes: { sceneNumber: number; imageUrl: string; motionPreset: string; stepLabel?: string; sound?: { url: string; loop: boolean } | null; focus?: { x: number; y: number } | null }[];
   timing: EpisodeTiming;
   voiceoverUrl: string;
   voiceVolume: number;
@@ -55,13 +50,11 @@ export function buildEpisodeProps(input: {
   const speechEndMs = Math.max(0, input.timing.totalDurationMs - VIDEO.tailMs);
   const at = (ms: number) => (ms <= speechEndMs ? ms / speed : speechEndMs / speed + (ms - speechEndMs));
   const durationInFrames = Math.max(1, msToFrames(at(input.timing.totalDurationMs), fps));
-  const captionStarts = input.timing.captions.map((c) => c.startMs);
-  const scenes = input.scenes.map((scene, i) => {
+  const scenes = input.scenes.map((scene) => {
     const t = input.timing.scenes.find((s) => s.sceneNumber === scene.sceneNumber);
     if (!t) throw new Error(`No timing for scene ${scene.sceneNumber}. Re-synchronise the narration.`);
     const startFrame = msToFrames(at(t.startMs), fps);
     const endFrame = Math.min(durationInFrames, msToFrames(at(t.endMs), fps));
-    const cuts = framingCuts(t.startMs, t.endMs, captionStarts);
     return {
       sceneNumber: scene.sceneNumber,
       imageUrl: scene.imageUrl,
@@ -70,9 +63,7 @@ export function buildEpisodeProps(input: {
       durationInFrames: Math.max(1, endFrame - startFrame),
       sound: scene.sound ?? null,
       stepLabel: scene.stepLabel?.trim() ?? "",
-      framings: [0, ...cuts.map((c) => msToFrames(at(c), fps) - startFrame)].map((fromFrame, k) => ({ fromFrame, framing: FRAMINGS[k] })),
-      // Medium framings lean left and right on alternate shots.
-      side: i % 2 === 0 ? ("left" as const) : ("right" as const),
+      focus: scene.focus ?? null,
     };
   });
   const hookText = input.hookText?.trim() || "";

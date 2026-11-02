@@ -328,7 +328,7 @@ export function fakeImages(
       const reject = scene !== undefined && !rejected.has(scene);
       if (reject) rejected.add(scene);
       return {
-        review: { pass: !reject, containsText: false, styleViolations: reject ? ["The crayons are already boxed at the melting step"] : [], matchesScene: !reject, notes: "" },
+        review: { pass: !reject, containsText: false, styleViolations: reject ? ["The crayons are already boxed at the melting step"] : [], matchesScene: !reject, notes: "", focus: { x: 0.3, y: 0.6 } },
         usage: { inputTokens: 500, cachedInputTokens: 0, outputTokens: 50 },
         model: "fake-model",
       };
@@ -390,7 +390,7 @@ type RenderCall = {
   sounds: number;
   music: boolean;
   steps: string[];
-  cuts: number;
+  focused: number;
 };
 
 export function fakeRender(): RenderClient & { renders: RenderCall[] } {
@@ -411,7 +411,7 @@ export function fakeRender(): RenderClient & { renders: RenderCall[] } {
         sounds: props.scenes.filter((s) => s.sound).length,
         music: Boolean(props.music),
         steps: [...new Set(props.scenes.map((s) => s.stepLabel))],
-        cuts: props.scenes.reduce((n, s) => n + s.framings.length - 1, 0),
+        focused: props.scenes.filter((s) => s.focus).length,
       });
       return { url: `https://blob.test/render-${client.renders.length}.mp4?download=1`, sizeBytes: 1234, renderSeconds: 10 };
     },

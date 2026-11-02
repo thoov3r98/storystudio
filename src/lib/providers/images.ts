@@ -121,6 +121,8 @@ export const ImageReviewSchema = z.object({
   styleViolations: z.array(z.string()),
   matchesScene: z.boolean(),
   notes: z.string(),
+  /** Where the main action sits, as fractions of the width and height from the top left; the video's camera drifts toward it. */
+  focus: z.object({ x: z.number(), y: z.number() }).nullable(),
 });
 export type ImageReview = z.infer<typeof ImageReviewSchema>;
 

@@ -71,7 +71,7 @@ web research (OpenAI web_search, cited) → research notes (stages T1..TN, steps
 ### Pictures
 
 - New versions draw square art (`EpisodeVersion.imageShape = "square"`, 1024×1024) shown 1080×1080 between the title band and the captions. Versions written before November 2026 stay landscape (1536×1024) in the bands layout; a fork keeps its source's shape.
-- Each shot cuts, at caption breaks, between a wide, a close-up and an in-between framing of its picture (`framingCuts`): each held at least 1.8 s, three at most. No extra images.
+- Each shot shows its whole picture with one continuous camera move, never a cut within the shot: zooms push toward (or pull back from) the main action, pans drift across, "still" breathes in slightly. The image check reports where the action sits (`review.focus`, fractions of width and height); pictures without it (older, or check off/failed) centre the move just above the middle (`imageFocus`). New angles come only from new pictures.
 - The "Machines and materials up close" style (`object-focus`) makes the machine and material the subject; people only as hands or for scale. Pick it per channel.
 
 ### Looser opening (per channel)

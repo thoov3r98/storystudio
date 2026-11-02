@@ -235,9 +235,9 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const parts = (await db.story.findUniqueOrThrow({ where: { id: story.id } })).plannedParts;
     expect(v.imageShape).toBe("square");
     expect(f.render.renders[0]).toMatchObject({ layout: "square", seriesTitle: story.title, partLabel: parts > 1 ? `Part 1 of ${parts}` : "Part 1", accentColor: bandColorFor(story.id) });
-    // The step on screen follows the shots; long shots cut to a closer framing at caption breaks.
+    // The step on screen follows the shots; each shot's camera moves toward the action its image check found.
     expect(f.render.renders[0].steps).toEqual(["Melting the wax", "Moulding the crayons"]);
-    expect(f.render.renders[0].cuts).toBeGreaterThan(0);
+    expect(f.render.renders[0].focused).toBe(f.render.renders[0].scenes);
     expect(f.render.renders[0].hookFrames).toBeGreaterThanOrEqual(66);
     // Post text is written once the video renders.
     expect(v.postCopy).toMatchObject({ coverSceneNumber: 1, hashtags: ["#howitsmade", "#crayons", "#factory"] });

@@ -12,7 +12,7 @@ import { renderClient, type RenderClient } from "@/lib/render/client";
 import type { EpisodeTiming } from "@/lib/timing";
 import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
 import type { SoundProvider } from "@/lib/providers/sound";
-import { buildEpisodeProps } from "./render-props";
+import { buildEpisodeProps, imageFocus } from "./render-props";
 import { resolveSoundtrack } from "./sound";
 import { refreshStoryStatus } from "./versions";
 
@@ -50,6 +50,7 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
       sceneNumber: s.sceneNumber,
       imageUrl: s.currentImage!.url!,
       motionPreset: s.motionPreset,
+      focus: imageFocus(s.currentImage!.review),
       stepLabel: s.stepLabel,
       sound: soundtrack.effects[s.soundEffect as keyof typeof soundtrack.effects] ?? null,
     })),

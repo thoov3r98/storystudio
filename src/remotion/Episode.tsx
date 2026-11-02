@@ -18,37 +18,40 @@ const FONT = "Inter, 'Helvetica Neue', Arial, sans-serif";
  * full:   legacy 2:3 portrait art filling the frame, captions over its empty lower quarter.
  */
 const LAYOUTS = {
-  square: { imageTop: 440, imageHeight: 1080, titleTop: 180, captionTop: 1556, captionSize: 64, close: 1.25 },
-  bands: { imageTop: 560, imageHeight: 720, titleTop: 190, captionTop: 1340, captionSize: 72, close: 1.3 },
-  full: { imageTop: 70, imageHeight: 1620, titleTop: 200, captionTop: 1290, captionSize: 76, close: 1.2 },
+  square: { imageTop: 440, imageHeight: 1080, titleTop: 180, captionTop: 1556, captionSize: 64 },
+  bands: { imageTop: 560, imageHeight: 720, titleTop: 190, captionTop: 1340, captionSize: 72 },
+  full: { imageTop: 70, imageHeight: 1620, titleTop: 200, captionTop: 1290, captionSize: 76 },
 } as const;
 
 type Scene = EpisodeProps["scenes"][number];
 
-function motionTransform(preset: string, t: number): string {
-  // t: 0 → 1 over the scene. Movements are slow and subtle to suit still illustrations.
+/** How far a push-in goes. Gentle: the art is ~1024px shown at 1080px, so more would blur. */
+const PUSH = 0.14;
+
+/**
+ * One continuous camera move per shot, never a cut within it: zooms push toward (or pull back from) the
+ * main action, pans drift across the whole picture, "still" breathes in slightly so nothing looks frozen.
+ * Scaling ≥1 about any point inside the picture keeps the frame covered.
+ */
+function cameraMove(preset: string, t: number, focus: Scene["focus"]): { transform: string; transformOrigin: string } {
+  // t: 0 → 1 over the shot.
   const e = Easing.inOut(Easing.quad)(t);
+  const f = focus ?? { x: 0.5, y: 0.45 };
+  const onFocus = `${f.x * 100}% ${f.y * 100}%`;
   switch (preset) {
     case "slow-zoom-in":
-      return `scale(${1 + 0.08 * e})`;
+      return { transform: `scale(${1 + PUSH * e})`, transformOrigin: onFocus };
     case "slow-zoom-out":
-      return `scale(${1.08 - 0.08 * e})`;
+      return { transform: `scale(${1 + PUSH - PUSH * e})`, transformOrigin: onFocus };
     case "pan-left":
-      return `scale(1.08) translateX(${interpolate(e, [0, 1], [2.5, -2.5])}%)`;
+      return { transform: `scale(1.1) translateX(${interpolate(e, [0, 1], [3, -3])}%)`, transformOrigin: "50% 50%" };
     case "pan-right":
-      return `scale(1.08) translateX(${interpolate(e, [0, 1], [-2.5, 2.5])}%)`;
+      return { transform: `scale(1.1) translateX(${interpolate(e, [0, 1], [-3, 3])}%)`, transformOrigin: "50% 50%" };
     case "pan-up":
-      return `scale(1.08) translateY(${interpolate(e, [0, 1], [2, -2])}%)`;
+      return { transform: `scale(1.1) translateY(${interpolate(e, [0, 1], [3, -3])}%)`, transformOrigin: "50% 50%" };
     default:
-      return "scale(1.02)";
+      return { transform: `scale(${1 + 0.04 * e})`, transformOrigin: onFocus };
   }
-}
-
-/** Hard cuts within a shot: the whole picture, a close-up on its centre, or in between and to one side. */
-function framingTransform(framing: Scene["framings"][number]["framing"], side: Scene["side"], close: number): string {
-  if (framing === "close") return `scale(${close})`;
-  if (framing === "medium") return `scale(1.12) translateX(${side === "left" ? 3 : -3}%)`;
-  return "scale(1)";
 }
 
 const SceneImage: React.FC<{ scene: Scene; offset: number; fadeIn: boolean; layout: EpisodeProps["layout"] }> = ({ scene, offset, fadeIn, layout }) => {
@@ -57,20 +60,10 @@ const SceneImage: React.FC<{ scene: Scene; offset: number; fadeIn: boolean; layo
   const t = Math.min(1, Math.max(0, own) / Math.max(1, scene.durationInFrames));
   const opacity = fadeIn ? interpolate(frame, [0, CROSSFADE_FRAMES], [0, 1], { extrapolateRight: "clamp" }) : 1;
   const geo = LAYOUTS[layout];
-  const current = [...scene.framings].reverse().find((f) => own >= f.fromFrame) ?? scene.framings[0];
   return (
     <AbsoluteFill style={{ opacity }}>
       <div style={{ position: "absolute", left: 0, width: "100%", overflow: "hidden", top: geo.imageTop, height: geo.imageHeight, backgroundColor: BACKGROUND }}>
-        <Img
-          src={scene.imageUrl}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            transform: `${framingTransform(current?.framing ?? "wide", scene.side, geo.close)} ${motionTransform(scene.motionPreset, t)}`,
-            transformOrigin: "50% 45%",
-          }}
-        />
+        <Img src={scene.imageUrl} style={{ width: "100%", height: "100%", objectFit: "cover", ...cameraMove(scene.motionPreset, t, scene.focus) }} />
       </div>
     </AbsoluteFill>
   );
