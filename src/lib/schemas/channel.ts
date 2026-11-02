@@ -27,7 +27,7 @@ export const ChannelDesignSchema = z.object({
 export type ChannelDesign = z.infer<typeof ChannelDesignSchema>;
 
 /** The parts of a channel the prompts need. */
-export type ChannelGuide = { name: string; format: ChannelFormat; profile: ChannelProfile };
+export type ChannelGuide = { name: string; format: ChannelFormat; profile: ChannelProfile; looseOpening?: boolean };
 
 export function parseProfile(value: unknown): ChannelProfile {
   return ChannelProfileSchema.parse(value);
@@ -53,6 +53,7 @@ export const ChannelEditSchema = z
     minParts: z.number().int().min(1).max(6),
     maxParts: z.number().int().min(1).max(6),
     quality: z.enum(["DRAFT", "STANDARD", "PREMIUM"]),
+    looseOpening: z.boolean().default(false),
     profile: z.object({
       summary: z.string().trim().min(1).max(500),
       subjects: z.string().trim().min(1).max(2000),

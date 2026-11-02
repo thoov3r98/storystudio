@@ -3,7 +3,9 @@ import { computeStaleness, type RenderInputs } from "@/lib/invalidation";
 import { renderCost } from "@/lib/costs/pricing";
 import { assertWithinBudget, recordCost, type CostContext } from "@/lib/costs/record";
 import { env } from "@/lib/env";
-import { bandColorFor } from "@/lib/constants";
+import { bandColorFor, imageShape } from "@/lib/constants";
+import { countWords } from "@/lib/text";
+import { firstSentence } from "@/lib/process/script";
 import { getAudioMix, getPricing } from "@/lib/settings";
 import { setJobStage } from "@/lib/jobs";
 import { renderClient, type RenderClient } from "@/lib/render/client";
@@ -38,6 +40,8 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
     throw new Error(`Cannot render yet; missing ${missing.join(", ")}.`);
   }
 
+  const story = version.episode.story;
+  const spec = version.spec as EpisodeSpecRecord | null;
   const mix = await getAudioMix();
   if (input.jobId) await setJobStage(input.jobId, "RENDERING_VIDEO", "Preparing music and sound effects", 0.8);
   const soundtrack = await resolveSoundtrack({ soundEffects: version.scenes.map((s) => s.soundEffect), mix, cost: input.cost, sound: input.sound });
@@ -46,6 +50,7 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
       sceneNumber: s.sceneNumber,
       imageUrl: s.currentImage!.url!,
       motionPreset: s.motionPreset,
+      stepLabel: s.stepLabel,
       sound: soundtrack.effects[s.soundEffect as keyof typeof soundtrack.effects] ?? null,
     })),
     timing: version.timing as unknown as EpisodeTiming,
@@ -53,11 +58,14 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
     voiceVolume: mix.voiceVolume,
     music: soundtrack.music ? { url: soundtrack.music.url, volume: mix.musicVolume } : null,
     sfxVolume: mix.sfxVolume,
-    hookText: (version.spec as EpisodeSpecRecord | null)?.onScreenHook ?? null,
+    hookText: spec?.onScreenHook ?? null,
+    // Part 1's on-screen hook stands for the spoken hook; later parts' for their first sentence.
+    hookSpokenWords: countWords(spec?.process?.creative?.hookLine ?? firstSentence(version.narration)),
+    imageShape: imageShape(version.imageShape),
     narrationSpeed: mix.narrationSpeed,
     bands: {
       seriesTitle: version.episode.story.title,
-      partLabel: `Part ${version.episode.partNumber}`,
+      partLabel: story.plannedParts && story.plannedParts > 1 ? `Part ${version.episode.partNumber} of ${story.plannedParts}` : `Part ${version.episode.partNumber}`,
       accentColor: bandColorFor(version.episode.storyId),
     },
   });

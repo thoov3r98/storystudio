@@ -272,7 +272,13 @@ describe.skipIf(!url)("topic discovery and storytelling (integration)", () => {
     expect(f.text.systems.process_audit[0]).toContain("That preview is intended and is not a temporal issue");
     const v1 = await part1Narration(story.id);
     expect(v1.narration.startsWith(FAKE_HOOKS.FACTORY_REVEAL)).toBe(true);
-    expect((v1.spec as EpisodeSpecRecord).process?.creative).toEqual({ pattern: "FACTORY_REVEAL", hookId: decision.selectedHookId, hookLine: FAKE_HOOKS.FACTORY_REVEAL });
+    expect((v1.spec as EpisodeSpecRecord).process?.creative).toEqual({
+      pattern: "FACTORY_REVEAL",
+      hookId: decision.selectedHookId,
+      hookLine: FAKE_HOOKS.FACTORY_REVEAL,
+      hookStrategy: expect.any(String),
+      looseOpening: false,
+    });
     const part2 = await db.episode.findFirstOrThrow({ where: { storyId: story.id, partNumber: 2 }, include: { currentVersion: true } });
     expect((part2.currentVersion!.spec as EpisodeSpecRecord).process?.creative?.hookLine).toBeNull();
   });

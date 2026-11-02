@@ -57,7 +57,17 @@ export type ProcessPlan = z.infer<typeof ProcessPlanSchema>;
 export const ProcessSpecSchema = z.object({
   plan: ProcessPlanSchema,
   part: z.number().int(),
-  creative: z.object({ pattern: z.string(), hookId: z.string().nullable(), hookLine: z.string().nullable() }).optional(),
+  creative: z
+    .object({
+      pattern: z.string(),
+      hookId: z.string().nullable(),
+      hookLine: z.string().nullable(),
+      /** The hook's strategy (Part 1 only), for comparing results by kind of opening. */
+      hookStrategy: z.string().nullable().optional(),
+      /** Written with the channel's looser opening (Part 1 may say "you" and ask one question). */
+      looseOpening: z.boolean().optional(),
+    })
+    .optional(),
 });
 export type ProcessSpec = z.infer<typeof ProcessSpecSchema>;
 

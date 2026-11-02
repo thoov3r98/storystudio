@@ -77,6 +77,7 @@ function cutScenes(narration: string) {
     objects: ["mould"],
     motionPreset: "slow-zoom-in" as const,
     soundEffect: i % 2 === 0 ? ("press" as const) : ("conveyor" as const),
+    stepLabel: i < 4 ? "Melting the wax" : "Moulding the crayons",
   }));
 }
 
@@ -288,6 +289,14 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
           const narration = between(user, "FINAL NARRATION", "\u0000").replace(/^— ".*"\n/, "");
           return out({ onScreenHook: "It starts as wax", visualState: makeDraft("x", 1).visualState, scenes: cutScenes(narration) });
         }
+        case "post_copy":
+          return out({
+            caption: "Watch wax turn into crayons.",
+            hashtags: ["#howitsmade", "#crayons", "#factory"],
+            coverSceneNumber: 1,
+            coverText: "How crayons are made",
+            pinnedComment: "Crayons are made from paraffin wax and powdered pigment.",
+          });
         case "scene_rewrite": {
           const current = /CURRENT shot \d+ narration: (.*)/.exec(user)?.[1] ?? "x";
           return out({ narration: current.replace(/\.$/, " rewritten."), imagePrompt: "A different machine at work", composition: "close-up", rationale: "r" });
@@ -365,7 +374,20 @@ export function fakeSpeech(): SpeechProvider & { count: number } {
   return provider;
 }
 
-type RenderCall = { durationInFrames: number; scenes: number; layout: string; seriesTitle: string; partLabel: string; accentColor: string; hookText: string; sounds: number; music: boolean };
+type RenderCall = {
+  durationInFrames: number;
+  scenes: number;
+  layout: string;
+  seriesTitle: string;
+  partLabel: string;
+  accentColor: string;
+  hookText: string;
+  hookFrames: number;
+  sounds: number;
+  music: boolean;
+  steps: string[];
+  cuts: number;
+};
 
 export function fakeRender(): RenderClient & { renders: RenderCall[] } {
   const client = {
@@ -373,7 +395,20 @@ export function fakeRender(): RenderClient & { renders: RenderCall[] } {
     async render({ props, onProgress }: Parameters<RenderClient["render"]>[0]) {
       await onProgress({ progress: 0.5, stage: "Rendering frames" });
       const { durationInFrames, layout, seriesTitle, partLabel, accentColor, hookText } = props;
-      client.renders.push({ durationInFrames, scenes: props.scenes.length, layout, seriesTitle, partLabel, accentColor, hookText, sounds: props.scenes.filter((s) => s.sound).length, music: Boolean(props.music) });
+      client.renders.push({
+        durationInFrames,
+        scenes: props.scenes.length,
+        layout,
+        seriesTitle,
+        partLabel,
+        accentColor,
+        hookText,
+        hookFrames: props.hookFrames,
+        sounds: props.scenes.filter((s) => s.sound).length,
+        music: Boolean(props.music),
+        steps: [...new Set(props.scenes.map((s) => s.stepLabel))],
+        cuts: props.scenes.reduce((n, s) => n + s.framings.length - 1, 0),
+      });
       return { url: `https://blob.test/render-${client.renders.length}.mp4?download=1`, sizeBytes: 1234, renderSeconds: 10 };
     },
   };

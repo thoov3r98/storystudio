@@ -7,7 +7,7 @@ import { fetchAsset, paths, uploadAsset } from "@/lib/storage";
 import { imageCost, textCost } from "@/lib/costs/pricing";
 import { assertWithinBudget, recordCost, type CostContext } from "@/lib/costs/record";
 import { getDefaults, getPricing, getModels } from "@/lib/settings";
-import { IMAGE_SIZE, QUALITY_PRESETS } from "@/lib/constants";
+import { IMAGE_SHAPES, imageShape, QUALITY_PRESETS } from "@/lib/constants";
 import { assertNotCanceled, setJobStage } from "@/lib/jobs";
 import type { PipelineDeps } from "./deps";
 
@@ -70,6 +70,7 @@ export async function generateSceneImages(input: {
   const spec = version.spec as { visualState?: VisualState } | null;
   const visualState = spec?.visualState ?? null;
   const fastModel = (await getModels()).fast;
+  const shape = imageShape(version.imageShape);
 
   let completed = 0;
   const results = await mapSettled(targets, IMAGE_CONCURRENCY, async (scene) => {
@@ -90,6 +91,7 @@ export async function generateSceneImages(input: {
         styleKey: version.styleKey,
         scene,
         hasReference: refs.length > 0,
+        shape,
         shot,
         fix,
       });
@@ -101,7 +103,7 @@ export async function generateSceneImages(input: {
 
     const draw = async (p: string, attempt: number) => {
       const result = await withRetry(
-        () => withTimeout(`Scene ${scene.sceneNumber} illustration`, IMAGE_TIMEOUT_MS, (signal) => input.deps.images.generate({ prompt: p, quality, references: refs, size: IMAGE_SIZE, signal })),
+        () => withTimeout(`Scene ${scene.sceneNumber} illustration`, IMAGE_TIMEOUT_MS, (signal) => input.deps.images.generate({ prompt: p, quality, references: refs, size: IMAGE_SHAPES[shape].size, signal })),
         { attempts: IMAGE_ATTEMPTS, baseDelayMs: 2000, shouldRetry: (e) => !/content.policy|safety|moderation/i.test(String((e as Error)?.message)) },
       );
       const cost = imageCost(pricing, quality, result.usage);

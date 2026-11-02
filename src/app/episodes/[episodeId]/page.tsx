@@ -13,12 +13,12 @@ import { reconcileStaleJobs } from "@/lib/enqueue";
 import { ACTIVE_JOB_STATUSES, SOUND_EFFECTS, type SoundEffectKey } from "@/lib/constants";
 import { estimateEpisodeCost, formatUsd } from "@/lib/costs/estimate";
 import { getModels, getPricing } from "@/lib/settings";
-import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
+import { type EpisodeSpecRecord, PostCopySchema } from "@/lib/schemas/episode";
 import { ResearchRecordSchema } from "@/lib/schemas/process";
 import type { EpisodeTiming } from "@/lib/timing";
 import { downloadUrl, previewUrl } from "@/lib/urls";
 import { ApproveEpisodeButton } from "@/app/stories/[storyId]/story-client";
-import { EpisodeActionButton, RewriteSceneDialog, SceneImageHistory, VersionRestoreButton } from "./episode-client";
+import { EpisodeActionButton, PostCopyPanel, RewriteSceneDialog, SceneImageHistory, VersionRestoreButton } from "./episode-client";
 import { ScriptChecks } from "./script-checks";
 import { CreativeDecisions } from "./creative-decisions";
 import { DiscoverySnapshotSchema } from "@/lib/schemas/topics";
@@ -46,6 +46,8 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
   const { episode, latestRender, staleness, costUsd } = data;
   const v = episode.currentVersion;
   const spec = (v?.spec ?? null) as Partial<EpisodeSpecRecord> | null;
+  const parsedCopy = PostCopySchema.safeParse(v?.postCopy);
+  const postCopy = parsedCopy.success ? parsedCopy.data : null;
   const timing = (v?.timing ?? null) as EpisodeTiming | null;
   const activeJob = episode.jobs.find((j) => ACTIVE_JOB_STATUSES.includes(j.status));
   const latestRenderAttempt = v?.renders[0];
@@ -235,6 +237,15 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                 </details>
               ) : null}
             </div>
+
+            {latestRender?.url ? (
+              <PostCopyPanel
+                episodeId={episode.id}
+                copy={postCopy}
+                cover={v.scenes.find((s) => s.sceneNumber === postCopy?.coverSceneNumber)?.currentImage?.url ?? null}
+                disabled={busy}
+              />
+            ) : null}
 
             <div className="space-y-2 rounded-xl border bg-card p-4">
               <div className="flex items-center justify-between">

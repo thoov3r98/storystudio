@@ -11,7 +11,20 @@ export type ScriptRow = {
   rejected: boolean;
   humanRating: number | null;
   performance: { views: number | null; completionRate: number | null; earlyRetention: number | null; rewatchRate: number | null } | null;
+  /** The creative choices the video was made with, for comparing what works. */
+  traits?: Partial<Record<Trait, string>>;
 };
+
+export const TRAITS = {
+  pattern: "Story pattern",
+  opening: "Kind of opening",
+  tone: "Opening tone",
+  style: "Drawing style",
+  layout: "Picture size",
+  length: "Length",
+  part: "Part",
+} as const;
+export type Trait = keyof typeof TRAITS;
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const pct = (n: number, d: number) => (d ? (n / d) * 100 : null);

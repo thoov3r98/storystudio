@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { normalizeTitle } from "@/lib/text";
-import { MetricInputSchema, type MetricInput, ReferenceInputSchema, type ReferenceInput, type Platform } from "@/lib/schemas/topics";
+import { MetricInputSchema, type MetricInput, PLATFORMS, ReferenceInputSchema, type ReferenceInput, type Platform } from "@/lib/schemas/topics";
 import { STARTER_REFERENCES } from "./starter-references";
 
 /*
@@ -157,4 +157,57 @@ export async function importReferenceMetadata(id: string, fetcher: typeof fetch 
     await db.referenceMetricObservation.create({ data: { referenceId: id, ...m, shares: null, observedAt: new Date(), source: "YOUTUBE_API", note: meta.method } });
   }
   return meta;
+}
+
+// ── Our own posted videos ─────────────────────────────────────────────
+
+/**
+ * A published episode with a link joins the library as a reference, so topic discovery learns from
+ * how our own videos did alongside others'. Each time its numbers are entered, they are recorded
+ * there as a dated observation too. Without a link it can't be a reference (the library keys on it).
+ */
+export async function recordOwnVideo(episodeId: string, numbers: { views?: number | null; likes?: number | null; comments?: number | null; shares?: number | null; platform?: string | null }) {
+  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { story: { include: { channel: true } } } });
+  const url = episode.publishedUrl;
+  if (!url) return null;
+  const story = episode.story;
+  const research = story.research as { product?: string; overview?: string } | null;
+  const discovery = story.discovery as { product?: string } | null;
+  const product = (discovery?.product ?? research?.product ?? story.title.replace(/^how\s+|\s+(is|are)\s+made$/gi, "")).trim();
+  const decision = await db.manufacturingStorytellingDecision.findUnique({ where: { storyId: story.id } });
+  const named = (numbers.platform ?? episode.publishedPlatform ?? "").toLowerCase();
+  const platform: Platform = (PLATFORMS as readonly string[]).includes(named) ? (named as Platform) : detectPlatform(url);
+  const reference =
+    (await db.manufacturingContentReference.findUnique({ where: { url } })) ??
+    (await db.manufacturingContentReference.create({
+      data: {
+        platform,
+        creator: story.channel?.name ?? "Our channel",
+        url,
+        title: `${story.title}${story.plannedParts > 1 ? ` (Part ${episode.partNumber})` : ""}`,
+        product,
+        normalizedProduct: normalizeTitle(product),
+        category: "our own video",
+        publishedAt: episode.publishedAt,
+        notableStep: decision?.visualPayoff ?? "",
+        curiosityMechanism: decision?.curiosityMechanism ?? "",
+        notes: "Our own video, added when its numbers were entered.",
+        usageRights: "Our own video",
+      },
+    }));
+  if ([numbers.views, numbers.likes, numbers.comments, numbers.shares].some((n) => n != null)) {
+    await db.referenceMetricObservation.create({
+      data: {
+        referenceId: reference.id,
+        views: numbers.views ?? null,
+        likes: numbers.likes ?? null,
+        comments: numbers.comments ?? null,
+        shares: numbers.shares ?? null,
+        observedAt: new Date(),
+        source: "MANUAL",
+        note: "Entered on our episode",
+      },
+    });
+  }
+  return reference.id;
 }

@@ -6,7 +6,7 @@ import type { TokenUsage } from "@/lib/ai/structured";
 import type { VisualState } from "@/lib/schemas/episode";
 import { env } from "@/lib/env";
 import { getModels } from "@/lib/settings";
-import { SAFE_AREA, styleSpec } from "@/lib/constants";
+import { IMAGE_SHAPES, type ImageShape, styleSpec } from "@/lib/constants";
 
 export type ImageUsage = { textInputTokens: number; imageInputTokens: number; outputTokens: number };
 
@@ -37,6 +37,8 @@ export function buildImagePrompt(input: {
   styleKey: string;
   scene: { imagePrompt: string; composition: string; objects: string[] };
   hasReference: boolean;
+  /** The version's illustration shape; square unless the version predates it. */
+  shape?: ImageShape;
   shot?: ShotContext | null;
   /** Problems with a rejected earlier attempt, to fix this time. */
   fix?: string[];
@@ -46,7 +48,7 @@ export function buildImagePrompt(input: {
     input.hasReference ? "Match the line weight, figure proportions and overall drawing style of the reference image(s) exactly; do not copy their content." : "",
     ...shotLines(input.shot),
     `SCENE: ${input.scene.imagePrompt}`,
-    `COMPOSITION: ${input.scene.composition}. ${SAFE_AREA}`,
+    `COMPOSITION: ${input.scene.composition}. ${IMAGE_SHAPES[input.shape ?? "square"].safeArea}`,
     input.scene.objects.length ? `KEY OBJECTS: ${input.scene.objects.join(", ")}` : "",
     input.shot ? "Draw exactly the moment of THIS MOMENT, true to the episode facts and continuity." : "",
     input.shot

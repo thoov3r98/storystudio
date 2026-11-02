@@ -7,6 +7,7 @@ import {
   processBreakdownPrompt,
   processNarrationPrompt,
   processPlanPrompt,
+  looseOpeningFor,
   type ProcessPromptInput,
   processRevisionPrompt,
   researchNotesPrompt,
@@ -111,8 +112,9 @@ async function narrate(run: Run, input: ProcessInput, notes: ResearchRecord, p: 
 
 /** The fact/clarity audit and the attention audit run side by side on each round; their issues share one gate. */
 async function audit(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, s: PartState, earlier: string[], previous: { id: string; text: string }[] | undefined, round: number, creative?: Creative | null) {
-  const prompt = processAuditPrompt({ title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, earlier, previous, hook: hookFor(creative, s.part) });
-  const attentionPrompt = processAttentionPrompt({ title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, creative });
+  const looseOpening = looseOpeningFor(input.channel, s.part);
+  const prompt = processAuditPrompt({ title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, earlier, previous, hook: hookFor(creative, s.part), looseOpening });
+  const attentionPrompt = processAttentionPrompt({ title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, creative, looseOpening });
   const [result, attention] = await Promise.all([
     run({ prompt, schema: LogicAuditSchema, schemaName: "process_audit", role: "reviewer", operation: "script-audit", budget: 0.08 }),
     run({ prompt: attentionPrompt, schema: AttentionAuditSchema, schemaName: "process_attention", role: "reviewer", operation: "attention-audit", budget: 0.05 }),
@@ -165,7 +167,7 @@ async function breakdown(run: Run, input: ProcessInput, notes: ResearchRecord, p
     role: "writer",
     operation: "scene-breakdown",
     budget: 0.15,
-    validate: (v) => validateDraft({ ...fixed, ...v }, input),
+    validate: (v) => validateDraft({ ...fixed, ...v }, { ...input, allowQuestion: looseOpeningFor(input.channel, s.part) }),
   });
   return { ...fixed, ...b };
 }

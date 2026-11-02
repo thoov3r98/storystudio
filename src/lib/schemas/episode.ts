@@ -19,6 +19,7 @@ export const SceneSpecSchema = z.object({
   objects: z.array(z.string()),
   motionPreset: z.enum(MOTION_PRESETS),
   soundEffect: z.enum(SOUND_EFFECT_KEYS).describe('The factory sound of what happens in this shot, or "none" for a quiet shot.'),
+  stepLabel: z.string().describe("The manufacturing step this shot belongs to, 2–4 plain words shown on screen (e.g. 'Cooking the syrup'). Consecutive shots of one step use the same words."),
 });
 
 /** The physical facts every shot of an episode must respect, so images agree with the story and each other. */
@@ -78,3 +79,13 @@ export const SceneBreakdownSchema = z.object({
   visualState: VisualStateSchema,
   scenes: z.array(SceneSpecSchema),
 });
+
+/** What the producer pastes when posting a video. Written after it renders; facts only from the script and research. */
+export const PostCopySchema = z.object({
+  caption: z.string().describe("The post caption: one or two short, plain sentences, at most 150 characters."),
+  hashtags: z.array(z.string()).describe("3–5 hashtags, lowercase, each starting with #."),
+  coverSceneNumber: z.number().int().describe("The shot whose picture makes the best cover: the product or material instantly recognisable."),
+  coverText: z.string().describe("2–5 words to put on the cover, for the profile grid."),
+  pinnedComment: z.string().describe("A comment to pin: one extra, verified detail from the research that the video doesn't say, in one or two plain sentences."),
+});
+export type PostCopy = z.infer<typeof PostCopySchema>;

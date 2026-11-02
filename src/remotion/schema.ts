@@ -11,7 +11,7 @@ export const EpisodePropsSchema = z.object({
   voicePlaybackRate: z.number().min(1).max(1.5).default(1),
   music: z.object({ url: z.string().url(), volume: z.number().min(0).max(1) }).nullable(),
   sfxVolume: z.number().min(0).max(1).default(0),
-  /** Shown in place of the series title over the first `hookFrames`. Empty: the title shows from the start. */
+  /** Shown in place of the series title over the first `hookFrames`; "*word*" is highlighted. Empty: the title shows from the start. */
   hookText: z.string().default(""),
   hookFrames: z.number().int().nonnegative().default(78),
   scenes: z.array(
@@ -23,6 +23,11 @@ export const EpisodePropsSchema = z.object({
       motionPreset: z.string(),
       /** The shot's factory sound: looped under the shot, or played once as it starts. */
       sound: z.object({ url: z.string().url(), loop: z.boolean() }).nullable().default(null),
+      /** The manufacturing step shown in the title band while this shot plays. */
+      stepLabel: z.string().default(""),
+      /** Cuts within the shot: from each frame (relative to the shot) the picture is shown wide, close or in between. */
+      framings: z.array(z.object({ fromFrame: z.number().int().nonnegative(), framing: z.enum(["wide", "close", "medium"]) })).default([{ fromFrame: 0, framing: "wide" }]),
+      side: z.enum(["left", "right"]).default("left"),
     }),
   ),
   captions: z.array(
@@ -34,8 +39,11 @@ export const EpisodePropsSchema = z.object({
     }),
   ),
   showCaptions: z.boolean(),
-  /** "bands": landscape art between coloured title and caption bands. "full": legacy full-frame portrait art. */
-  layout: z.enum(["bands", "full"]).default("full"),
+  /**
+   * "square": square art between the title band and the captions (from November 2026).
+   * "bands": landscape art between coloured title and caption bands. "full": legacy full-frame portrait art.
+   */
+  layout: z.enum(["square", "bands", "full"]).default("full"),
   seriesTitle: z.string().default(""),
   partLabel: z.string().default(""),
   accentColor: z.string().default("#4A5D6B"),

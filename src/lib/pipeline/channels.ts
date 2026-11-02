@@ -19,8 +19,8 @@ import type { Channel, Story } from "@/generated/prisma/client";
 export const PITCHES_SHOWN = 3;
 const PITCHES_WRITTEN = 6;
 
-export function channelGuide(channel: Pick<Channel, "name" | "format" | "profile">): ChannelGuide {
-  return { name: channel.name, format: channel.format, profile: parseProfile(channel.profile) };
+export function channelGuide(channel: Pick<Channel, "name" | "format" | "profile" | "looseOpening">): ChannelGuide {
+  return { name: channel.name, format: channel.format, profile: parseProfile(channel.profile), looseOpening: channel.looseOpening };
 }
 
 /** Designs a channel from the producer's prompt and saves it, ready to edit. */

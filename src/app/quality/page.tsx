@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState, PageHeader, PageSkeleton, Section, StatCard, relativeTime } from "@/components/studio";
 import { db } from "@/lib/db";
 import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
-import { groupOutcomes, type ScriptRow, summarize } from "@/lib/process/metrics";
+import { groupOutcomes, type ScriptRow, summarize, type Trait, TRAITS } from "@/lib/process/metrics";
+import { ILLUSTRATION_STYLES } from "@/lib/constants";
+import { PATTERNS } from "@/lib/schemas/storytelling";
 
 export const metadata: Metadata = { title: "Script Quality" };
 
@@ -41,7 +43,19 @@ async function QualityContent() {
       humanRating: true,
       qualityStatus: true,
       spec: true,
-      episode: { select: { id: true, title: true, partNumber: true, status: true, currentVersionId: true, story: { select: { title: true } }, metrics: { orderBy: { recordedAt: "desc" }, take: 1 } } },
+      styleKey: true,
+      imageShape: true,
+      episode: {
+        select: {
+          id: true,
+          title: true,
+          partNumber: true,
+          status: true,
+          currentVersionId: true,
+          story: { select: { title: true, targetDurationSec: true } },
+          metrics: { orderBy: { recordedAt: "desc" }, take: 1 },
+        },
+      },
       _count: { select: { renders: true } },
     },
   });
@@ -58,11 +72,13 @@ async function QualityContent() {
       rejected: !approved && v.status === "SUPERSEDED",
       humanRating: v.humanRating,
       performance: m && v.episode.currentVersionId === v.id ? { views: m.views, completionRate: m.completionRate, earlyRetention: m.earlyRetention, rewatchRate: m.rewatchRate } : null,
+      traits: traitsOf(v, spec),
     };
     return [{ v, row }];
   });
 
   const s = summarize(rows.map((r) => r.row));
+  const published = rows.map((r) => r.row).filter((r) => r.performance);
   const byProduct = groupOutcomes(
     rows.map((r) => r.row),
     (r) => r.story,
@@ -98,7 +114,28 @@ async function QualityContent() {
           </div>
 
           <Section title="By product" description="Enter TikTok numbers on an episode (story page → Enter metrics) to compare. A handful of videos is not a trend.">
-            <OutcomeTable groups={byProduct} />
+            <OutcomeTable groups={byProduct} label="Product" />
+          </Section>
+
+          <Section
+            title="By creative choice"
+            description="Published videos only, grouped by how they were made. Compare 3-second retention and completion more than views; with fewer than five videos in a group, treat it as a hint."
+          >
+            {published.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No published videos with numbers yet. Mark an episode published and enter its numbers on the story page.</p>
+            ) : (
+              <div className="grid gap-6 lg:grid-cols-2">
+                {(Object.keys(TRAITS) as Trait[]).map((t) => {
+                  const groups = groupOutcomes(published, (r) => r.traits?.[t] ?? null);
+                  return groups.length ? (
+                    <div key={t} className="space-y-2">
+                      <h3 className="text-sm font-medium">{TRAITS[t]}</h3>
+                      <OutcomeTable groups={groups} label={TRAITS[t]} compact />
+                    </div>
+                  ) : null;
+                })}
+              </div>
+            )}
           </Section>
 
           <Section title="Recent scripts">
@@ -161,16 +198,34 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function OutcomeTable({ groups }: { groups: ReturnType<typeof groupOutcomes> }) {
+/** The creative choices a version was made with. Versions written before a choice existed leave it out. */
+function traitsOf(v: { styleKey: string; imageShape: string; episode: { partNumber: number; story: { targetDurationSec: number } } }, spec: EpisodeSpecRecord): Partial<Record<Trait, string>> {
+  const c = spec.process?.creative;
+  return {
+    pattern: c?.pattern ? (PATTERNS[c.pattern as keyof typeof PATTERNS]?.label ?? c.pattern) : undefined,
+    opening: v.episode.partNumber === 1 && c?.hookStrategy ? c.hookStrategy.replace(/-/g, " ") : undefined,
+    tone: v.episode.partNumber === 1 && c && c.looseOpening !== undefined ? (c.looseOpening ? "Looser (you, a question)" : "Third person") : undefined,
+    style: ILLUSTRATION_STYLES[v.styleKey as keyof typeof ILLUSTRATION_STYLES]?.label ?? v.styleKey,
+    layout: v.imageShape === "landscape" ? "Landscape art" : "Square art",
+    length: `${v.episode.story.targetDurationSec}s`,
+    part: v.episode.partNumber === 1 ? "Part 1" : "Later parts",
+  };
+}
+
+function OutcomeTable({ groups, label, compact }: { groups: ReturnType<typeof groupOutcomes>; label: string; compact?: boolean }) {
   return (
     <div className="overflow-x-auto rounded-xl border bg-card">
       <table className="w-full text-sm">
         <thead className="border-b text-left text-xs text-muted-foreground">
           <tr>
-            <th className="p-3 font-medium">Product</th>
-            <th className="p-3 font-medium">Scripts</th>
-            <th className="p-3 font-medium">Approved</th>
-            <th className="p-3 font-medium">Your rating</th>
+            <th className="p-3 font-medium">{label}</th>
+            {compact ? null : (
+              <>
+                <th className="p-3 font-medium">Scripts</th>
+                <th className="p-3 font-medium">Approved</th>
+                <th className="p-3 font-medium">Your rating</th>
+              </>
+            )}
             <th className="p-3 font-medium">Published</th>
             <th className="p-3 font-medium">Avg views</th>
             <th className="p-3 font-medium">3s retention</th>
@@ -182,9 +237,13 @@ function OutcomeTable({ groups }: { groups: ReturnType<typeof groupOutcomes> }) 
           {groups.map((g) => (
             <tr key={g.name}>
               <td className="p-3 font-medium">{g.name}</td>
-              <td className="p-3">{g.scripts}</td>
-              <td className="p-3">{fmt(g.approvalPct, 0, "%")}</td>
-              <td className="p-3">{fmt(g.avgRating)}</td>
+              {compact ? null : (
+                <>
+                  <td className="p-3">{g.scripts}</td>
+                  <td className="p-3">{fmt(g.approvalPct, 0, "%")}</td>
+                  <td className="p-3">{fmt(g.avgRating)}</td>
+                </>
+              )}
               <td className="p-3">{g.published}</td>
               <td className="p-3">{g.avgViews == null ? "—" : Math.round(g.avgViews).toLocaleString()}</td>
               <td className="p-3">{fmt(g.avgEarlyRetention, 0, "%")}</td>

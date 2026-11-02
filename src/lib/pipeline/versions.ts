@@ -32,6 +32,7 @@ export async function forkVersion(
       intendedDurationSec: s.intendedDurationSec,
       motionPreset: s.motionPreset,
       soundEffect: s.soundEffect,
+      stepLabel: s.stepLabel,
       currentImageId: o?.dropImage ? null : s.currentImageId,
     };
   });
@@ -56,6 +57,7 @@ export async function forkVersion(
         // Carried over; a narration edit is re-checked by the caller, which updates it.
         qualityStatus: source.qualityStatus,
         styleKey: source.styleKey,
+        imageShape: source.imageShape,
         voiceoverId: opts.keepVoiceover && !narrationChanged ? source.voiceoverId : null,
         timing: opts.keepVoiceover && !narrationChanged ? (source.timing ?? undefined) : undefined,
         scenes: { create: scenes },

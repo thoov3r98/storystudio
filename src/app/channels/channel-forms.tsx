@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useAction } from "@/components/client-helpers";
 import { createChannel, updateChannel } from "@/app/actions";
 import { ILLUSTRATION_STYLES, QUALITY_PRESETS, TARGET_DURATIONS } from "@/lib/constants";
@@ -53,6 +54,7 @@ type Editable = {
   minParts: number;
   maxParts: number;
   quality: keyof typeof QUALITY_PRESETS;
+  looseOpening: boolean;
   profile: ChannelProfile;
 };
 
@@ -188,6 +190,13 @@ export function ChannelEditor({ channelId, initial, voices }: { channelId: strin
                 ))}
               </SelectContent>
             </Select>
+          </Field>
+          <Field
+            label="Looser opening"
+            htmlFor="ch-loose"
+            hint="Part 1's first line may speak to the viewer (“you”) and ask one question; everything after stays third person and factual. Compare the results on the Quality page."
+          >
+            <Switch id="ch-loose" checked={c.looseOpening} onCheckedChange={(v) => set("looseOpening", v)} />
           </Field>
         </div>
       </section>

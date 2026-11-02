@@ -115,7 +115,9 @@ export async function planCreative(run: Run, input: ProcessInput, research: Rese
 export function creativeFor(plan: Pick<CreativePlan, "decision">, hook: ReviewedHook | NonNullable<Creative["hook"]> | null, topic?: Creative["topic"]): Creative {
   return {
     decision: plan.decision,
-    hook: hook ? { id: "id" in hook ? hook.id : undefined, line: hook.line, claimIds: hook.claimIds, featuredStageId: hook.featuredStageId, firstFrameVisual: hook.firstFrameVisual } : null,
+    hook: hook
+      ? { id: "id" in hook ? hook.id : undefined, line: hook.line, claimIds: hook.claimIds, featuredStageId: hook.featuredStageId, firstFrameVisual: hook.firstFrameVisual, strategy: hook.strategy }
+      : null,
     topic: topic ?? null,
   };
 }

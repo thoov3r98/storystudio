@@ -63,6 +63,7 @@ async function ChannelContent({ params }: { params: PageProps<"/channels/[channe
             minParts: c.minParts,
             maxParts: c.maxParts,
             quality: c.quality,
+            looseOpening: c.looseOpening,
             profile: parseProfile(c.profile),
           }}
         />

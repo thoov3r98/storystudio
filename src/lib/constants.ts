@@ -67,6 +67,17 @@ export const ILLUSTRATION_STYLES = {
       "No gradients, no shading, no photorealism, no 3D, no logos, no text, letters, numbers or captions anywhere in the image.",
     ].join(" "),
   },
+  "object-focus": {
+    label: "Machines and materials up close",
+    description: "Flat, coloured close-ups where the machine and the material fill the frame; people only as hands or small figures for scale.",
+    spec: [
+      "Clean flat cartoon illustration where the machine, the material and the product are the subject and fill most of the frame.",
+      "Thick, consistent black ink outlines; bold flat colours on the material and the product, softer muted colours on machines and background.",
+      "People appear only as simple gloved hands or one small stick figure for scale, never as the focus.",
+      "Close, readable compositions: one clear action per image, the material's texture and state easy to see.",
+      "No gradients, no shading, no photorealism, no 3D, no logos, no text, letters, numbers or captions anywhere in the image.",
+    ].join(" "),
+  },
   "blueprint-line": {
     label: "Blueprint line art",
     description: "Thin technical line drawings, cutaways and schematics.",
@@ -85,10 +96,26 @@ export function styleSpec(key: string): string {
   return (ILLUSTRATION_STYLES[key as StyleKey] ?? ILLUSTRATION_STYLES[DEFAULT_STYLE]).spec;
 }
 
-/** Every illustration is a 3:2 landscape image shown in full between the title band and the caption band. */
-export const IMAGE_SIZE = "1536x1024";
-export const SAFE_AREA =
-  "Landscape 3:2 frame, shown in full. Keep the main subject and action near the centre with breathing room on every side; no empty space reserved for captions.";
+/**
+ * Illustration shapes. Square art (from November 2026) fills more of the vertical frame; landscape art
+ * belongs to versions written before it and keeps the bands layout. Both are cut into wide and close-up
+ * framings at render time, so the subject stays near the centre.
+ */
+export const IMAGE_SHAPES = {
+  square: {
+    size: "1024x1024",
+    safeArea: "Square frame, shown in full and also cropped to a closer view. Keep the main subject and action in the centre, large and clear, with a little breathing room; no empty space reserved for captions.",
+  },
+  landscape: {
+    size: "1536x1024",
+    safeArea: "Landscape 3:2 frame, shown in full. Keep the main subject and action near the centre with breathing room on every side; no empty space reserved for captions.",
+  },
+} as const;
+export type ImageShape = keyof typeof IMAGE_SHAPES;
+
+export function imageShape(value: string | null | undefined): ImageShape {
+  return value === "landscape" ? "landscape" : "square";
+}
 
 /**
  * Band colours, picked stably from the story id.
@@ -193,7 +220,12 @@ export const VIDEO = {
   fps: 30,
   /** Silence kept after the last spoken word before the video ends. */
   tailMs: 900,
-  /** How long the on-screen hook text holds the title band before the series title takes over. */
-  hookTextMs: 2600,
+  /**
+   * The on-screen hook holds the title band while its spoken line plays, within these bounds;
+   * the fallback applies when the spoken line can't be located in the timing.
+   */
+  hookTextMs: { min: 2200, max: 4500, fallback: 2600 },
+  /** A shot cuts to a closer or wider framing at a caption break, each framing held at least this long. */
+  minFramingMs: 1800,
   compositionId: "InvisibleWorldEpisode",
 } as const;

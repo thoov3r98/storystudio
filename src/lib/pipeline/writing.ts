@@ -109,7 +109,7 @@ async function savedCreative(storyId: string, topic: Creative["topic"]): Promise
     stageVisuals: d.stageVisuals as Creative["decision"]["stageVisuals"],
   };
   const h = d.selectedHook;
-  return creativeFor({ decision }, h ? { id: h.id, line: h.line, claimIds: h.claimIds, featuredStageId: h.featuredStageId, firstFrameVisual: h.firstFrameVisual } : null, topic);
+  return creativeFor({ decision }, h ? { id: h.id, line: h.line, claimIds: h.claimIds, featuredStageId: h.featuredStageId, firstFrameVisual: h.firstFrameVisual, strategy: h.strategy } : null, topic);
 }
 
 /** Saves a creative plan: the decision (replacing any earlier one) and every hook, selecting the recommended one. */
@@ -236,7 +236,13 @@ function saveProcessPart(setup: Setup, episode: { id: string; partNumber: number
     {
       draft: result.draft,
       quality: result.quality,
-      process: { plan: result.plan, part: result.part, ...(c ? { creative: { pattern: c.decision.pattern, hookId: hook?.id ?? null, hookLine: hook?.line ?? null } } : {}) },
+      process: {
+        plan: result.plan,
+        part: result.part,
+        ...(c
+          ? { creative: { pattern: c.decision.pattern, hookId: hook?.id ?? null, hookLine: hook?.line ?? null, hookStrategy: hook?.strategy ?? null, looseOpening: setup.channel.looseOpening } }
+          : {}),
+      },
     },
     reason,
   );
@@ -394,6 +400,7 @@ async function persistVersion(input: {
             intendedDurationSec: estimateSpokenDuration(s.narration, input.wps),
             motionPreset: s.motionPreset,
             soundEffect: s.soundEffect,
+            stepLabel: s.stepLabel,
           })),
         },
       },

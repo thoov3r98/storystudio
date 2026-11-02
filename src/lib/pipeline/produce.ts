@@ -9,6 +9,7 @@ import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
 import { generateSceneImages } from "./illustrations";
 import { generateVoiceover, synchronizeNarration } from "./voiceover";
 import { renderVersion } from "./render";
+import { writePostCopy } from "./post";
 import { ensureEditableVersion, refreshStoryStatus } from "./versions";
 import type { PipelineDeps } from "./deps";
 
@@ -120,6 +121,8 @@ async function produceDownstream(episodeId: string, jobId: string, cost: CostCon
   if (staleness.renderMissing || staleness.renderOutdated) {
     await setJobStage(jobId, "RENDERING_VIDEO", "Rendering video", 0.8);
     await renderVersion({ versionId, jobId, cost, client: deps.render(), sound: deps.sound });
+    // The posting text is a convenience: a failure is logged, and it can be written again from the episode page.
+    await writePostCopy({ versionId, cost, deps }).catch((err) => console.warn(`Post text not written: ${String((err as Error)?.message ?? err)}`));
   } else {
     await db.episode.update({ where: { id: episodeId }, data: { status: "READY" } });
     await refreshStoryStatus(episode.storyId);

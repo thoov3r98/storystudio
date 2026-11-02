@@ -163,6 +163,8 @@ model Channel {
   minParts          Int           @default(3)
   maxParts          Int           @default(5)
   quality           Quality       @default(STANDARD)
+  /// Lets Part 1's opening speak to the viewer ("you") and ask one question; the rest stays third person.
+  looseOpening      Boolean       @default(false)
   archivedAt        DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -268,6 +270,10 @@ model EpisodeVersion {
   humanRating          Int?
   /// Global style + per-story visual notes used to build image prompts.
   styleKey             String
+  /// Illustration shape: "square" (1024×1024, square layout) or "landscape" (1536×1024, bands layout, before November 2026).
+  imageShape           String        @default("square")
+  /// Caption, hashtags, cover and pinned comment for posting; written after the video renders.
+  postCopy             Json?
   voiceoverId          String?
   voiceover            Voiceover?    @relation("CurrentVoiceover", fields: [voiceoverId], references: [id], onDelete: SetNull)
   /// Scene timing derived from the current voiceover alignment; null when stale.
@@ -297,6 +303,8 @@ model Scene {
   motionPreset        String
   /// A key of SOUND_EFFECTS (src/lib/constants.ts), or "none".
   soundEffect         String         @default("none")
+  /// The manufacturing step on screen while this shot plays (2–4 words); consecutive shots of one step share it.
+  stepLabel           String         @default("")
   currentImageId      String?
   currentImage        SceneImage?    @relation("CurrentImage", fields: [currentImageId], references: [id], onDelete: SetNull)
   createdAt           DateTime       @default(now())

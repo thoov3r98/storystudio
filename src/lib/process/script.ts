@@ -51,7 +51,7 @@ export type Run = ReturnType<typeof makeRunner>;
 // ── Deterministic checks ──────────────────────────────────────────────
 
 /** Shots must be numbered, valid and an exact word-for-word cut of the script. */
-export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; wordsPerSecond: number }): string[] {
+export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; wordsPerSecond: number; allowQuestion?: boolean }): string[] {
   const issues: string[] = [];
   const [minScenes, maxScenes] = sceneCountRange(opts.durationSec);
   if (draft.scenes.length < minScenes || draft.scenes.length > maxScenes) {
@@ -61,6 +61,8 @@ export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; 
     if (s.sceneNumber !== i + 1) issues.push(`Scenes must be numbered 1..N in order; scene at position ${i + 1} is numbered ${s.sceneNumber}.`);
     if (!s.narration.trim()) issues.push(`Scene ${i + 1} has empty narration.`);
     if (!MOTION_PRESETS.includes(s.motionPreset)) issues.push(`Scene ${i + 1} has an invalid motionPreset.`);
+    const label = countWords(s.stepLabel ?? "");
+    if (s.stepLabel !== undefined && (label < 1 || label > 5)) issues.push(`Scene ${i + 1} needs a stepLabel of 2–4 plain words (it has ${label}).`);
   });
   issues.push(...narrationLengthIssues(draft.storyNarration, opts));
   const script = tokenize(draft.storyNarration);
@@ -73,16 +75,18 @@ export function validateDraft(draft: EpisodeDraft, opts: { durationSec: number; 
     );
   }
   if (!startsWith(draft.storyNarration, draft.selectedHook)) issues.push("selectedHook must be the opening line(s) of storyNarration, copied exactly.");
-  if (draft.onScreenHook !== undefined) issues.push(...onScreenHookIssues(draft.onScreenHook, draft.storyNarration));
+  if (draft.onScreenHook !== undefined) issues.push(...onScreenHookIssues(draft.onScreenHook, draft.storyNarration, { allowQuestion: opts.allowQuestion }));
   return issues;
 }
 
-/** The on-screen hook is read in a glance and may only repeat what the narration says. */
-export function onScreenHookIssues(text: string, narration: string): string[] {
+/** The on-screen hook is read in a glance and may only repeat what the narration says. One *highlighted* phrase at most. */
+export function onScreenHookIssues(text: string, narration: string, opts: { allowQuestion?: boolean } = {}): string[] {
   const issues: string[] = [];
-  const words = countWords(text);
+  const words = countWords(text.replace(/\*/g, ""));
   if (words < 2 || words > 7) issues.push(`onScreenHook must be 3–6 words (it is ${words}).`);
-  if (text.includes("?")) issues.push("onScreenHook must be a plain statement, not a question.");
+  const stars = (text.match(/\*/g) ?? []).length;
+  if (stars !== 0 && stars !== 2) issues.push("onScreenHook marks one word or short phrase with a single pair of asterisks, e.g. \"It starts as a *liquid*\".");
+  if (text.includes("?") && !opts.allowQuestion) issues.push("onScreenHook must be a plain statement, not a question.");
   const said = new Set(narration.match(/\d[\d,.]*\d|\d/g) ?? []);
   const unsaid = (text.match(/\d[\d,.]*\d|\d/g) ?? []).filter((n) => !said.has(n));
   if (unsaid.length) issues.push(`onScreenHook says ${unsaid.join(", ")}, which the narration doesn't.`);

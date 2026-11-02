@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, PenLine, Star } from "lucide-react";
+import { Check, Copy, Loader2, PenLine, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ActionButton, useAction } from "@/components/client-helpers";
-import { dismissScriptIssue, rateScript, restoreVersion, runEpisodeAction, selectSceneImage } from "@/app/actions";
+import { dismissScriptIssue, rateScript, restoreVersion, runEpisodeAction, selectSceneImage, writePostCopyAction } from "@/app/actions";
+import type { PostCopy } from "@/lib/schemas/episode";
 import { cn } from "@/lib/utils";
 
 type EpisodeRequest = Parameters<typeof runEpisodeAction>[1];
@@ -244,6 +245,64 @@ export function PatternSwitcher({ episodeId, current, options, disabled }: { epi
         continueProduction={false}
         confirm={`Tells the story as "${label}": new openings are written and reviewed, and every part not yet produced is rewritten and fact-checked as a new version. The saved research and part plan are reused; nothing is researched again or spent on media.`}
       />
+    </div>
+  );
+}
+
+function CopyText({ label, text }: { label: string; text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2"
+          onClick={() => {
+            void navigator.clipboard.writeText(text).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            });
+          }}
+        >
+          {copied ? <Check /> : <Copy />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+      <p className="whitespace-pre-wrap text-sm">{text}</p>
+    </div>
+  );
+}
+
+/** What to paste when posting: caption with hashtags, the cover, and a comment to pin. */
+export function PostCopyPanel({ episodeId, copy, cover, disabled }: { episodeId: string; copy: PostCopy | null; cover: string | null; disabled?: boolean }) {
+  return (
+    <div className="space-y-3 rounded-xl border bg-card p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold">Post text</div>
+        <ActionButton size="sm" variant="outline" disabled={disabled} action={() => writePostCopyAction(episodeId)} success="Post text written">
+          {copy ? "Write again" : "Write post text"}
+        </ActionButton>
+      </div>
+      {copy ? (
+        <>
+          <CopyText label="Caption" text={`${copy.caption}\n\n${copy.hashtags.join(" ")}`} />
+          <div className="space-y-1">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Cover</div>
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {cover ? <img src={cover} alt="" className="h-16 w-16 rounded-md border object-cover" /> : null}
+              <p className="text-sm">
+                Shot {copy.coverSceneNumber}, with “{copy.coverText}”
+              </p>
+            </div>
+          </div>
+          <CopyText label="Pinned comment" text={copy.pinnedComment} />
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">Written automatically after the video renders.</p>
+      )}
     </div>
   );
 }

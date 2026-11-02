@@ -35,6 +35,7 @@ const { withDismissal } = await import("@/lib/process/review");
 const { approveEpisode, approvalBlockers } = await import("@/lib/pipeline/versions");
 const { BudgetExceededError } = await import("@/lib/costs/record");
 const { fakeDeps, fakeImages } = await import("./fakes");
+const { recordOwnVideo } = await import("@/lib/topics/references");
 
 type Deps = Parameters<typeof runEpisodeJob>[1];
 
@@ -226,8 +227,16 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const timing = v.timing as { scenes: { startMs: number }[]; totalDurationMs: number };
     expect(timing.scenes).toHaveLength(12);
     expect(f.render.renders[0].durationInFrames).toBe(Math.round((timing.totalDurationMs / 1000) * 30));
-    // Bands layout: landscape art, the series title and a band colour picked from the story.
-    expect(f.render.renders[0]).toMatchObject({ layout: "bands", seriesTitle: story.title, partLabel: "Part 1", accentColor: bandColorFor(story.id) });
+    // Square layout: square art, the series title, "Part 1 of N" and a band colour picked from the story.
+    const parts = (await db.story.findUniqueOrThrow({ where: { id: story.id } })).plannedParts;
+    expect(v.imageShape).toBe("square");
+    expect(f.render.renders[0]).toMatchObject({ layout: "square", seriesTitle: story.title, partLabel: parts > 1 ? `Part 1 of ${parts}` : "Part 1", accentColor: bandColorFor(story.id) });
+    // The step on screen follows the shots; long shots cut to a closer framing at caption breaks.
+    expect(f.render.renders[0].steps).toEqual(["Melting the wax", "Moulding the crayons"]);
+    expect(f.render.renders[0].cuts).toBeGreaterThan(0);
+    expect(f.render.renders[0].hookFrames).toBeGreaterThanOrEqual(66);
+    // Post text is written once the video renders.
+    expect(v.postCopy).toMatchObject({ coverSceneNumber: 1, hashtags: ["#howitsmade", "#crayons", "#factory"] });
     // On-screen hook from the storyboard; every shot's sound and the default music bed, each generated once into the library.
     expect(f.render.renders[0]).toMatchObject({ hookText: "It starts as wax", sounds: 12, music: true });
     expect(v.scenes.map((s) => s.soundEffect)).toContain("press");
@@ -238,13 +247,21 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(storyboard).toContain("Show exactly this, big and simple, filling the frame: A tray of wax.");
     expect(storyboard).toMatch(/T1: Stage T1\. It happens\./);
     expect((await db.audioAsset.findMany({ orderBy: { key: "asc" } })).map((a) => a.key)).toEqual(["music:default", "sfx:conveyor", "sfx:press"]);
-    expect(f.images.calls.every((c) => c.size === "1536x1024" && c.prompt.includes("EPISODE FACTS") && c.prompt.includes("THIS MOMENT"))).toBe(true);
+    expect(f.images.calls.every((c) => c.size === "1024x1024" && c.prompt.includes("Square frame") && c.prompt.includes("THIS MOMENT"))).toBe(true);
 
     expect(await approvalBlockers(episodeId)).toEqual([]);
     await approveEpisode(episodeId);
     const approved = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: true } });
     expect(approved.status).toBe("APPROVED");
     expect(approved.currentVersion!.status).toBe("APPROVED");
+
+    // Once posted with a link, its numbers make it a reference for topic discovery.
+    await db.episode.update({ where: { id: episodeId }, data: { status: "PUBLISHED", publishedUrl: "https://www.tiktok.com/@us/video/1", publishedAt: new Date() } });
+    const refId = await recordOwnVideo(episodeId, { views: 1200, likes: 80 });
+    await recordOwnVideo(episodeId, { views: 5000 });
+    const ref = await db.manufacturingContentReference.findUniqueOrThrow({ where: { id: refId! }, include: { metrics: true } });
+    expect(ref).toMatchObject({ platform: "tiktok", category: "our own video", product: "Crayons" });
+    expect(ref.metrics.map((m) => m.views).sort()).toEqual([1200, 5000]);
   });
 
   it("regenerating one image keeps every other asset and only re-renders", async () => {

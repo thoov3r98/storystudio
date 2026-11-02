@@ -64,8 +64,25 @@ web research (OpenAI web_search, cited) → research notes (stages T1..TN, steps
 ### Storyboard, on-screen hook and sound
 
 - The storyboard is given the story editor's visuals: each stage's look and most watchable moment (`stageVisuals`), the hook's `firstFrameVisual` for shot 1 of Part 1, and a dedicated slow-zoom close-up for the featured stage's payoff. Other parts' shot 1 is asked to be the most striking picture its narration allows.
-- It also writes `onScreenHook` (3–6 words, stored in `spec`): Part 1 condenses the hook, later parts say what the video shows. Code checks the length, rejects questions and numbers the narration doesn't say. The render shows it black-on-yellow in the title band for the first 2.6 s (`VIDEO.hookTextMs`), then the series title. Older scripts have none and show the title from the start.
+- It also writes `onScreenHook` (3–6 words, stored in `spec`): Part 1 says the spoken hook's promise in fewer words, later parts the most surprising thing they show. One `*phrase*` is highlighted. Code checks the length, the highlight, and numbers the narration doesn't say; a question is allowed only with the looser opening. The render pops the words in one by one (outlined white, the highlight on yellow) and holds them while the spoken line plays, 2.2–4.5 s (`VIDEO.hookTextMs`). Older scripts have none and show the title from the start.
+- Each shot gets a `stepLabel` (2–4 plain words, shared by consecutive shots of one step). After the hook the title band shows "PART n OF N", the series title small, and the current step big, changing as the process moves on. Versions without step labels show the series title big.
 - Each shot gets a `soundEffect` from a fixed set (`SOUND_EFFECTS`: conveyor, press, hiss, pour, …, or none). At render, each effect used and a default instrumental bed are generated once with ElevenLabs (sound effects / music) and kept in the audio library under a key (`sfx:press`, `music:default`); every later render reuses them. Loops fade in and out with their shot; one-shots play from its start. Volumes are in Settings → Audio mix (effects default 30%, music 12%). Music is on by default: "Default bed" uses the generated track, a library track replaces it, "No music" turns it off. A failed generation (plan, provider or budget) is logged and the video renders without that sound.
+
+### Pictures
+
+- New versions draw square art (`EpisodeVersion.imageShape = "square"`, 1024×1024) shown 1080×1080 between the title band and the captions. Versions written before November 2026 stay landscape (1536×1024) in the bands layout; a fork keeps its source's shape.
+- Each shot cuts, at caption breaks, between a wide, a close-up and an in-between framing of its picture (`framingCuts`): each held at least 1.8 s, three at most. No extra images.
+- The "Machines and materials up close" style (`object-focus`) makes the machine and material the subject; people only as hands or for scale. Pick it per channel.
+
+### Looser opening (per channel)
+
+Off by default. When on, Part 1's opening line(s) may say "you" and be one genuine question the video answers; everything after stays third person. It outranks the channel's voice rules for the opening only, and the writer, hook writer, fact-checker and attention check are all told. Recorded on each version (`spec.process.creative.looseOpening`) for comparison.
+
+### Posting and results
+
+- After each render, the fast model writes the post text (`EpisodeVersion.postCopy`): caption, hashtags, a cover shot with cover text, and a pinned comment with one extra fact from the research. Code checks hashtag form, the cover shot and numbers nobody said. Shown on the episode page with copy buttons and "Write again".
+- Entering a published episode's numbers (story page) also adds the video to the reference library ("our own video", keyed by its link) with a dated observation, so topic discovery learns from our own results.
+- The Quality page compares published videos by story pattern, kind of opening, opening tone, drawing style, picture size, length and part.
 
 ## The script gate
 

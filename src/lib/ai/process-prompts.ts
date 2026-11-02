@@ -29,6 +29,16 @@ How the narration sounds:
 - Never list more than two or three things in a row. Write for the ear: flowing spoken sentences, no colons, semicolons or parentheses.
 - No brand names or named companies.`;
 
+/**
+ * The producer's "looser opening" (per channel): only Part 1's opening may speak to the viewer.
+ * It outranks the channel's voice rules for those first line(s) and nothing else.
+ */
+const LOOSE_OPENING = `OPENING EXCEPTION (the producer's choice; it outranks the channel's voice rules, for the opening line(s) of Part 1 only): the opening may speak to the viewer with "you", and may be one short, genuine question that this video answers (e.g. "You've eaten hundreds of these. Each one starts as a vat of hot syrup."). Never "we" or "I", never "Have you ever wondered" or "Did you know". Every sentence after the opening is third person, present tense, with no questions.`;
+
+export function looseOpeningFor(channel: ChannelGuide, part: number): boolean {
+  return Boolean(channel.looseOpening) && part === 1;
+}
+
 /** The research the writer may use, every step numbered as a claim ("[T2.1]") so it can be cited and checked. */
 export function researchText(r: ResearchNotes | ResearchRecord, only?: string[]): string {
   const stages = only ? r.stages.filter((s) => only.includes(s.id)) : r.stages;
@@ -105,7 +115,7 @@ export function processNarrationPrompt(input: ProcessPromptInput & { research: R
   return {
     system: `${channelBlock(input.channel)}
 
-${VOICE}
+${VOICE}${looseOpeningFor(input.channel, input.part) ? `\n\n${LOOSE_OPENING}` : ""}
 
 You write the narration for Part ${input.part} of ${input.plan.parts.length} of a How It's Made style series, ${minWords}–${maxWords} words (about ${input.durationSec}s at ~${input.wordsPerSecond.toFixed(2)} words/second).
 - The parts are one continuous story cut into pieces: played back to back they must sound like a single video. Never mention parts, videos, stages or what comes next, and never use framing like "picks up", "this part", "next" as a preview, "so far" or "in the next step we'll see".
@@ -147,10 +157,24 @@ kind is "contradiction" for factual and order problems, "creative-concern" for t
 
 First list intendedUnknowns: anything deliberately left out. Then report issues, most severe first, at most eight, each quoting the script's exact words as evidence. If the script is accurate and clear, return no issues: never invent problems.`;
 
-export function processAuditPrompt(input: { title: string; research: ResearchNotes; plan: ProcessPlan; part: number; narration: string; earlier: string[]; previous?: { id: string; text: string }[]; hook?: string | null }) {
+export function processAuditPrompt(input: {
+  title: string;
+  research: ResearchNotes;
+  plan: ProcessPlan;
+  part: number;
+  narration: string;
+  earlier: string[];
+  previous?: { id: string; text: string }[];
+  hook?: string | null;
+  looseOpening?: boolean;
+}) {
   const p = input.plan.parts.find((x) => x.part === input.part)!;
   return {
-    system: `${AUDIT_RULES}${input.hook ? `\n\nThe script opens with an approved hook that may preview a later step before the process is told from its start: "${input.hook}". That preview is intended and is not a temporal issue; its facts must still be in the research.` : ""}`,
+    system: `${AUDIT_RULES}${input.hook ? `\n\nThe script opens with an approved hook that may preview a later step before the process is told from its start: "${input.hook}". That preview is intended and is not a temporal issue; its facts must still be in the research.` : ""}${
+      input.looseOpening
+        ? `\n\nBy the producer's choice, the opening line(s) may say "you" and may be one genuine question the video answers. That is not a tone issue there; "you" or a question anywhere after the opening still is.`
+        : ""
+    }`,
     user: `${input.title}: Part ${input.part} of ${input.plan.parts.length} (${p.title}). Stages in this part: ${p.stages.join(", ")}. Later stages belong to later parts.
 ${input.previous?.length ? `\nEARLIER ISSUES (the writer was asked to fix these; for each id, say in previousIssues whether it is now resolved, and list any that remain in issues again):\n${input.previous.map((x) => `- ${x.id}: ${x.text}`).join("\n")}\n` : ""}
 RESEARCH NOTES
@@ -167,7 +191,7 @@ export function processRevisionPrompt(input: ProcessPromptInput & { research: Re
   return {
     system: `${channelBlock(input.channel)}
 
-${VOICE}
+${VOICE}${looseOpeningFor(input.channel, input.part) ? `\n\n${LOOSE_OPENING}` : ""}
 
 You fix specific problems in one part of a How It's Made style script. Fix each issue at its cause using only the research, rewrite only the sentences affected, and keep every other sentence exactly as it is. Keep it ${minWords}–${maxWords} words. Record a change log entry for every issue id.
 Making a line more engaging never permits a new fact, number, material, machine or superlative: use only what the research says.${input.hook ? `\nThe script must keep opening with the approved hook ("${input.hook}"), tightened at most, unless an issue is about the hook itself.` : ""}`,
@@ -199,10 +223,11 @@ export function processBreakdownPrompt(input: ProcessPromptInput & { research: R
     ...visuals.map((v) => `- ${v.stageId}: ${v.visualSubject}. ${v.operation}. Goes in: ${v.materialBefore}. Comes out: ${v.materialAfter}.${v.machinery ? ` Machine: ${v.machinery}.` : ""} Most watchable moment: ${v.visualMoment}.`),
   ].filter(Boolean);
   const onScreen = hook
-    ? `the approved hook ("${hook.line}") cut to its promise, e.g. "It starts as a liquid"`
+    ? `the promise of the spoken hook ("${hook.line}")`
     : input.part === 1
-      ? `what the product starts as, e.g. "It starts as a liquid"`
-      : `what this video shows happening, e.g. "Now the wax gets its colour"`;
+      ? "the surprising contrast between what the product starts as and what it becomes"
+      : "the most surprising thing this video shows happening";
+  const question = looseOpeningFor(input.channel, input.part) ? "a short question is allowed" : "a statement, never a question";
   return {
     system: `You are the storyboard artist for a narrated, stick-figure illustrated How It's Made style video. The script is final; you never change it.
 
@@ -215,9 +240,10 @@ STEP 2 — scenes: cut the narration into ${minScenes}–${maxScenes} shots, in 
 - imagePrompt: one or two specific sentences: what the machine or worker is doing, to what material, what it looks like at this moment. Subject only: no art-style words, no text, labels, numbers, dials with readings, or brand names.
 - continuity: what must be true in this shot, including how the product looks at this stage.
 - motionPreset: slow-zoom-in for detail, pan for a moving line, still for a finished result.
+- stepLabel: the manufacturing step the shot belongs to, 2–4 plain words in sentence case, shown on screen (e.g. "Melting the wax", "Filling the moulds"). Consecutive shots of one step use exactly the same words; a new label only when the process moves on. Plain words, never an industry name. A shot that previews a later step (an opening hook) takes the label of the step it shows.
 - soundEffect: the sound of what happens in the shot, from: ${Object.entries(SOUND_EFFECTS).map(([k, v]) => `${k} (${v.label.toLowerCase()})`).join(", ")}. Use "none" when nothing audible happens (an inspection, a finished product at rest). Most shots of a working machine have one.
 ${shotPlan.length ? `\nSHOT PLAN (from the story editor; how each step looks, never a new fact)\n${shotPlan.join("\n")}\n` : ""}
-STEP 3 — onScreenHook: 3–6 words shown big on screen over the first two or three seconds, for viewers watching with the sound off: ${onScreen}. A plain statement, never a question; only what the narration says; no number the narration doesn't say; no brand, no "Part".`,
+STEP 3 — onScreenHook: the big text over the opening seconds, for viewers watching with the sound off. 3–6 words: ${onScreen}. Don't copy the narration; say its promise in fewer, punchier words, concrete things first (the material, the product), e.g. "This *goo* becomes gummy bears" or "Crayons start as *hot liquid*". Wrap the one word or short phrase that carries the surprise in asterisks. Sentence case, ${question}. Only what the narration says; no number it doesn't say; no brand, no "Part".`,
     user: `${input.title}
 Part ${input.part} of ${input.plan.parts.length}: ${p.title}
 
@@ -304,7 +330,11 @@ Featured stage: ${d.featuredStageId}. Payoff: ${d.visualPayoff}
 Write ${input.count} genuinely different openings, using several of these strategies: ${HOOK_STRATEGIES.join(", ")}.
 Each one:
 - names or shows the product (or its raw material) at once, and is concise: at most two short sentences, under 25 words;
-- is calm and factual in the channel's voice (third person, no questions to the viewer, no "you");
+${
+  input.channel.looseOpening
+    ? `- is calm and factual; by the producer's choice it may speak to the viewer with "you" and may be one short, genuine question this video answers, despite the channel's voice rules (never "we", "I" or "Did you know");`
+    : `- is calm and factual in the channel's voice (third person, no questions to the viewer, no "you");`
+}
 - uses only facts from the research and cites their claim ids ([T2.1] style); every number must appear in a cited claim;
 - never: "Have you ever wondered", "Today we...", greetings, background history, superlatives the research doesn't state ("biggest", "fastest", "secret"), invented details or drama;
 - moves straight to the promised explanation.
@@ -347,13 +377,13 @@ Look for (category):
 Severity: significant when a viewer would likely lose interest or feel let down; otherwise minor. Never blocking. kind is always "creative-concern".
 Quote the script's exact words as evidence, and give a concrete repair that uses only what the script and research already say. Report at most five issues; if the script holds attention, return none. Never invent problems.`;
 
-export function processAttentionPrompt(input: { title: string; research: ResearchNotes; plan: ProcessPlan; part: number; narration: string; creative?: Creative | null }) {
+export function processAttentionPrompt(input: { title: string; research: ResearchNotes; plan: ProcessPlan; part: number; narration: string; creative?: Creative | null; looseOpening?: boolean }) {
   const p = input.plan.parts.find((x) => x.part === input.part)!;
   const c = input.creative;
   const first = input.part === 1;
   const last = input.part === input.plan.parts.length;
   return {
-    system: ATTENTION_RULES,
+    system: `${ATTENTION_RULES}${input.looseOpening ? `\nBy the producer's choice, the opening line(s) may say "you" and ask one genuine question; you may suggest that for the opening only.` : ""}`,
     user: `${input.title}: Part ${input.part} of ${input.plan.parts.length} (${p.title}). ${first ? "This part opens the video." : "This part continues straight from the previous one; it has no opening hook of its own."} ${last ? "It ends the series." : "It ends mid-process by design (no cliffhanger)."}
 ${c ? `Pattern: ${PATTERNS[c.decision.pattern].label}. Viewer's question: ${c.decision.curiosityMechanism}. Featured step: ${c.decision.featuredStageId} (${p.stages.includes(c.decision.featuredStageId) ? "in this part" : "in another part"}). Payoff: ${c.decision.visualPayoff}.${first && c.hook ? ` Approved hook: "${c.hook.line}".` : ""}` : ""}
 Leave "intendedUnknowns" and "previousIssues" empty.

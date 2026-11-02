@@ -30,11 +30,13 @@ import {
   fetchVideoMetadata,
   type ImportedMetadata,
   importReferenceMetadata,
+  recordOwnVideo,
   updateReference,
 } from "@/lib/topics/references";
 import type { MetricInput, ReferenceInput } from "@/lib/schemas/topics";
 import { ChannelEditSchema } from "@/lib/schemas/channel";
 import { productionDeps } from "@/lib/pipeline/deps";
+import { writePostCopy } from "@/lib/pipeline/post";
 import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
 import { withDismissal } from "@/lib/process/review";
 
@@ -274,6 +276,17 @@ export async function addMetrics(episodeId: string, input: z.input<typeof Metric
     const cleaned = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== "" && v !== undefined && v !== null));
     const data = MetricsSchema.parse(cleaned);
     await db.performanceMetric.create({ data: { episodeId, ...data } });
+    // Our own published videos become evidence for topic discovery too.
+    await recordOwnVideo(episodeId, data);
+  });
+}
+
+/** Writes (or rewrites) the posting text for the episode's current version. One fast model call. */
+export async function writePostCopyAction(episodeId: string) {
+  return attempt(async () => {
+    const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId } });
+    if (!episode.currentVersionId) throw new Error("This episode has no script yet.");
+    await writePostCopy({ versionId: episode.currentVersionId, cost: { storyId: episode.storyId, episodeId }, deps: productionDeps });
   });
 }
 

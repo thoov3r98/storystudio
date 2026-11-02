@@ -5,7 +5,10 @@ import type { EpisodeDraft } from "@/lib/schemas/episode";
 import { estimateEpisodeCost, estimateIdeationCost } from "@/lib/costs/estimate";
 import { DEFAULT_PRICING, textCost } from "@/lib/costs/pricing";
 import { countWords, estimateSpokenDuration } from "@/lib/text";
-import { buildEpisodeProps } from "@/lib/pipeline/render-props";
+import { buildEpisodeProps, framingCuts, hookDurationMs } from "@/lib/pipeline/render-props";
+import { postCopyIssues } from "@/lib/pipeline/post";
+import { hookWords } from "@/remotion/Episode";
+import { processNarrationPrompt, processAuditPrompt } from "@/lib/ai/process-prompts";
 import { buildImagePrompt } from "@/lib/providers/images";
 
 function draft(sceneWords: number, scenes: number, hook = "You land after ten hours."): EpisodeDraft {
@@ -27,6 +30,7 @@ function draft(sceneWords: number, scenes: number, hook = "You land after ten ho
       objects: [],
       motionPreset: "still",
       soundEffect: "none",
+      stepLabel: "Melting the wax",
     })),
   };
 }
@@ -173,9 +177,11 @@ describe("buildImagePrompt", () => {
       styleKey: "stick-figure",
       scene: { imagePrompt: "Hot wax pouring into a crayon mould", composition: "close-up", objects: ["mould"] },
       hasReference: true,
+      shape: "landscape",
     });
     expect(prompt).toMatch(/stick-figure/);
     expect(prompt).toMatch(/Landscape 3:2/);
+    expect(buildImagePrompt({ styleKey: "object-focus", scene: { imagePrompt: "x", composition: "close-up", objects: [] }, hasReference: false })).toMatch(/Square frame[\s\S]*fill most of the frame|fill most of the frame[\s\S]*Square frame/);
     expect(prompt).toMatch(/KEY OBJECTS: mould/);
     expect(prompt).toMatch(/no text/i);
     expect(prompt).toMatch(/reference image/);
@@ -194,5 +200,70 @@ describe("on-screen hook", () => {
     expect(onScreenHookIssues("Wax is heated until it is completely runny", narration)[0]).toMatch(/3–6 words/);
     expect(onScreenHookIssues("Ever seen wax melt?", narration)[0]).toMatch(/not a question/);
     expect(onScreenHookIssues("Heated to 120 degrees", narration)[0]).toMatch(/says 120/);
+  });
+
+  it("allows one highlighted phrase, and a question only with the looser opening", () => {
+    expect(onScreenHookIssues("Crayons start as *hot liquid*", narration)).toEqual([]);
+    expect(onScreenHookIssues("Crayons *start* as *hot*", narration)[0]).toMatch(/single pair of asterisks/);
+    expect(onScreenHookIssues("Ever seen wax melt?", narration, { allowQuestion: true })).toEqual([]);
+  });
+
+  it("pops the highlighted phrase in as one piece", () => {
+    expect(hookWords("Crayons start as *hot liquid*")).toEqual([
+      { text: "Crayons", highlight: false },
+      { text: "start", highlight: false },
+      { text: "as", highlight: false },
+      { text: "hot liquid", highlight: true },
+    ]);
+  });
+
+  it("holds while its spoken line plays, within bounds", () => {
+    const words = Array.from({ length: 10 }, (_, i) => ({ text: "w", startMs: i * 400, endMs: i * 400 + 350, charStart: 0, charEnd: 0 }));
+    expect(hookDurationMs({ words }, 8)).toBe(2800 + 350 + 250);
+    expect(hookDurationMs({ words }, 2)).toBe(2200);
+    expect(hookDurationMs({ words }, 40)).toBe(3600 + 350 + 250);
+    expect(hookDurationMs({ words: [] }, 5)).toBe(2600);
+  });
+});
+
+describe("framing cuts", () => {
+  it("cuts at caption breaks, each framing held at least 1.8s, three framings at most", () => {
+    expect(framingCuts(0, 7000, [0, 900, 2000, 3000, 4100, 5000, 6000])).toEqual([2000, 4100]);
+    expect(framingCuts(0, 3000, [0, 1500])).toEqual([]);
+    expect(framingCuts(1000, 5000, [1000, 2900, 3500])).toEqual([2900]);
+  });
+});
+
+describe("post text checks", () => {
+  const base = { caption: "Watch wax become crayons.", hashtags: ["#howitsmade", "#crayons", "#factory"], coverSceneNumber: 2, coverText: "How crayons are made", pinnedComment: "Pigment is added at 80 degrees." };
+  const opts = { sceneNumbers: [1, 2, 3], narration: "Wax is heated.", research: "Pigment is added at 80 degrees.", part: 1, parts: 4 };
+
+  it("accepts a clean post", () => {
+    expect(postCopyIssues(base, opts)).toEqual([]);
+    expect(postCopyIssues({ ...base, caption: "Part 1 of 4: wax becomes crayons." }, opts)).toEqual([]);
+  });
+
+  it("rejects bad hashtags, a missing cover shot and numbers nobody said", () => {
+    const issues = postCopyIssues({ ...base, hashtags: ["#How It's Made", "#crayons", "#x"], coverSceneNumber: 9, caption: "Heated to 120 degrees.", pinnedComment: "It takes 3 days." }, opts);
+    expect(issues.join(" ")).toMatch(/Hashtags/);
+    expect(issues.join(" ")).toMatch(/coverSceneNumber/);
+    expect(issues.join(" ")).toMatch(/caption says 120/);
+    expect(issues.join(" ")).toMatch(/pinned comment says 3/);
+  });
+});
+
+describe("looser opening", () => {
+  const research = { product: "Crayons", overview: "o", mainRoute: "", uncertain: [], stages: [{ id: "T1", name: "Melting", steps: [{ what: "Wax is melted.", details: "", sources: ["1"] }] }] };
+  const plan = { parts: [{ part: 1, title: "Melting", stages: ["T1"], opening: "wax", endsAt: "liquid" }, { part: 2, title: "Moulding", stages: ["T1"], opening: "liquid", endsAt: "crayons" }] };
+  const channel = (looseOpening: boolean) => ({ name: "C", format: "PROCESS_EXPLAINER" as const, looseOpening, profile: { summary: "s", subjects: "s", voice: "never you", structure: "s", avoid: [], surpriseMe: "s", examples: [] } });
+  const narrate = (loose: boolean, part: number) =>
+    processNarrationPrompt({ channel: channel(loose), title: "T", premise: "p", durationSec: 60, wordsPerSecond: 2.3, research, plan, part, earlier: [] }).system;
+
+  it("lets only Part 1's opening speak to the viewer, and only when the channel turns it on", () => {
+    expect(narrate(true, 1)).toContain("OPENING EXCEPTION");
+    expect(narrate(true, 2)).not.toContain("OPENING EXCEPTION");
+    expect(narrate(false, 1)).not.toContain("OPENING EXCEPTION");
+    const audit = processAuditPrompt({ title: "T", research, plan, part: 1, narration: "n", earlier: [], looseOpening: true }).system;
+    expect(audit).toContain("not a tone issue there");
   });
 });
