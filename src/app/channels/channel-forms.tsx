@@ -11,34 +11,58 @@ import { Switch } from "@/components/ui/switch";
 import { useAction } from "@/components/client-helpers";
 import { createChannel, updateChannel } from "@/app/actions";
 import { ILLUSTRATION_STYLES, QUALITY_PRESETS, TARGET_DURATIONS } from "@/lib/constants";
-import type { ChannelProfile } from "@/lib/schemas/channel";
+import { CHANNEL_FORMATS, type ChannelFormat, type ChannelProfile } from "@/lib/schemas/channel";
 import type { Voice } from "@/lib/settings";
 
-const BRIEF_EXAMPLES = [
-  "How famous foods are made in the factory, step by step, strictly factual.",
-  "How everyday toys are made, from raw plastic to the shop shelf. Calm and plain.",
-];
+const BRIEF_EXAMPLES: Record<ChannelFormat, string[]> = {
+  PROCESS_EXPLAINER: [
+    "How famous foods are made in the factory, step by step, strictly factual.",
+    "How everyday toys are made, from raw plastic to the shop shelf. Calm and plain.",
+  ],
+  INVISIBLE_EXPLAINER: [
+    "The Invisible World: what really happens inside your body and the world around you when you do everyday things. Coffee, sleep, sneezes, flushing, tapping your card.",
+    "What happens to the things you send away: your flush, your checked bag, your trash, your online order.",
+  ],
+};
 
 export function CreateChannelForm() {
   const [brief, setBrief] = useState("");
+  const [format, setFormat] = useState<ChannelFormat>("INVISIBLE_EXPLAINER");
   const a = useAction();
+  const examples = BRIEF_EXAMPLES[format];
   return (
     <div className="space-y-3 rounded-xl border bg-card p-5">
-      <div>
-        <Label htmlFor="brief">Describe a new channel</Label>
-        <p className="text-xs text-muted-foreground">
-          What the videos explain and how they should sound. Every channel is researched step-by-step explainers. Its profile is written from this, and you can edit all of it.
-        </p>
+      <div className="space-y-1.5">
+        <Label>Kind of channel</Label>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(Object.keys(CHANNEL_FORMATS) as ChannelFormat[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFormat(f)}
+              aria-pressed={format === f}
+              className={`rounded-lg border p-3 text-left text-sm ${format === f ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
+            >
+              <span className="font-medium">{CHANNEL_FORMATS[f].label}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{CHANNEL_FORMATS[f].description}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">Sets how its videos are researched, written and storyboarded. It can&apos;t be changed later.</p>
       </div>
-      <Textarea id="brief" value={brief} onChange={(e) => setBrief(e.target.value)} rows={5} placeholder={`e.g. ${BRIEF_EXAMPLES[0]}`} />
+      <div>
+        <Label htmlFor="brief">Describe the channel</Label>
+        <p className="text-xs text-muted-foreground">What the videos explain and how they should sound. Its profile is written from this, and you can edit all of it.</p>
+      </div>
+      <Textarea id="brief" value={brief} onChange={(e) => setBrief(e.target.value)} rows={5} placeholder={`e.g. ${examples[0]}`} />
       <div className="flex flex-wrap gap-2">
-        {BRIEF_EXAMPLES.map((ex) => (
+        {examples.map((ex) => (
           <button key={ex} type="button" onClick={() => setBrief(ex)} className="rounded-full border px-3 py-1 text-left text-xs text-muted-foreground hover:bg-muted">
             {ex}
           </button>
         ))}
       </div>
-      <Button disabled={a.pending || brief.trim().length < 10} onClick={() => a.run(() => createChannel(brief))}>
+      <Button disabled={a.pending || brief.trim().length < 10} onClick={() => a.run(() => createChannel(brief, format))}>
         {a.pending ? <Loader2 className="animate-spin" /> : <Sparkles />}
         {a.pending ? "Setting up… (about 20 seconds)" : "Set up channel"}
       </Button>
@@ -87,7 +111,7 @@ function ListEditor({ id, items, onChange, placeholder }: { id: string; items: s
   );
 }
 
-export function ChannelEditor({ channelId, initial, voices }: { channelId: string; initial: Editable; voices: Voice[] }) {
+export function ChannelEditor({ channelId, initial, voices, looseOpeningApplies }: { channelId: string; initial: Editable; voices: Voice[]; looseOpeningApplies: boolean }) {
   const [c, setC] = useState(initial);
   const a = useAction();
   const set = <K extends keyof Editable>(k: K, v: Editable[K]) => setC({ ...c, [k]: v });
@@ -140,7 +164,7 @@ export function ChannelEditor({ channelId, initial, voices }: { channelId: strin
             </Select>
           </Field>
           <Field label="Length of each video">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {TARGET_DURATIONS.map((d) => (
                 <Button key={d} type="button" variant={c.targetDurationSec === d ? "default" : "outline"} onClick={() => set("targetDurationSec", d)}>
                   {d}s
@@ -148,7 +172,7 @@ export function ChannelEditor({ channelId, initial, voices }: { channelId: strin
               ))}
             </div>
           </Field>
-          <Field label="Videos per product" hint="The planner picks how many within this range, based on how much there is to tell.">
+          <Field label="Videos per story" hint="The planner picks how many within this range, based on how much there is to tell. Set both to 1 for standalone videos.">
             <div className="flex items-center gap-2">
               <Select value={String(c.minParts)} onValueChange={(v) => set("minParts", Number(v))}>
                 <SelectTrigger className="w-20" aria-label="Fewest parts">
@@ -191,13 +215,15 @@ export function ChannelEditor({ channelId, initial, voices }: { channelId: strin
               </SelectContent>
             </Select>
           </Field>
-          <Field
-            label="Looser opening"
-            htmlFor="ch-loose"
-            hint="Part 1's first line may speak to the viewer (“you”) and ask one question; everything after stays third person and factual. Compare the results on the Quality page."
-          >
-            <Switch id="ch-loose" checked={c.looseOpening} onCheckedChange={(v) => set("looseOpening", v)} />
-          </Field>
+          {looseOpeningApplies ? (
+            <Field
+              label="Looser opening"
+              htmlFor="ch-loose"
+              hint="Part 1's first line may speak to the viewer (“you”) and ask one question; everything after stays third person and factual. Compare the results on the Quality page."
+            >
+              <Switch id="ch-loose" checked={c.looseOpening} onCheckedChange={(v) => set("looseOpening", v)} />
+            </Field>
+          ) : null}
         </div>
       </section>
 
@@ -226,6 +252,13 @@ export function ChannelEditor({ channelId, initial, voices }: { channelId: strin
         </Field>
         <Field label="Example ideas" htmlFor="ch-examples">
           <ListEditor id="ch-examples" items={c.profile.examples} onChange={(v) => setProfile("examples", v)} placeholder="Add an example" />
+        </Field>
+        <Field
+          label="Storyboard"
+          hint="How this channel's shots look: what they show, what is always on screen, what is never drawn. The storyboard follows these ahead of its general rules."
+          htmlFor="ch-visuals"
+        >
+          <Textarea id="ch-visuals" rows={4} value={c.profile.visuals} onChange={(e) => setProfile("visuals", e.target.value)} />
         </Field>
       </section>
 

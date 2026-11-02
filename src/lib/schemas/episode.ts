@@ -18,8 +18,8 @@ export const SceneSpecSchema = z.object({
   characters: z.array(z.string()).describe("Names of the characters VISIBLE in this shot only. Leave someone out when the shot is about someone or something else."),
   objects: z.array(z.string()),
   motionPreset: z.enum(MOTION_PRESETS),
-  soundEffect: z.enum(SOUND_EFFECT_KEYS).describe('The factory sound of what happens in this shot, or "none" for a quiet shot.'),
-  stepLabel: z.string().describe("The manufacturing step this shot belongs to, 2–4 plain words shown on screen (e.g. 'Cooking the syrup'). Consecutive shots of one step use the same words."),
+  soundEffect: z.enum(SOUND_EFFECT_KEYS).describe('The sound of what happens in this shot, or "none" for a quiet shot.'),
+  stepLabel: z.string().describe("The step or stage this shot belongs to, 2–4 plain words shown on screen (e.g. 'Cooking the syrup', 'Into your stomach'). Consecutive shots of one step use the same words."),
 });
 
 /** The physical facts every shot of an episode must respect, so images agree with the story and each other. */

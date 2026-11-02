@@ -15,12 +15,13 @@ import type { SoundProvider } from "@/lib/providers/sound";
 import { buildEpisodeProps, imageFocus } from "./render-props";
 import { resolveSoundtrack } from "./sound";
 import { refreshStoryStatus } from "./versions";
+import { writingStyle } from "@/lib/ai/writing-styles";
 
 export async function renderVersion(input: { versionId: string; jobId?: string; cost: CostContext; client?: RenderClient; sound?: SoundProvider }) {
   const version = await db.episodeVersion.findUniqueOrThrow({
     where: { id: input.versionId },
     include: {
-      episode: { include: { story: true } },
+      episode: { include: { story: { include: { channel: { select: { format: true } } } } } },
       voiceover: true,
       scenes: { orderBy: { sceneNumber: "asc" }, include: { currentImage: true } },
     },
@@ -44,7 +45,13 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
   const spec = version.spec as EpisodeSpecRecord | null;
   const mix = await getAudioMix();
   if (input.jobId) await setJobStage(input.jobId, "RENDERING_VIDEO", "Preparing music and sound effects", 0.8);
-  const soundtrack = await resolveSoundtrack({ soundEffects: version.scenes.map((s) => s.soundEffect), mix, cost: input.cost, sound: input.sound });
+  const soundtrack = await resolveSoundtrack({
+    soundEffects: version.scenes.map((s) => s.soundEffect),
+    mix,
+    cost: input.cost,
+    sound: input.sound,
+    musicBed: writingStyle(story.channel?.format).music,
+  });
   const props = buildEpisodeProps({
     scenes: version.scenes.map((s) => ({
       sceneNumber: s.sceneNumber,
@@ -66,7 +73,8 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
     narrationSpeed: mix.narrationSpeed,
     bands: {
       seriesTitle: version.episode.story.title,
-      partLabel: story.plannedParts && story.plannedParts > 1 ? `Part ${version.episode.partNumber} of ${story.plannedParts}` : `Part ${version.episode.partNumber}`,
+      // A one-video story has no part pill.
+      partLabel: story.plannedParts && story.plannedParts > 1 ? `Part ${version.episode.partNumber} of ${story.plannedParts}` : "",
       accentColor: bandColorFor(version.episode.storyId),
     },
   });

@@ -9,6 +9,7 @@ import { ActionButton } from "@/components/client-helpers";
 import { getChannel } from "@/lib/queries";
 import { getVoices } from "@/lib/settings";
 import { CHANNEL_FORMATS, parseProfile } from "@/lib/schemas/channel";
+import { writingStyle } from "@/lib/ai/writing-styles";
 import { setChannelArchived } from "@/app/actions";
 import { ChannelEditor } from "../channel-forms";
 
@@ -55,6 +56,7 @@ async function ChannelContent({ params }: { params: PageProps<"/channels/[channe
         <ChannelEditor
           channelId={c.id}
           voices={voices}
+          looseOpeningApplies={writingStyle(c.format).looseOpening}
           initial={{
             name: c.name,
             voiceId: c.voiceId,

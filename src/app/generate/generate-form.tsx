@@ -66,7 +66,7 @@ export function GenerateForm({ channel }: { channel: GenerateChannel }) {
             </Link>{" "}
             and shows each one&apos;s evidence and score.
           </li>
-          <li>You pick one. The product&apos;s real manufacturing process is researched on the web.</li>
+          <li>You pick one. What really happens, step by step, is researched on the web.</li>
           <li>The process is split across {parts} videos. A storytelling pattern and several opening hooks are chosen from the research, then every script is written and fact-checked.</li>
           <li>Each part waits for your approval before images, narration and rendering.</li>
         </ol>

@@ -261,7 +261,7 @@ describe("post text checks", () => {
 describe("looser opening", () => {
   const research = { product: "Crayons", overview: "o", mainRoute: "", uncertain: [], stages: [{ id: "T1", name: "Melting", steps: [{ what: "Wax is melted.", details: "", sources: ["1"] }] }] };
   const plan = { parts: [{ part: 1, title: "Melting", stages: ["T1"], opening: "wax", endsAt: "liquid" }, { part: 2, title: "Moulding", stages: ["T1"], opening: "liquid", endsAt: "crayons" }] };
-  const channel = (looseOpening: boolean) => ({ name: "C", format: "PROCESS_EXPLAINER" as const, looseOpening, profile: { summary: "s", subjects: "s", voice: "never you", structure: "s", avoid: [], surpriseMe: "s", examples: [] } });
+  const channel = (looseOpening: boolean) => ({ name: "C", format: "PROCESS_EXPLAINER" as const, looseOpening, profile: { summary: "s", subjects: "s", voice: "never you", structure: "s", avoid: [], surpriseMe: "s", examples: [], visuals: "" } });
   const narrate = (loose: boolean, part: number) =>
     processNarrationPrompt({ channel: channel(loose), title: "T", premise: "p", durationSec: 60, wordsPerSecond: 2.3, research, plan, part, earlier: [] }).system;
 
@@ -269,7 +269,7 @@ describe("looser opening", () => {
     expect(narrate(true, 1)).toContain("OPENING EXCEPTION");
     expect(narrate(true, 2)).not.toContain("OPENING EXCEPTION");
     expect(narrate(false, 1)).not.toContain("OPENING EXCEPTION");
-    const audit = processAuditPrompt({ title: "T", research, plan, part: 1, narration: "n", earlier: [], looseOpening: true }).system;
+    const audit = processAuditPrompt({ format: "PROCESS_EXPLAINER", title: "T", research, plan, part: 1, narration: "n", earlier: [], looseOpening: true }).system;
     expect(audit).toContain("not a tone issue there");
   });
 });
@@ -290,6 +290,8 @@ describe("Part 1 pays off its hook", () => {
     expect(part1MustReach(research, null, 2)).toBeNull();
     // Too few stages left after the hook's step to fill the other parts.
     expect(part1MustReach(research, "T3", 5)).toBeNull();
+    // A one-video story can open on any stage.
+    expect(openingStageIds(research, { singleVideo: true })).toEqual(["T1", "T2", "T3", "T4", "T5", "T6"]);
   });
 
   it("rejects a plan whose Part 1 stops before the hook's step", () => {

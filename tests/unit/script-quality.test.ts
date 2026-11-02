@@ -135,6 +135,6 @@ describe("process explainer plans", () => {
   it("refuses skipped or reordered stages and too few parts", () => {
     const issues = validateProcessPlan(plan([["T2"], ["T1", "T3"]]), research, [3, 5]).join(" ");
     expect(issues).toMatch(/into 3–5 parts/);
-    expect(issues).toMatch(/every stage exactly once, in factory order: T1, T2, T3, T4/);
+    expect(issues).toMatch(/every stage exactly once, in order: T1, T2, T3, T4/);
   });
 });

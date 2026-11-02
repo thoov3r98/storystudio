@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { mapSettled } from "@/lib/async";
-import { DEFAULT_MUSIC, SOUND_EFFECTS, type SoundEffectKey } from "@/lib/constants";
+import { MUSIC_BED_MS, SOUND_EFFECTS, type SoundEffectKey } from "@/lib/constants";
 import { musicCost, soundEffectCost } from "@/lib/costs/pricing";
 import { assertWithinBudget, recordCost, type CostContext } from "@/lib/costs/record";
 import { getPricing, type AudioMix } from "@/lib/settings";
@@ -50,7 +50,14 @@ async function libraryAsset(
 }
 
 /** The music and per-shot sound effects for a render. Without `sound`, only audio already in the library is used. */
-export async function resolveSoundtrack(input: { soundEffects: string[]; mix: AudioMix; cost: CostContext; sound?: SoundProvider }): Promise<Soundtrack> {
+export async function resolveSoundtrack(input: {
+  soundEffects: string[];
+  mix: AudioMix;
+  cost: CostContext;
+  sound?: SoundProvider;
+  /** The channel's writing style's default bed (writing-styles.ts), used when Settings picks no track. */
+  musicBed: { key: string; name: string; prompt: string };
+}): Promise<Soundtrack> {
   const pricing = await getPricing();
   const { sound } = input;
   const keys = [...new Set(input.soundEffects)].filter((k): k is SoundEffectKey => k in SOUND_EFFECTS);
@@ -58,11 +65,12 @@ export async function resolveSoundtrack(input: { soundEffects: string[]; mix: Au
   const music = async (): Promise<string | null> => {
     if (!input.mix.musicEnabled) return null;
     if (input.mix.musicAssetId) return (await db.audioAsset.findUnique({ where: { id: input.mix.musicAssetId } }))?.url ?? null;
-    const costUsd = musicCost(pricing, DEFAULT_MUSIC.lengthMs);
+    const bed = input.musicBed;
+    const costUsd = musicCost(pricing, MUSIC_BED_MS);
     return libraryAsset(
-      DEFAULT_MUSIC.key,
-      { kind: "MUSIC", name: DEFAULT_MUSIC.name, estimateUsd: costUsd },
-      sound ? async () => ({ ...(await sound.music({ prompt: DEFAULT_MUSIC.prompt, lengthMs: DEFAULT_MUSIC.lengthMs })), costUsd, usage: { lengthMs: DEFAULT_MUSIC.lengthMs } }) : null,
+      bed.key,
+      { kind: "MUSIC", name: bed.name, estimateUsd: costUsd },
+      sound ? async () => ({ ...(await sound.music({ prompt: bed.prompt, lengthMs: MUSIC_BED_MS })), costUsd, usage: { lengthMs: MUSIC_BED_MS } }) : null,
       input.cost,
     );
   };

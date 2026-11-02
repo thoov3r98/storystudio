@@ -127,6 +127,7 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
               avoid: ["Brand names"],
               surpriseMe: "Pick a toy not covered yet.",
               examples: ["Marbles", "Yo-yos", "Rubber ducks"],
+              visuals: "Machines and materials fill the frame.",
             },
           });
         case "pitch_batch": {

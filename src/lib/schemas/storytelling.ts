@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ResearchNotes } from "./process";
 import { tokenize } from "@/lib/text";
+import { ALL_HOOK_STRATEGIES, type PatternGuide, WRITING_STYLES, writingStyle } from "@/lib/ai/writing-styles";
 
 /*
  * How a researched product is told: one of three storytelling patterns, the
@@ -8,45 +9,18 @@ import { tokenize } from "@/lib/text";
  * research steps, numbered "T2.1" (stage T2, step 1). See src/lib/process/creative.ts.
  */
 
-export const PATTERNS = {
-  TRANSFORMATION: {
-    label: "Transformation",
-    bestFor: "Recycling, forging, molding, material changes with a striking before and after.",
-    structure: [
-      "Open on the surprising start-to-finish transformation.",
-      "Reveal the original material.",
-      "Explain the critical operations in their real order.",
-      "Show why the key transformation steps work.",
-      "Finish with the verified end product.",
-    ],
-  },
-  HIDDEN_PROBLEM: {
-    label: "Hidden engineering problem",
-    bestFor: "Precision manufacturing, engineered materials, electronics, tight tolerances.",
-    structure: [
-      "Open on an unexpected manufacturing challenge.",
-      "Explain why it matters.",
-      "Show the steps that address it, in order.",
-      "Reveal the machinery or engineering solution.",
-      "Finish on how the finished product meets the requirement.",
-    ],
-  },
-  FACTORY_REVEAL: {
-    label: "Factory reveal",
-    bestFor: "Food, packaging, everyday household products, visually interesting automated lines.",
-    structure: [
-      "Open on the most interesting verified operation.",
-      "Establish what is actually happening.",
-      "Explain how the product reaches that stage.",
-      "Continue through the remaining stages.",
-      "End on the finished product and a meaningful process payoff.",
-    ],
-  },
-} as const;
+/** How It's Made's wording of the three patterns. Each writing style words the same keys its own way: use `patternsFor`. */
+export const PATTERNS = WRITING_STYLES.PROCESS_EXPLAINER.patterns;
 export type Pattern = keyof typeof PATTERNS;
 export const PATTERN_KEYS = Object.keys(PATTERNS) as Pattern[];
 
-export const HOOK_STRATEGIES = ["unexpected-transformation", "hidden-difficulty", "intriguing-operation", "counterintuitive-fact", "material-contrast"] as const;
+/** The pattern wording for a channel's format. */
+export function patternsFor(format: string | null | undefined): Record<Pattern, PatternGuide> {
+  return writingStyle(format).patterns;
+}
+
+/** Every style's hook strategies; each style's prompt offers only its own. */
+export const HOOK_STRATEGIES = ALL_HOOK_STRATEGIES;
 
 /** Structured visual facts for the future visual engine. Only what the research supports. */
 export const StageVisualSchema = z.object({
@@ -94,7 +68,7 @@ export const HOOK_CRITERIA_LABELS: Record<HookCriterion, string> = {
   clarity: "Immediately clear",
   curiosity: "Curiosity",
   specificity: "Specific",
-  connection: "Tied to the real process",
+  connection: "Tied to what really happens",
   factualSupport: "Supported by research",
   visualPotential: "Visual potential",
   naturalLanguage: "Sounds natural",
@@ -105,10 +79,10 @@ export const HookReviewSchema = z.object({
   reviews: z.array(
     z.object({
       index: z.number().int(),
-      clarity: score.describe("A viewer instantly knows what product and what moment this is."),
+      clarity: score.describe("A viewer instantly knows what subject and what moment this is."),
       curiosity: score.describe("Creates a specific reason to keep watching."),
       specificity: score.describe("Concrete, not generic."),
-      connection: score.describe("About the real manufacturing process, not a gimmick."),
+      connection: score.describe("About the real process, not a gimmick."),
       factualSupport: score.describe("Every fact is in the cited research claims."),
       visualPotential: score.describe("The first frame can show it."),
       naturalLanguage: score.describe("Sounds like a person talking."),

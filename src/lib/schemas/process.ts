@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /*
- * Process explainers ("How it's made"): the web research every part is
+ * Researched explainers (How It's Made, What happens when…): the web research every part is
  * written from, and the plan that splits the real stages into videos.
  * See src/lib/process/compose.ts.
  */
@@ -14,7 +14,7 @@ export const ResearchNotesSchema = z.object({
     .describe("The most common way the product is made today, in one plain sentence (e.g. 'from wood chips, pulped and bleached'). Scripts follow this route; other routes get a sentence at most."),
   stages: z.array(
     z.object({
-      id: z.string().describe('"T1", "T2"… in factory order.'),
+      id: z.string().describe('"T1", "T2"… in the order they happen.'),
       name: z.string().describe("A short plain name, e.g. 'Melting and colouring the wax'."),
       steps: z.array(
         z.object({
@@ -43,11 +43,11 @@ export const ProcessPlanSchema = z.object({
     z.object({
       part: z.number().int().describe("1..P"),
       title: z.string().describe("What this video covers, e.g. 'Melting the wax'."),
-      stages: z.array(z.string()).describe("The stage ids this video tells, consecutive, in factory order."),
+      stages: z.array(z.string()).describe("The stage ids this video tells, consecutive, in order."),
       opening: z
         .string()
-        .describe("The first step this video tells. Part 1: what the product starts as. Later parts: the step that comes straight after the previous part's last step."),
-      endsAt: z.string().describe("The last step this video tells; for the final part, the finished, packed product."),
+        .describe("The first step this video tells. Part 1: where it all starts. Later parts: the step that comes straight after the previous part's last step."),
+      endsAt: z.string().describe("The last step this video tells; for the final part, where the whole process ends."),
     }),
   ),
 });
@@ -84,9 +84,13 @@ export const ProcessRevisionSchema = z.object({
   changeLog: z.array(z.object({ issueId: z.string(), change: z.string() })),
 });
 
-/** The stages an opening hook may feature: the first half of the process, which Part 1 can reach. */
-export function openingStageIds(research: Pick<ResearchNotes, "stages">): string[] {
-  return research.stages.slice(0, Math.ceil(research.stages.length / 2)).map((s) => s.id);
+/**
+ * The stages an opening hook may feature: the first half of the process, which Part 1 can reach,
+ * or every stage when the story is a single video.
+ */
+export function openingStageIds(research: Pick<ResearchNotes, "stages">, opts: { singleVideo?: boolean } = {}): string[] {
+  const n = opts.singleVideo ? research.stages.length : Math.ceil(research.stages.length / 2);
+  return research.stages.slice(0, n).map((s) => s.id);
 }
 
 /**
@@ -107,7 +111,7 @@ export function validateProcessPlan(plan: ProcessPlan, research: ResearchNotes, 
   if (count < min || count > max) issues.push(`Split the process into ${min}–${max} parts (you have ${count}).`);
   const order = plan.parts.flatMap((p) => p.stages);
   const stages = research.stages.map((s) => s.id);
-  if (order.join(",") !== stages.join(",")) issues.push(`parts must cover every stage exactly once, in factory order: ${stages.join(", ")}.`);
+  if (order.join(",") !== stages.join(",")) issues.push(`parts must cover every stage exactly once, in order: ${stages.join(", ")}.`);
   plan.parts.forEach((p, i) => {
     if (p.part !== i + 1) issues.push(`Parts must be numbered 1..${count}; position ${i + 1} is numbered ${p.part}.`);
     if (p.stages.length === 0) issues.push(`Part ${i + 1} has no stages.`);

@@ -1,6 +1,6 @@
 import type { JobStatus, Quality, StoryStatus } from "@/generated/prisma/enums";
 
-export const TARGET_DURATIONS = [60, 75, 90] as const;
+export const TARGET_DURATIONS = [30, 45, 60, 75, 90] as const;
 export type TargetDuration = (typeof TARGET_DURATIONS)[number];
 
 /** Approximate spoken words for a duration at a conversational ~2.3 words/second, before voice calibration. */
@@ -10,6 +10,8 @@ export function targetWordRange(durationSec: number, wordsPerSecond = 2.3): [num
 }
 
 export const SCENE_COUNT_RANGE: Record<TargetDuration, [number, number]> = {
+  30: [5, 8],
+  45: [6, 10],
   60: [8, 12],
   75: [10, 15],
   90: [12, 17],
@@ -78,6 +80,19 @@ export const ILLUSTRATION_STYLES = {
       "No gradients, no shading, no photorealism, no 3D, no logos, no text, letters, numbers or captions anywhere in the image.",
     ].join(" "),
   },
+  "invisible-cutaway": {
+    label: "Cutaway: the invisible made visible",
+    description:
+      "Friendly cartoon cutaways and x-ray views that open up bodies, pipes, walls and machines; the hidden thing the video follows glows in one bright cyan.",
+    spec: [
+      "Clean, friendly flat cartoon illustration in the style of a modern science-explainer channel, made to show what normally can't be seen.",
+      "Cutaway and x-ray views: open up whatever hides the action (a body, a wall, a pipe, the ground, a machine, a card reader) with a neat cross-section edge, so the inside is plainly visible right next to the familiar outside.",
+      "The hidden subject the episode follows (molecules, a signal, water, a bag on a belt, a nerve message, data) is drawn as simple bold shapes in one bright accent colour, electric cyan (#16C7E8), with a soft glow. It is the brightest thing in every image and the eye goes to it first; its path may show as a short glowing dotted trail.",
+      "Everything else in a calm, muted palette: soft warm greys, pale blues and gentle skin and organ tones, with thick, consistent dark navy (#1E2A3A) outlines. Anatomy and machinery are simplified and friendly, never gory and never medical-textbook realistic.",
+      "People are simple rounded cartoon figures with bean-shaped bodies, dot eyes and expressive poses; at most three figures, one clear action, and the main subject large enough to fill most of the frame.",
+      "Light off-white (#F7F6F2) background. Flat colour everywhere except the accent's soft glow; no photorealism, no 3D-render look, no heavy shading, no logos, no text, labels, letters, numbers or captions anywhere in the image.",
+    ].join(" "),
+  },
   "blueprint-line": {
     label: "Blueprint line art",
     description: "Thin technical line drawings, cutaways and schematics.",
@@ -133,7 +148,7 @@ export const MOTION_PRESETS = ["slow-zoom-in", "slow-zoom-out", "pan-left", "pan
 export type MotionPreset = (typeof MOTION_PRESETS)[number];
 
 /**
- * Factory sounds a shot can carry. Each is generated once (ElevenLabs sound
+ * Sounds a shot can carry; each writing style offers its own subset (src/lib/ai/writing-styles.ts). Each is generated once (ElevenLabs sound
  * effects) and kept in the audio library under "sfx:<key>". Loops run under
  * the whole shot; the others play once as the shot starts.
  */
@@ -152,18 +167,21 @@ export const SOUND_EFFECTS = {
   spray: { label: "Spray", prompt: "Spray nozzles misting liquid in short bursts", loop: false },
   wrap: { label: "Wrapping", prompt: "Plastic film rustling and crinkling as products are wrapped by a machine", loop: false },
   packing: { label: "Packing", prompt: "Cardboard boxes being folded, filled and taped shut on a packing line", loop: false },
+  gulp: { label: "Gulp", prompt: "A single close, soft gulp of someone swallowing a drink", loop: false },
+  heartbeat: { label: "Heartbeat", prompt: "Steady, soft, muffled human heartbeat heard from inside the body", loop: true },
+  flow: { label: "Flowing liquid", prompt: "Liquid rushing steadily through a pipe or tube, muffled and continuous", loop: true },
+  drip: { label: "Drip", prompt: "A few clear water drops falling into a pool, with a soft echo", loop: false },
+  flush: { label: "Flush", prompt: "A toilet flushing, close up, water swirling and draining away", loop: false },
+  whoosh: { label: "Whoosh", prompt: "Quick soft whoosh of something moving fast past the listener", loop: false },
+  beep: { label: "Beep", prompt: "Short friendly electronic confirmation beep of a card reader", loop: false },
+  electric: { label: "Electric hum", prompt: "Soft electronic hum with faint digital chirps, like data moving through circuits", loop: true },
+  crowd: { label: "Crowd", prompt: "Muffled murmur of a busy indoor hall with people talking and footsteps, no clear words", loop: true },
 } as const;
 export type SoundEffectKey = keyof typeof SOUND_EFFECTS;
 export const SOUND_EFFECT_KEYS = [...(Object.keys(SOUND_EFFECTS) as SoundEffectKey[]), "none"] as const;
 
-/** Instrumental bed generated once when no music track is chosen. Kept in the audio library as "music:default". */
-export const DEFAULT_MUSIC = {
-  key: "music:default",
-  name: "Default music bed (generated)",
-  prompt:
-    "Light, curious instrumental background music for a calm factory explainer video: soft plucked synths, gentle mallets and light percussion, steady mid tempo, unobtrusive under a narrator, consistent energy with no drops or big build-ups so it loops cleanly. No vocals.",
-  lengthMs: 90_000,
-} as const;
+/** Length of the instrumental bed generated once per writing style when no music track is chosen (see each style's `music`). */
+export const MUSIC_BED_MS = 90_000;
 
 export const QUALITY_PRESETS: Record<
   Quality,

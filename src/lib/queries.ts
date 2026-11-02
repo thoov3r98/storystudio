@@ -111,7 +111,7 @@ export async function getEpisode(episodeId: string) {
   const episode = await db.episode.findUnique({
     where: { id: episodeId },
     include: {
-      story: { include: { episodes: { orderBy: { partNumber: "asc" }, select: { id: true, partNumber: true, status: true } } } },
+      story: { include: { episodes: { orderBy: { partNumber: "asc" }, select: { id: true, partNumber: true, status: true } }, channel: { select: { format: true } } } },
       versions: { orderBy: { version: "desc" }, select: { id: true, version: true, status: true, reason: true, createdAt: true } },
       currentVersion: {
         include: {

@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 export const CHANNEL_FORMATS = {
-  PROCESS_EXPLAINER: { label: "How it's made", description: "A real process explained step by step, researched on the web first." },
+  PROCESS_EXPLAINER: { label: "How it's made", description: "A real factory process explained step by step across a few videos, researched on the web first." },
+  INVISIBLE_EXPLAINER: {
+    label: "What happens when…",
+    description: "What really happens behind an everyday moment people never see (inside your body, under the street, inside machines), in one short video with cutaway pictures.",
+  },
 } as const;
 export type ChannelFormat = keyof typeof CHANNEL_FORMATS;
 
@@ -14,6 +18,7 @@ export const ChannelProfileSchema = z.object({
   avoid: z.array(z.string()).describe("Specific things this channel's videos never do."),
   surpriseMe: z.string().describe("How to pick a fresh idea when the producer asks to be surprised."),
   examples: z.array(z.string()).describe("Three to six example video ideas, a few words each."),
+  visuals: z.string().describe("How the storyboard shows this channel's videos: what the shots are of, what is always on screen, what is never drawn."),
 });
 export type ChannelProfile = z.infer<typeof ChannelProfileSchema>;
 
@@ -29,8 +34,11 @@ export type ChannelDesign = z.infer<typeof ChannelDesignSchema>;
 /** The parts of a channel the prompts need. */
 export type ChannelGuide = { name: string; format: ChannelFormat; profile: ChannelProfile; looseOpening?: boolean };
 
+/** Profiles saved before November 2026 have no storyboard rules. */
+const StoredProfileSchema = ChannelProfileSchema.extend({ visuals: z.string().default("") });
+
 export function parseProfile(value: unknown): ChannelProfile {
-  return ChannelProfileSchema.parse(value);
+  return StoredProfileSchema.parse(value);
 }
 
 export function channelBlock(channel: ChannelGuide): string {
@@ -41,6 +49,12 @@ Voice: ${p.voice}
 Shape: ${p.structure}
 Never: ${p.avoid.join("; ")}.
 The channel's rules outrank any general craft note or story-type guide that differs from them.`;
+}
+
+/** The channel's own storyboard rules, for the storyboard prompt. Empty when the channel has none. */
+export function channelVisualsBlock(channel: ChannelGuide): string {
+  const v = channel.profile.visuals?.trim();
+  return v ? `THIS CHANNEL'S STORYBOARD RULES (they outrank the general shot rules below where they differ)\n${v}` : "";
 }
 
 /** An editable channel as the edit form sends it. */
@@ -62,6 +76,7 @@ export const ChannelEditSchema = z
       avoid: z.array(z.string().trim().min(1).max(300)).max(20),
       surpriseMe: z.string().trim().min(1).max(2000),
       examples: z.array(z.string().trim().min(1).max(200)).max(12),
+      visuals: z.string().trim().max(2000).default(""),
     }),
   })
   .refine((c) => c.minParts <= c.maxParts, { message: "The fewest parts can't be more than the most parts.", path: ["minParts"] });
@@ -73,8 +88,8 @@ export const PitchSchema = z.object({
   premise: z.string().describe("One or two plain sentences, the way you'd say it out loud."),
   logline: z.string().describe("The idea in one plain sentence."),
   keywords: z.array(z.string()).describe("4–8 lowercase keywords."),
-  openingSituation: z.string().describe("What the product starts as, where the series opens, in one plain sentence."),
-  arc: z.string().describe("Three to five short sentences: the real manufacturing stages, in order."),
+  openingSituation: z.string().describe("Where the story opens (what the product starts as, or the everyday moment), in one plain sentence."),
+  arc: z.string().describe("Three to five short sentences: the real stages, in order."),
 });
 export type Pitch = z.infer<typeof PitchSchema>;
 

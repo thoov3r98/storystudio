@@ -4,7 +4,7 @@ import { Section } from "@/components/studio";
 import { EvidenceLevelBadge, ScoreBreakdown, TopicAngle, TopicScore } from "@/components/topic-evidence";
 import type { getStorytelling } from "@/lib/queries";
 import type { ProcessSpec, ResearchRecord } from "@/lib/schemas/process";
-import { HOOK_CRITERIA, HOOK_CRITERIA_LABELS, PATTERN_KEYS, PATTERNS, researchClaims, type Pattern } from "@/lib/schemas/storytelling";
+import { HOOK_CRITERIA, HOOK_CRITERIA_LABELS, PATTERN_KEYS, patternsFor, researchClaims, type Pattern } from "@/lib/schemas/storytelling";
 import type { DiscoverySnapshot } from "@/lib/schemas/topics";
 import { cn } from "@/lib/utils";
 import { EpisodeActionButton, PatternSwitcher } from "./episode-client";
@@ -116,8 +116,11 @@ export function CreativeDecisions(props: {
   episodeId: string;
   busy: boolean;
   anyUnproduced: boolean;
+  /** The channel's format: each writing style words the patterns its own way. */
+  format: string | null;
 }) {
   const { storytelling, research, process, discovery, part, episodeId, busy } = props;
+  const PATTERNS = patternsFor(props.format);
   const d = storytelling.decision;
   if (!d && !discovery) return null;
   const pattern = d ? PATTERNS[d.pattern as Pattern] : null;
@@ -171,7 +174,7 @@ export function CreativeDecisions(props: {
                   <li key={x}>{x}</li>
                 ))}
               </ol>
-              <p className="mt-1 text-muted-foreground">The opening may preview a later step; the steps themselves are always told in factory order.</p>
+              <p className="mt-1 text-muted-foreground">The opening may preview a later step; the steps themselves are always told in the order they really happen.</p>
             </details>
           </div>
         ) : null}

@@ -289,6 +289,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
               episodeId={episode.id}
               busy={busy}
               anyUnproduced={anyUnproduced}
+              format={episode.story.channel?.format ?? null}
             />
 
             <ScriptChecks

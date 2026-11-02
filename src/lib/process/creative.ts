@@ -16,6 +16,7 @@ import {
 } from "@/lib/schemas/storytelling";
 import { countWords } from "@/lib/text";
 import type { Run } from "./script";
+import { writingStyle } from "@/lib/ai/writing-styles";
 import type { ProcessInput } from "./compose";
 
 /*
@@ -60,9 +61,11 @@ export async function decideStorytelling(run: Run, input: ProcessInput, research
 /** Writes hook candidates for the decided pattern and has an independent reviewer score them. */
 export async function writeAndReviewHooks(run: Run, input: ProcessInput, research: ResearchNotes, decision: StorytellingDecision): Promise<{ hooks: ReviewedHook[]; recommended: number | null }> {
   const stageIds = research.stages.map((s) => s.id);
-  const early = openingStageIds(research);
+  const singleVideo = input.parts[1] === 1;
+  const early = openingStageIds(research, { singleVideo });
+  const strategies: readonly string[] = writingStyle(input.channel.format).hookStrategies;
   const { hooks } = await run({
-    prompt: hookPrompt({ ...input, research, decision, count: HOOKS_WRITTEN }),
+    prompt: hookPrompt({ ...input, research, decision, count: HOOKS_WRITTEN, singleVideo }),
     schema: HookBatchSchema,
     schemaName: "hook_candidates",
     role: "writer",
@@ -72,6 +75,7 @@ export async function writeAndReviewHooks(run: Run, input: ProcessInput, researc
       ...(v.hooks.length < 4 || v.hooks.length > 6 ? [`Write ${HOOKS_WRITTEN} openings (4–6; got ${v.hooks.length}).`] : []),
       ...(new Set(v.hooks.map((h) => h.strategy)).size < 3 ? ["Use at least three different strategies."] : []),
       ...v.hooks.flatMap((h, i) => [
+        ...(!strategies.includes(h.strategy) ? [`Opening ${i + 1}: strategy must be one of ${strategies.join(", ")}.`] : []),
         ...(countWords(h.line) > 30 ? [`Opening ${i + 1} is ${countWords(h.line)} words; keep it under 25.`] : []),
         ...(!stageIds.includes(h.featuredStageId) ? [`Opening ${i + 1}: featuredStageId must be one of ${stageIds.join(", ")}.`] : []),
         ...(stageIds.includes(h.featuredStageId) && !early.includes(h.featuredStageId)
@@ -82,7 +86,7 @@ export async function writeAndReviewHooks(run: Run, input: ProcessInput, researc
   });
 
   const { reviews } = await run({
-    prompt: hookReviewPrompt({ title: input.title, research, hooks }),
+    prompt: hookReviewPrompt({ format: input.channel.format, title: input.title, research, hooks }),
     schema: HookReviewSchema,
     schemaName: "hook_review",
     role: "reviewer",

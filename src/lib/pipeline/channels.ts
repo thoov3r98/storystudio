@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
 import { generateStructured } from "@/lib/ai/structured";
 import { channelDesignPrompt, pitchPickPrompt, pitchPrompt } from "@/lib/ai/channel-prompts";
-import { type ChannelGuide, ChannelDesignSchema, parseProfile, PitchBatchSchema, PitchPickSchema } from "@/lib/schemas/channel";
-import { DEFAULT_STYLE } from "@/lib/constants";
+import { type ChannelFormat, type ChannelGuide, ChannelDesignSchema, parseProfile, PitchBatchSchema, PitchPickSchema } from "@/lib/schemas/channel";
+import { writingStyle } from "@/lib/ai/writing-styles";
 import { normalizeTitle } from "@/lib/text";
 import { dedupeCandidates } from "@/lib/similarity";
 import { getDefaults, getModels, getPricing, getVoices } from "@/lib/settings";
@@ -23,14 +23,15 @@ export function channelGuide(channel: Pick<Channel, "name" | "format" | "profile
   return { name: channel.name, format: channel.format, profile: parseProfile(channel.profile), looseOpening: channel.looseOpening };
 }
 
-/** Designs a channel from the producer's prompt and saves it, ready to edit. */
-export async function createChannelFromBrief(input: { brief: string; deps: PipelineDeps }): Promise<Channel> {
+/** Designs a channel of the chosen kind from the producer's prompt and saves it, ready to edit. */
+export async function createChannelFromBrief(input: { brief: string; format: ChannelFormat; deps: PipelineDeps }): Promise<Channel> {
+  const style = writingStyle(input.format);
   const [pricing, models, existing, voices] = await Promise.all([getPricing(), getModels(), db.channel.findMany({ select: { name: true } }), getVoices()]);
   const design = await generateStructured({
     client: input.deps.text,
     pricing,
     model: models.main,
-    ...channelDesignPrompt({ brief: input.brief, existingNames: existing.map((c) => c.name) }),
+    ...channelDesignPrompt({ format: input.format, brief: input.brief, existingNames: existing.map((c) => c.name) }),
     schema: ChannelDesignSchema,
     schemaName: "channel_design",
     validate: (v) => [
@@ -44,12 +45,14 @@ export async function createChannelFromBrief(input: { brief: string; deps: Pipel
     data: {
       name: design.name.trim(),
       brief: input.brief,
-      format: "PROCESS_EXPLAINER",
+      format: input.format,
       profile: design.profile,
-      minParts: design.minParts,
-      maxParts: design.maxParts,
+      // A one-video style keeps one video per story whatever the designer suggested.
+      minParts: style.defaults.maxParts === 1 ? 1 : design.minParts,
+      maxParts: style.defaults.maxParts === 1 ? 1 : design.maxParts,
       voiceId: voices[0]?.id ?? null,
-      styleKey: DEFAULT_STYLE,
+      styleKey: style.defaults.styleKey,
+      targetDurationSec: style.defaults.targetDurationSec,
     },
   });
 }
@@ -68,8 +71,9 @@ export async function runChannelIdeation(input: { batchId: string; jobId: string
   if (saved > 0) return { pitches: saved, shown: Math.min(saved, PITCHES_SHOWN), resumed: true };
 
   // Surprise me discovers products from the reference library; without one (or if discovery
-  // can't produce valid ideas) it falls back to the plain pitch writer below.
-  if (!batch.customDirection) {
+  // can't produce valid ideas, or the channel's style doesn't use the manufacturing library) it falls back to the plain pitch writer below.
+  const discovery = writingStyle(channel.format).topicDiscovery;
+  if (!batch.customDirection && discovery) {
     try {
       return await surpriseFromDiscovery({ batchId: batch.id, jobId: input.jobId, channel, guide, cost, deps: input.deps, pricing, models });
     } catch (err) {
@@ -125,7 +129,7 @@ export async function runChannelIdeation(input: { batchId: string; jobId: string
     ...unique.filter((_, i) => !picks.some((p) => p.index === i)).map((pitch) => ({ pitch, status: "REJECTED" as const, rank: null, reason: null })),
   ];
   // A producer's own product keeps its name; library videos about it are attached as evidence only.
-  const evidence = batch.customDirection ? matchSnapshot(batch.customDirection, libraryMatches(batch.customDirection, await loadLibrary())) : null;
+  const evidence = batch.customDirection && discovery ? matchSnapshot(batch.customDirection, libraryMatches(batch.customDirection, await loadLibrary())) : null;
   await db.concept.createMany({
     data: [
       ...rows.map((r) => ({
@@ -241,6 +245,7 @@ async function surpriseFromDiscovery(run: DiscoveryRun) {
 /** Topic Research: discovery for a channel outside Make Videos. Candidates wait on the Topic Research page for review. */
 export async function runTopicDiscovery(input: { channelId: string; jobId: string; deps: PipelineDeps }) {
   const channel = await db.channel.findUniqueOrThrow({ where: { id: input.channelId } });
+  if (!writingStyle(channel.format).topicDiscovery) throw new Error(`Topic research uses the manufacturing video library, so it only works for How It's Made channels. Use Make Videos → Surprise me for ${channel.name}.`);
   const [pricing, models, defaults] = await Promise.all([getPricing(), getModels(), getDefaults()]);
   const cost: CostContext = { jobId: input.jobId, budgetUsd: defaults.maxBatchBudgetUsd, budgetScope: "job" };
   const { candidates, resumed } = await discoverTopics({

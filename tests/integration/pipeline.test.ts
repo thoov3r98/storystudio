@@ -99,7 +99,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
 
   it("sets up a channel from a prompt as a How It's Made explainer", async () => {
     const f = fakeDeps();
-    const channel = await createChannelFromBrief({ brief: "How everyday toys are made", deps: f.deps });
+    const channel = await createChannelFromBrief({ brief: "How everyday toys are made", format: "PROCESS_EXPLAINER", deps: f.deps });
     expect(channel).toMatchObject({ name: "How Toys Are Made", format: "PROCESS_EXPLAINER", minParts: 2, maxParts: 3, brief: "How everyday toys are made" });
   });
 
@@ -231,10 +231,10 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     const timing = v.timing as { scenes: { startMs: number }[]; totalDurationMs: number };
     expect(timing.scenes).toHaveLength(12);
     expect(f.render.renders[0].durationInFrames).toBe(Math.round((timing.totalDurationMs / 1000) * 30));
-    // Square layout: square art, the series title, "Part 1 of N" and a band colour picked from the story.
+    // Square layout: square art, the series title, "Part 1 of N" (none for a one-video story) and a band colour picked from the story.
     const parts = (await db.story.findUniqueOrThrow({ where: { id: story.id } })).plannedParts;
     expect(v.imageShape).toBe("square");
-    expect(f.render.renders[0]).toMatchObject({ layout: "square", seriesTitle: story.title, partLabel: parts > 1 ? `Part 1 of ${parts}` : "Part 1", accentColor: bandColorFor(story.id) });
+    expect(f.render.renders[0]).toMatchObject({ layout: "square", seriesTitle: story.title, partLabel: parts > 1 ? `Part 1 of ${parts}` : "", accentColor: bandColorFor(story.id) });
     // The step on screen follows the shots; each shot's camera moves toward the action its image check found.
     expect(f.render.renders[0].steps).toEqual(["Melting the wax", "Moulding the crayons"]);
     expect(f.render.renders[0].focused).toBe(f.render.renders[0].scenes);

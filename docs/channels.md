@@ -1,16 +1,33 @@
 # Channels
 
-The studio is organised around TikTok channels (October 2026). Every channel is a How It's Made style explainer: a real product, researched on the web, told step by step across a few videos. Character stories (Kenny vs the World) were removed in November 2026 to focus on getting one format right.
+The studio is organised around TikTok channels (October 2026). Every channel is a researched explainer: something real, researched on the web, told step by step. How a channel's videos are researched, written, checked and storyboarded comes from its **writing style** (below). Character stories (Kenny vs the World) were removed in November 2026.
 
 ## What a channel is
 
 A `Channel` row has a **format**, a **profile** and production defaults:
 
-- **Format.** `PROCESS_EXPLAINER` is the only format. The column stays so other formats can be added later.
-- **Profile.** Summary, subjects, voice, shape, a never-list, Surprise me guidance and example ideas. `channelBlock()` puts it into every pitching, writing, checking and scene-rewrite prompt.
+- **Format.** Picks the channel's writing style (`src/lib/ai/writing-styles.ts`), chosen when the channel is set up and fixed after:
+  - `PROCESS_EXPLAINER`, *How it's made*: a factory process across a few videos, unseen third-person narrator, factory order.
+  - `INVISIBLE_EXPLAINER`, *What happens when…* (November 2026): the hidden journey behind an everyday moment (coffee in your body, where your flush goes, a card tap), one standalone 30–45 s video, second person ("you"), opening on the most surprising moment, cutaway storyboard.
+- **Profile.** Summary, subjects, voice, shape, a never-list, Surprise me guidance, example ideas and **storyboard** rules (`visuals`, November 2026; older profiles read it as empty). `channelBlock()` puts the profile into every pitching, writing, checking and scene-rewrite prompt; `channelVisualsBlock()` puts the storyboard rules into the storyboard prompt, ahead of the style's general shot rules.
 - **Production.** Voice, illustration style, length per video, parts range (`minParts`..`maxParts`) and quality.
 
-A new channel is set up from a prompt: one model call (`channelDesignPrompt`) drafts the profile, and the producer edits it.
+A new channel is set up from a kind (format) and a prompt: one model call (`channelDesignPrompt`, worded for the style) drafts the profile, and the producer edits it. The style's defaults set the illustration style, length and parts (a one-video style always gets 1–1 parts).
+
+## Writing styles (`src/lib/ai/writing-styles.ts`)
+
+One object per format holds everything that differs between kinds of channel; the pipeline is shared. Each style gives:
+
+- research instructions (what to look for, which sources) and how stages are split and ordered;
+- the narrator's voice, the plan rules, how a video opens (with and without an approved hook), the body rules and the ending;
+- its wording of the three storytelling patterns (the keys are database values and stay `TRANSFORMATION`, `HIDDEN_PROBLEM`, `FACTORY_REVEAL`; *What happens when…* calls them Journey, Hidden problem and Inside reveal) and its own hook strategies;
+- the fact-check and attention-check rules that depend on the voice (e.g. "you" is a tone issue for How it's made and intended for What happens when…);
+- the storyboard: role, visual facts, shot rules, camera moves, step labels, first shot, on-screen hook examples, and whether a question is allowed;
+- its sound effects (the storyboard may only pick these) and its own generated music bed (`music:default`, `music:invisible`);
+- the post text's hashtags and cover;
+- whether Surprise me and Topic Research use the manufacturing reference library (How it's made only; What happens when… uses the pitch writer).
+
+Single-video stories: the narration, checks and storyboard don't mention parts, the hook may feature any stage, and the render shows no part pill. To add a kind of channel: add a `ChannelFormat` value (migration), a `CHANNEL_FORMATS` label and a style object.
 
 The launch channel, How It's Made, is seeded by migration `20261031120000_channels`.
 
@@ -73,6 +90,7 @@ web research (OpenAI web_search, cited) → research notes (stages T1..TN, steps
 - New versions draw square art (`EpisodeVersion.imageShape = "square"`, 1024×1024) shown 1080×1080 between the title band and the captions. Versions written before November 2026 stay landscape (1536×1024) in the bands layout; a fork keeps its source's shape.
 - Each shot shows its whole picture with one continuous camera move, never a cut within the shot: zooms push toward (or pull back from) the main action, pans drift across, "still" breathes in slightly. The image check reports where the action sits (`review.focus`, fractions of width and height); pictures without it (older, or check off/failed) centre the move just above the middle (`imageFocus`). New angles come only from new pictures.
 - The "Machines and materials up close" style (`object-focus`) makes the machine and material the subject; people only as hands or for scale. Pick it per channel.
+- The "Cutaway: the invisible made visible" style (`invisible-cutaway`, default for What happens when…) opens up bodies, pipes and machines in cutaway and x-ray views; the subject the video follows glows electric cyan in every shot.
 
 ### Looser opening (per channel)
 

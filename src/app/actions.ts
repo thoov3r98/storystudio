@@ -34,7 +34,8 @@ import {
   updateReference,
 } from "@/lib/topics/references";
 import type { MetricInput, ReferenceInput } from "@/lib/schemas/topics";
-import { ChannelEditSchema } from "@/lib/schemas/channel";
+import { CHANNEL_FORMATS, type ChannelFormat, ChannelEditSchema } from "@/lib/schemas/channel";
+import { writingStyle } from "@/lib/ai/writing-styles";
 import { productionDeps } from "@/lib/pipeline/deps";
 import { writePostCopy } from "@/lib/pipeline/post";
 import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
@@ -55,12 +56,13 @@ async function attempt<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
 
 // ───────────────────────────── Channels ─────────────────────────────
 
-/** Designs a channel from the producer's prompt, then opens it to review and edit. */
-export async function createChannel(brief: string): Promise<ActionResult<{ channelId: string }>> {
+/** Designs a channel of the chosen kind from the producer's prompt, then opens it to review and edit. */
+export async function createChannel(brief: string, format: string = "PROCESS_EXPLAINER"): Promise<ActionResult<{ channelId: string }>> {
   let channelId = "";
   const result = await attempt(async () => {
     const text = z.string().trim().min(10, "Describe the channel in a sentence or two.").max(3000).parse(brief);
-    const channel = await createChannelFromBrief({ brief: text, deps: productionDeps });
+    const kind = z.enum(Object.keys(CHANNEL_FORMATS) as [ChannelFormat, ...ChannelFormat[]], { message: "Choose what kind of channel this is." }).parse(format);
+    const channel = await createChannelFromBrief({ brief: text, format: kind, deps: productionDeps });
     channelId = channel.id;
     return { channelId };
   });
@@ -71,7 +73,7 @@ export async function createChannel(brief: string): Promise<ActionResult<{ chann
 export async function updateChannel(channelId: string, input: unknown) {
   return attempt(async () => {
     const data = ChannelEditSchema.parse(input);
-    if (!(TARGET_DURATIONS as readonly number[]).includes(data.targetDurationSec)) throw new Error("Duration must be 60, 75 or 90 seconds.");
+    if (!(TARGET_DURATIONS as readonly number[]).includes(data.targetDurationSec)) throw new Error(`Duration must be one of ${TARGET_DURATIONS.join(", ")} seconds.`);
     if (!(data.styleKey in ILLUSTRATION_STYLES)) throw new Error("Unknown illustration style.");
     await db.channel.update({ where: { id: channelId }, data });
   });
@@ -178,7 +180,11 @@ export async function addStarterReferencesAction() {
 }
 
 export async function discoverTopicsAction(channelId: string) {
-  return attempt(async () => ({ jobId: await enqueueTopicDiscovery(channelId) }));
+  return attempt(async () => {
+    const channel = await db.channel.findUniqueOrThrow({ where: { id: channelId }, select: { format: true, name: true } });
+    if (!writingStyle(channel.format).topicDiscovery) throw new Error(`Topic research uses the manufacturing video library, so it only works for How It's Made channels. Use Make Videos → Surprise me for ${channel.name}.`);
+    return { jobId: await enqueueTopicDiscovery(channelId) };
+  });
 }
 
 export async function setTopicStatus(candidateId: string, status: "APPROVED" | "REJECTED" | "PROPOSED") {

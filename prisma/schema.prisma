@@ -142,7 +142,8 @@ enum StorytellingPattern {
 
 /// How a channel's videos are made. Only process explainers ("How it's made") for now.
 enum ChannelFormat {
-  PROCESS_EXPLAINER
+  PROCESS_EXPLAINER // How It's Made: a factory process across a few videos
+  INVISIBLE_EXPLAINER // "What happens when…": the hidden journey behind an everyday moment, one short video
 }
 
 // ───────────────────────────── Channels ────────────────────────────

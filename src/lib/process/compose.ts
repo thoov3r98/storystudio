@@ -9,6 +9,7 @@ import {
   processPlanPrompt,
   looseOpeningFor,
   type ProcessPromptInput,
+  questionAllowed,
   processRevisionPrompt,
   researchNotesPrompt,
   researchSearchPrompt,
@@ -29,9 +30,10 @@ import { type EpisodeDraft, SceneBreakdownSchema } from "@/lib/schemas/episode";
 import { changeLogIssues, firstSentence, makeRunner, MAX_SCRIPT_REVISIONS, narrationLengthIssues, type Run, type ScriptDeps, validateDraft } from "./script";
 import { issueBrief, needsRevision, qualityStatus, recordIssues } from "./review";
 import { type CreativePlan, creativeFor, planCreative } from "./creative";
+import { writingStyle } from "@/lib/ai/writing-styles";
 
 /*
- * Process explainers ("How it's made"). Research first, then the plan and
+ * Researched explainers (each channel's writing style: writing-styles.ts). Research first, then the plan and
  * every script are built only from the research notes, and each script is
  * fact-checked against them:
  *   web research → notes → storytelling decision → hooks → hook review →
@@ -57,7 +59,7 @@ type PartState = { part: number; title: string; narration: string; summary: stri
 
 async function research(run: Run, input: ProcessInput, deps: ProcessDeps, spent: { usd: number }): Promise<ResearchRecord> {
   await deps.checkBudget?.(0.3);
-  const found = await deps.research.search({ model: deps.writer, ...researchSearchPrompt({ product: input.title, premise: input.premise, arc: input.arc }) });
+  const found = await deps.research.search({ model: deps.writer, ...researchSearchPrompt({ format: input.channel.format, product: input.title, premise: input.premise, arc: input.arc }) });
   const usd = textCost(deps.pricing, found.model, found.usage) + found.searches * deps.pricing.webSearchPerCall;
   spent.usd += usd;
   if (deps.cost) {
@@ -66,13 +68,13 @@ async function research(run: Run, input: ProcessInput, deps: ProcessDeps, spent:
   if (found.text.trim().length < 200) throw new Error(`Web research for "${input.title}" came back nearly empty, so nothing was written. Try again, or name the product more plainly.`);
   const sources = found.sources.map((s, i) => ({ n: String(i + 1), title: s.title, url: s.url }));
   const notes = await run({
-    prompt: researchNotesPrompt({ product: input.title, text: found.text, sources, minStages: input.parts[0] }),
+    prompt: researchNotesPrompt({ format: input.channel.format, product: input.title, text: found.text, sources, minStages: Math.max(input.parts[0], 3) }),
     schema: ResearchNotesSchema,
     schemaName: "research_notes",
     role: "writer",
     operation: "research-notes",
     validate: (v) => [
-      ...(v.stages.length < input.parts[0] ? [`Split the process into at least ${input.parts[0]} stages.`] : []),
+      ...(v.stages.length < Math.max(input.parts[0], 3) ? [`Split the process into at least ${Math.max(input.parts[0], 3)} stages.`] : []),
       ...v.stages.flatMap((s, i) => [...(s.id !== `T${i + 1}` ? [`Stage ids must be T1..TN in order; position ${i + 1} is ${s.id}.`] : []), ...(s.steps.length === 0 ? [`${s.id} has no steps.`] : [])]),
     ],
   });
@@ -115,8 +117,8 @@ async function narrate(run: Run, input: ProcessInput, notes: ResearchRecord, p: 
 /** The fact/clarity audit and the attention audit run side by side on each round; their issues share one gate. */
 async function audit(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, s: PartState, earlier: string[], previous: { id: string; text: string }[] | undefined, round: number, creative?: Creative | null) {
   const looseOpening = looseOpeningFor(input.channel, s.part);
-  const prompt = processAuditPrompt({ title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, earlier, previous, hook: hookFor(creative, s.part), looseOpening });
-  const attentionPrompt = processAttentionPrompt({ title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, creative, looseOpening });
+  const prompt = processAuditPrompt({ format: input.channel.format, title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, earlier, previous, hook: hookFor(creative, s.part), looseOpening });
+  const attentionPrompt = processAttentionPrompt({ format: input.channel.format, title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, creative, looseOpening });
   const [result, attention] = await Promise.all([
     run({ prompt, schema: LogicAuditSchema, schemaName: "process_audit", role: "reviewer", operation: "script-audit", budget: 0.08 }),
     run({ prompt: attentionPrompt, schema: AttentionAuditSchema, schemaName: "process_attention", role: "reviewer", operation: "attention-audit", budget: 0.05 }),
@@ -169,9 +171,19 @@ async function breakdown(run: Run, input: ProcessInput, notes: ResearchRecord, p
     role: "writer",
     operation: "scene-breakdown",
     budget: 0.15,
-    validate: (v) => validateDraft({ ...fixed, ...v }, { ...input, allowQuestion: looseOpeningFor(input.channel, s.part) }),
+    validate: (v) => [
+      ...validateDraft({ ...fixed, ...v }, { ...input, allowQuestion: questionAllowed(input.channel, s.part) }),
+      ...soundIssues(v.scenes, input.channel.format),
+    ],
   });
   return { ...fixed, ...b };
+}
+
+/** Each style offers its own sounds; a factory clatter in a body explainer is a mistake. */
+function soundIssues(scenes: { sceneNumber: number; soundEffect: string }[], format: string): string[] {
+  const allowed = new Set<string>([...writingStyle(format).soundEffects, "none"]);
+  const wrong = scenes.filter((s) => !allowed.has(s.soundEffect));
+  return wrong.length ? [`soundEffect must be one of ${[...allowed].join(", ")}; shots ${wrong.map((s) => s.sceneNumber).join(", ")} use others.`] : [];
 }
 
 function quality(part: number, rounds: Round[], revisions: number, startedAt: number, costUsd: number): QualityRecord {
@@ -200,7 +212,7 @@ function quality(part: number, rounds: Round[], revisions: number, startedAt: nu
 /** Researches the product on the web and turns the report into checkable notes. */
 export async function researchProcess(input: ProcessInput, deps: ProcessDeps): Promise<ResearchRecord> {
   const spent = { usd: 0 };
-  await deps.onStage?.("Researching how it's made", 0.04);
+  await deps.onStage?.(writingStyle(input.channel.format).researchingLabel, 0.04);
   return research(makeRunner(deps, spent), input, deps, spent);
 }
 
@@ -220,7 +232,7 @@ export async function composeProcess(
 
   let notes = saved?.research ?? null;
   if (!notes) {
-    await stage("Researching how it's made", 0.04);
+    await stage(writingStyle(input.channel.format).researchingLabel, 0.04);
     notes = await research(run, input, deps, shared);
   }
   await stage("Planning the parts and how to tell them", 0.2);
