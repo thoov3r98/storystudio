@@ -84,8 +84,23 @@ export const ProcessRevisionSchema = z.object({
   changeLog: z.array(z.object({ issueId: z.string(), change: z.string() })),
 });
 
+/** The stages an opening hook may feature: the first half of the process, which Part 1 can reach. */
+export function openingStageIds(research: Pick<ResearchNotes, "stages">): string[] {
+  return research.stages.slice(0, Math.ceil(research.stages.length / 2)).map((s) => s.id);
+}
+
+/**
+ * The stage Part 1 must reach so the opening hook is paid off in the same video,
+ * or null when the hook features a later stage or the remaining stages couldn't fill the other parts.
+ */
+export function part1MustReach(research: Pick<ResearchNotes, "stages">, hookStageId: string | null | undefined, minParts: number): string | null {
+  if (!hookStageId || !openingStageIds(research).includes(hookStageId)) return null;
+  const after = research.stages.length - 1 - research.stages.findIndex((s) => s.id === hookStageId);
+  return after >= minParts - 1 ? hookStageId : null;
+}
+
 /** Validates the plan against the research: every stage told once, in order, in the allowed number of parts. */
-export function validateProcessPlan(plan: ProcessPlan, research: ResearchNotes, range: [number, number]): string[] {
+export function validateProcessPlan(plan: ProcessPlan, research: ResearchNotes, range: [number, number], opts: { part1Reaches?: string | null } = {}): string[] {
   const issues: string[] = [];
   const [min, max] = range;
   const count = plan.parts.length;
@@ -98,5 +113,8 @@ export function validateProcessPlan(plan: ProcessPlan, research: ResearchNotes, 
     if (p.stages.length === 0) issues.push(`Part ${i + 1} has no stages.`);
     if (!p.opening.trim()) issues.push(`Part ${i + 1} needs an opening line.`);
   });
+  if (opts.part1Reaches && plan.parts[0] && !plan.parts[0].stages.includes(opts.part1Reaches)) {
+    issues.push(`Part 1 must run through ${opts.part1Reaches}, the step its opening hook promises: group the earlier stages into Part 1 and tell them briefly.`);
+  }
   return issues;
 }

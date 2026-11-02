@@ -55,6 +55,7 @@ export function buildImagePrompt(input: {
       ? "Keep the STYLE's palette and light background in every shot. Show time of day and weather with small cues only (sun position, a pale tint in the sky, lit windows, long shadows, falling snow); never wash the whole image in a colour."
       : "",
     input.fix?.length ? `A previous attempt was rejected. Fix these problems: ${input.fix.join("; ")}` : "",
+    "One single continuous scene: never split the image into panels, frames, insets, borders or a comic strip, and never show the same scene twice.",
     "Absolutely no text, words, letters, numbers, signage, logos or watermarks.",
   ]
     .filter(Boolean)
@@ -69,9 +70,9 @@ function shotLines(shot: ShotContext | null | undefined): string[] {
     v
       ? `EPISODE FACTS (true in every shot): Setting: ${v.setting}. Time and light: ${v.timeAndLight}. Weather: ${v.weather}. Hero: ${v.heroSituation}. Hero's look: ${v.heroLook}.${v.rules.length ? ` Rules: ${v.rules.join("; ")}.` : ""}`
       : "",
-    shot.previous ? `PREVIOUS MOMENT: "${shot.previous}"` : "",
+    shot.previous ? `PREVIOUS MOMENT (context only, not drawn): "${shot.previous}"` : "",
     `THIS MOMENT (narrated over this image): "${shot.narration}"`,
-    shot.next ? `NEXT MOMENT: "${shot.next}"` : "",
+    shot.next ? `NEXT MOMENT (context only, not drawn): "${shot.next}"` : "",
     shot.continuity ? `CONTINUITY: ${shot.continuity}` : "",
   ].filter(Boolean);
 }

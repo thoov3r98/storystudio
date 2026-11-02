@@ -1,5 +1,5 @@
 import { channelBlock, type ChannelGuide } from "@/lib/schemas/channel";
-import type { ProcessPlan, ResearchNotes, ResearchRecord } from "@/lib/schemas/process";
+import { openingStageIds, type ProcessPlan, type ResearchNotes, type ResearchRecord } from "@/lib/schemas/process";
 import { sceneCountRange, SOUND_EFFECTS, targetWordRange } from "@/lib/constants";
 import { type Creative, HOOK_STRATEGIES, type Pattern, PATTERNS, type StorytellingDecision } from "@/lib/schemas/storytelling";
 
@@ -80,13 +80,16 @@ ${input.text}`,
   };
 }
 
-export function processPlanPrompt(input: ProcessPromptInput & { research: ResearchNotes; parts: [number, number] }) {
+export function processPlanPrompt(input: ProcessPromptInput & { research: ResearchNotes; parts: [number, number]; part1Reaches?: string | null }) {
+  const reach = input.research.stages.find((s) => s.id === input.part1Reaches);
   return {
     system: `You plan a How It's Made style series for one product, told across ${input.parts[0]}–${input.parts[1]} videos of about ${input.durationSec} seconds each.
 
 ${channelBlock(input.channel)}
 
-Split the research's stages into consecutive parts in factory order. Choose the number of parts the process needs: each part should cover one or two stages that fill about ${input.durationSec} seconds of calm narration, no more. Group short stages; never split a stage. The parts are one continuous story cut into pieces: each part's first step follows straight on from the previous part's last step.`,
+Split the research's stages into consecutive parts in factory order. Choose the number of parts the process needs: each part covers the stages that fill about ${input.durationSec} seconds of calm narration, no more. Group short stages; never split a stage. The parts are one continuous story cut into pieces: each part's first step follows straight on from the previous part's last step.
+Every part must show the material visibly changing. Preparation with little to watch (receiving, storing, sampling, checking, measuring raw materials) is told in a sentence or two and grouped with the first step where the material changes; it never fills a part on its own.
+Part 1 is the video most people see first, so it must reach a step where the raw material turns into something recognisable.${reach ? ` Its opening hook promises ${reach.id} (${reach.name}), so Part 1 must run through ${reach.id}.` : ""}`,
     user: `${input.title}
 ${input.premise}
 
@@ -121,6 +124,8 @@ You write the narration for Part ${input.part} of ${input.plan.parts.length} of 
 - The parts are one continuous story cut into pieces: played back to back they must sound like a single video. Never mention parts, videos, stages or what comes next, and never use framing like "picks up", "this part", "next" as a preview, "so far" or "in the next step we'll see".
 - ${opening}
 - Tell the main steps of this part's stages (${p.stages.join(", ")}) that a viewer can picture, in factory order, folding small steps together. Never skip a step a later one depends on.
+- Spend the words on what a viewer could watch happening to the material. Checks, sampling, storage, hygiene and measuring get one short clause each, folded into the step they serve; never a run of sentences where the material doesn't change.
+- Make it one flowing chain, not a list of facts: each sentence picks up the material or machine the last one ended on and says what happens to it next, or why. A viewer should always know where the material is and what it looks like now.
 - Follow the main route. Another route (a different raw material or method) gets one short sentence at most.
 - Use only the research below. Simplifying is right; adding a fact, number, material or machine it doesn't contain, or stating anything listed as uncertain, is not.
 - ${ending}
@@ -236,6 +241,8 @@ STEP 1 — visualState: the physical facts every illustration must respect. sett
 STEP 2 — scenes: cut the narration into ${minScenes}–${maxScenes} shots, in order. Each shot's narration is an exact, contiguous excerpt (usually one or two sentences, 4–8 seconds); joined in order they reproduce the narration word for word. Do not rewrite, add or drop anything.
 - Each shot shows exactly the step its narration describes: the material, the machine doing its job, a worker's hands, the product at that stage. Never show a step the narration doesn't describe.
 - Vary the framing: wide shots of the line, medium shots of a machine, close-ups of the material and the product. Never two near-identical framings in a row.
+- The material is the star: in most shots the material and the machine working on it fill the frame, with at most a worker's gloved hands. A whole worker appears in at most one shot in three, and only when a person does the step. Never a worker just standing beside a machine.
+- Each shot is one single picture of one moment: never two views, a before-and-after, an inset or a comparison in one image.
 - characters: leave empty unless a named character is visible (there are none in this series).
 - imagePrompt: one or two specific sentences: what the machine or worker is doing, to what material, what it looks like at this moment. Subject only: no art-style words, no text, labels, numbers, dials with readings, or brand names.
 - continuity: what must be true in this shot, including how the product looks at this stage.
@@ -330,6 +337,7 @@ Featured stage: ${d.featuredStageId}. Payoff: ${d.visualPayoff}
 Write ${input.count} genuinely different openings, using several of these strategies: ${HOOK_STRATEGIES.join(", ")}.
 Each one:
 - names or shows the product (or its raw material) at once, and is concise: at most two short sentences, under 25 words;
+- promises a step the first video reaches: featuredStageId is one of ${openingStageIds(input.research).join(", ")}, and the line is about that step;
 ${
   input.channel.looseOpening
     ? `- is calm and factual; by the producer's choice it may speak to the viewer with "you" and may be one short, genuine question this video answers, despite the channel's voice rules (never "we", "I" or "Did you know");`
@@ -373,6 +381,7 @@ Look for (category):
 - missing-payoff: the featured step is rushed or its payoff doesn't land.
 - weak-ending: the ending trails off or doesn't feel complete.
 - name-dropping: steps are listed by name without explaining how or why they happen.
+- stall: two or more sentences in a row where nothing visibly happens to the material (storage, sampling, checks, rules), so there is nothing new to watch.
 
 Severity: significant when a viewer would likely lose interest or feel let down; otherwise minor. Never blocking. kind is always "creative-concern".
 Quote the script's exact words as evidence, and give a concrete repair that uses only what the script and research already say. Report at most five issues; if the script holds attention, return none. Never invent problems.`;

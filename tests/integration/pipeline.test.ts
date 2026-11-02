@@ -149,7 +149,9 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     await writeScripts(part1, f.deps);
 
     expect(f.research.calls).toBe(1);
-    expect(f.text.calls).toMatchObject({ research_notes: 1, process_plan: 1, process_narration: 4, process_audit: 5, scene_breakdown: 4, process_revision: 1 });
+    expect(f.text.calls).toMatchObject({ research_notes: 1, process_plan: 1, process_narration: 3, process_audit: 4, scene_breakdown: 3, process_revision: 1 });
+    // The hooks are written first, and Part 1 must reach the step its hook promises (T2), so the four stages make three parts.
+    expect(f.text.systems.process_plan[0]).toContain("Part 1 must run through T2");
     expect(f.text.prompts.process_narration[0]).toContain("about 80 degrees Celsius");
     expect(f.text.prompts.process_narration[0]).toContain("Main route (follow this): From paraffin wax");
     expect(f.text.prompts.process_audit[0]).toContain("RESEARCH NOTES");
@@ -160,7 +162,8 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(Number(research.costUsd)).toBeGreaterThan(0.02);
 
     const saved = await db.story.findUniqueOrThrow({ where: { id: story.id }, include: { episodes: { orderBy: { partNumber: "asc" }, include: { currentVersion: true } } } });
-    expect(saved.plannedParts).toBe(4);
+    expect(saved.plannedParts).toBe(3);
+    expect((saved.episodes[0].currentVersion!.spec as EpisodeSpecRecord).process?.plan.parts[0].stages).toEqual(["T1", "T2"]);
     expect(saved.status).toBe("CONCEPT");
     expect((saved.research as { sources: { url: string }[] }).sources[0].url).toBe("https://example.test/crayons");
     for (const e of saved.episodes) {
@@ -184,10 +187,10 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     // Media for Part 1 only.
     await approveScript(part1, f.deps);
     const after = await db.episode.findMany({ where: { storyId: story.id }, orderBy: { partNumber: "asc" } });
-    expect(after.map((e) => e.status)).toEqual(["READY", "SCRIPTED", "SCRIPTED", "SCRIPTED"]);
+    expect(after.map((e) => e.status)).toEqual(["READY", "SCRIPTED", "SCRIPTED"]);
     expect(f.render.renders).toHaveLength(1);
 
-    // Rewriting Part 3 reuses the saved research and plan; replanning is refused once a part is produced.
+    // Rewriting Part 3 reuses the saved research and plan; replanning is refused once a part is approved.
     const part3 = after[2];
     await runEpisodeJob({ jobId: (await newJob({ type: "REGENERATE_SCRIPT", episodeId: part3.id })).id, episodeId: part3.id, continueProduction: false, request: { action: "regenerate-script" } }, f.deps);
     expect(f.research.calls).toBe(1);
@@ -195,9 +198,10 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(f.text.prompts.process_narration.at(-1)).toContain("EARLIER PARTS, AS NARRATED");
     expect(await db.episodeVersion.count({ where: { episodeId: part3.id } })).toBe(2);
     expect(await db.episodeVersion.count({ where: { episodeId: after[1].id } })).toBe(1);
+    await db.episode.update({ where: { id: part1 }, data: { status: "APPROVED" } });
     await expect(
       runEpisodeJob({ jobId: (await newJob({ type: "REGENERATE_SCRIPT", episodeId: part1 })).id, episodeId: part1, continueProduction: false, request: { action: "regenerate-script", replanStory: true } }, f.deps),
-    ).rejects.toThrow(/already been produced/);
+    ).rejects.toThrow(/already been approved/);
   });
 
   it("stops at the script gate, makes the video on approval, and approval locks the episode", async () => {
@@ -247,7 +251,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(storyboard).toContain("Show exactly this, big and simple, filling the frame: A tray of wax.");
     expect(storyboard).toMatch(/T1: Stage T1\. It happens\./);
     expect((await db.audioAsset.findMany({ orderBy: { key: "asc" } })).map((a) => a.key)).toEqual(["music:default", "sfx:conveyor", "sfx:press"]);
-    expect(f.images.calls.every((c) => c.size === "1024x1024" && c.prompt.includes("Square frame") && c.prompt.includes("THIS MOMENT"))).toBe(true);
+    expect(f.images.calls.every((c) => c.size === "1024x1024" && c.prompt.includes("One square picture") && c.prompt.includes("never split the image into panels") && c.prompt.includes("THIS MOMENT"))).toBe(true);
 
     expect(await approvalBlockers(episodeId)).toEqual([]);
     await approveEpisode(episodeId);

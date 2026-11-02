@@ -11,7 +11,7 @@ export const SEVERITIES = ["blocking", "significant", "minor"] as const;
 export type Severity = (typeof SEVERITIES)[number];
 
 /** Attention and payoff: editorial pacing problems. Never blocking: they can't hold back a factually sound script. */
-export const ATTENTION_CATEGORIES = ["weak-opening", "slow-start", "unanswered-question", "filler", "missing-payoff", "weak-ending", "name-dropping"] as const;
+export const ATTENTION_CATEGORIES = ["weak-opening", "slow-start", "unanswered-question", "filler", "missing-payoff", "weak-ending", "name-dropping", "stall"] as const;
 export const ISSUE_CATEGORIES = [...LOGIC_CATEGORIES, ...ATTENTION_CATEGORIES] as const;
 
 const issueFields = {

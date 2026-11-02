@@ -18,6 +18,7 @@ import {
   ProcessNarrationSchema,
   ProcessPlanSchema,
   ProcessRevisionSchema,
+  part1MustReach,
   type ResearchRecord,
   ResearchNotesSchema,
   validateProcessPlan,
@@ -33,8 +34,8 @@ import { type CreativePlan, creativeFor, planCreative } from "./creative";
  * Process explainers ("How it's made"). Research first, then the plan and
  * every script are built only from the research notes, and each script is
  * fact-checked against them:
- *   web research → notes → plan (parts) + storytelling decision → hooks →
- *   hook review → for each part: narration (Part 1 opens with the hook) →
+ *   web research → notes → storytelling decision → hooks → hook review →
+ *   plan (parts; Part 1 reaches the hook's step) → for each part: narration (Part 1 opens with the hook) →
  *   fact/clarity audit + attention audit (targeted revisions) → storyboard.
  * Never touches the database.
  */
@@ -78,14 +79,15 @@ async function research(run: Run, input: ProcessInput, deps: ProcessDeps, spent:
   return { ...notes, sources, researchedAt: new Date().toISOString() };
 }
 
-async function plan(run: Run, input: ProcessInput, notes: ResearchRecord): Promise<ProcessPlan> {
+async function plan(run: Run, input: ProcessInput, notes: ResearchRecord, creative: Creative): Promise<ProcessPlan> {
+  const part1Reaches = part1MustReach(notes, creative.hook?.featuredStageId, input.parts[0]);
   return run({
-    prompt: processPlanPrompt({ ...input, research: notes }),
+    prompt: processPlanPrompt({ ...input, research: notes, part1Reaches }),
     schema: ProcessPlanSchema,
     schemaName: "process_plan",
     role: "writer",
     operation: "process-plan",
-    validate: (v) => validateProcessPlan(v, notes, input.parts),
+    validate: (v) => validateProcessPlan(v, notes, input.parts, { part1Reaches }),
   });
 }
 
@@ -222,11 +224,12 @@ export async function composeProcess(
     notes = await research(run, input, deps, shared);
   }
   await stage("Planning the parts and how to tell them", 0.2);
-  // The split into parts and the storytelling choice both come from the research alone, so they run together.
-  const [p, fresh] = await Promise.all([plan(run, input, notes), saved?.creative ? Promise.resolve(null) : planCreative(run, input, notes, { topic: input.topic })]);
+  // The storytelling comes first: Part 1 must reach the step its opening hook promises, so the plan depends on it.
+  const fresh = saved?.creative ? null : await planCreative(run, input, notes, { topic: input.topic });
   const creative: Creative = saved?.creative
     ? creativeFor(saved.creative.plan, saved.creative.hook, input.topic)
     : creativeFor(fresh!, fresh!.recommended === null ? null : fresh!.hooks[fresh!.recommended], input.topic);
+  const p = await plan(run, input, notes, creative);
   const count = p.parts.length;
 
   const written: { state: PartState; rounds: Round[]; revisions: number; spent: { usd: number } }[] = [];

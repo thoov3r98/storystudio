@@ -104,7 +104,7 @@ export function styleSpec(key: string): string {
 export const IMAGE_SHAPES = {
   square: {
     size: "1024x1024",
-    safeArea: "Square frame, shown in full and also cropped to a closer view. Keep the main subject and action in the centre, large and clear, with a little breathing room; no empty space reserved for captions.",
+    safeArea: "One square picture filling the whole frame. Keep the main subject and action in the centre, large and clear, with a little breathing room, because the video also crops in closer; no empty space reserved for captions.",
   },
   landscape: {
     size: "1536x1024",

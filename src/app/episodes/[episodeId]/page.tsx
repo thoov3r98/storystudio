@@ -88,7 +88,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
   // One product explained across several videos.
   const partsPlanned = spec?.process?.plan.parts.length ?? 1;
   const multiPart = partsPlanned > 1;
-  const anyPartProduced = episode.story.episodes.some((e) => !["DRAFT", "SCRIPTED", "FAILED"].includes(e.status));
+  const anyPartProduced = episode.story.episodes.some((e) => !["DRAFT", "SCRIPTED", "READY", "FAILED"].includes(e.status));
   const anyUnproduced = episode.story.episodes.some((e) => ["DRAFT", "SCRIPTED", "FAILED"].includes(e.status));
   const storytelling = await getStorytelling(episode.storyId);
   const research = ResearchRecordSchema.safeParse(episode.story.research).data ?? null;

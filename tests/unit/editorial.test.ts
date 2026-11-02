@@ -10,6 +10,7 @@ import { postCopyIssues } from "@/lib/pipeline/post";
 import { hookWords } from "@/remotion/Episode";
 import { processNarrationPrompt, processAuditPrompt } from "@/lib/ai/process-prompts";
 import { buildImagePrompt } from "@/lib/providers/images";
+import { openingStageIds, part1MustReach, validateProcessPlan } from "@/lib/schemas/process";
 
 function draft(sceneWords: number, scenes: number, hook = "You land after ten hours."): EpisodeDraft {
   const filler = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(" ");
@@ -181,7 +182,7 @@ describe("buildImagePrompt", () => {
     });
     expect(prompt).toMatch(/stick-figure/);
     expect(prompt).toMatch(/Landscape 3:2/);
-    expect(buildImagePrompt({ styleKey: "object-focus", scene: { imagePrompt: "x", composition: "close-up", objects: [] }, hasReference: false })).toMatch(/Square frame[\s\S]*fill most of the frame|fill most of the frame[\s\S]*Square frame/);
+    expect(buildImagePrompt({ styleKey: "object-focus", scene: { imagePrompt: "x", composition: "close-up", objects: [] }, hasReference: false })).toMatch(/square picture[\s\S]*fill most of the frame|fill most of the frame[\s\S]*square picture/);
     expect(prompt).toMatch(/KEY OBJECTS: mould/);
     expect(prompt).toMatch(/no text/i);
     expect(prompt).toMatch(/reference image/);
@@ -265,5 +266,38 @@ describe("looser opening", () => {
     expect(narrate(false, 1)).not.toContain("OPENING EXCEPTION");
     const audit = processAuditPrompt({ title: "T", research, plan, part: 1, narration: "n", earlier: [], looseOpening: true }).system;
     expect(audit).toContain("not a tone issue there");
+  });
+});
+
+describe("Part 1 pays off its hook", () => {
+  const research = { stages: ["T1", "T2", "T3", "T4", "T5", "T6"].map((id) => ({ id, name: `Stage ${id}`, steps: [] })) };
+  const plan = (first: string[], rest: string[]) => ({
+    parts: [
+      { part: 1, title: "a", stages: first, opening: "o", endsAt: "e" },
+      { part: 2, title: "b", stages: rest, opening: "o", endsAt: "e" },
+    ],
+  });
+
+  it("hooks may only feature the first half of the process", () => {
+    expect(openingStageIds(research)).toEqual(["T1", "T2", "T3"]);
+    expect(part1MustReach(research, "T3", 2)).toBe("T3");
+    expect(part1MustReach(research, "T5", 2)).toBeNull();
+    expect(part1MustReach(research, null, 2)).toBeNull();
+    // Too few stages left after the hook's step to fill the other parts.
+    expect(part1MustReach(research, "T3", 5)).toBeNull();
+  });
+
+  it("rejects a plan whose Part 1 stops before the hook's step", () => {
+    const r = research as unknown as Parameters<typeof validateProcessPlan>[1];
+    expect(validateProcessPlan(plan(["T1", "T2"], ["T3", "T4", "T5", "T6"]), r, [2, 5], { part1Reaches: "T3" })).toEqual([
+      expect.stringContaining("Part 1 must run through T3"),
+    ]);
+    expect(validateProcessPlan(plan(["T1", "T2", "T3"], ["T4", "T5", "T6"]), r, [2, 5], { part1Reaches: "T3" })).toEqual([]);
+  });
+
+  it("asks for one single picture, never panels", () => {
+    const prompt = buildImagePrompt({ styleKey: "object-focus", scene: { imagePrompt: "Semolina pours", composition: "close", objects: [] }, hasReference: false, shape: "square" });
+    expect(prompt).toContain("never split the image into panels");
+    expect(prompt).not.toMatch(/shown in full and also cropped/);
   });
 });

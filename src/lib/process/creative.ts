@@ -1,5 +1,5 @@
 import { hookPrompt, hookReviewPrompt, storytellingPrompt } from "@/lib/ai/process-prompts";
-import type { ResearchNotes } from "@/lib/schemas/process";
+import { openingStageIds, type ResearchNotes } from "@/lib/schemas/process";
 import {
   type Creative,
   HookBatchSchema,
@@ -60,6 +60,7 @@ export async function decideStorytelling(run: Run, input: ProcessInput, research
 /** Writes hook candidates for the decided pattern and has an independent reviewer score them. */
 export async function writeAndReviewHooks(run: Run, input: ProcessInput, research: ResearchNotes, decision: StorytellingDecision): Promise<{ hooks: ReviewedHook[]; recommended: number | null }> {
   const stageIds = research.stages.map((s) => s.id);
+  const early = openingStageIds(research);
   const { hooks } = await run({
     prompt: hookPrompt({ ...input, research, decision, count: HOOKS_WRITTEN }),
     schema: HookBatchSchema,
@@ -73,6 +74,9 @@ export async function writeAndReviewHooks(run: Run, input: ProcessInput, researc
       ...v.hooks.flatMap((h, i) => [
         ...(countWords(h.line) > 30 ? [`Opening ${i + 1} is ${countWords(h.line)} words; keep it under 25.`] : []),
         ...(!stageIds.includes(h.featuredStageId) ? [`Opening ${i + 1}: featuredStageId must be one of ${stageIds.join(", ")}.`] : []),
+        ...(stageIds.includes(h.featuredStageId) && !early.includes(h.featuredStageId)
+          ? [`Opening ${i + 1} promises ${h.featuredStageId}, which the first video doesn't reach; feature one of ${early.join(", ")}.`]
+          : []),
       ]),
     ],
   });

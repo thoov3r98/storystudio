@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { EpisodeStatus } from "@/generated/prisma/enums";
 import { generateStructured } from "@/lib/ai/structured";
 import { sceneRewritePrompt } from "@/lib/ai/process-prompts";
 import type { QualityRecord } from "@/lib/schemas/quality";
@@ -50,12 +51,15 @@ type Setup = Awaited<ReturnType<typeof loadEpisodeSetup>>;
 
 export type WriteResult = { versionId: string; quality: QualityRecord; parts?: number };
 
+/** Episodes a replan may rewrite or remove: anything not being produced, approved or published (a rendered draft is still open). */
+const REPLANNABLE: EpisodeStatus[] = ["DRAFT", "SCRIPTED", "READY", "FAILED"];
+
 /**
  * Once the planner has chosen how many parts a story has, its episodes match:
- * unproduced episodes beyond the new count (from an earlier, longer plan) are removed.
+ * open episodes beyond the new count (from an earlier, longer plan) are removed.
  */
 async function settlePartCount(storyId: string, count: number) {
-  await db.episode.deleteMany({ where: { storyId, partNumber: { gt: count }, status: { in: ["DRAFT", "SCRIPTED", "FAILED"] } } });
+  await db.episode.deleteMany({ where: { storyId, partNumber: { gt: count }, status: { in: REPLANNABLE } } });
   await db.story.update({ where: { id: storyId }, data: { plannedParts: count } });
 }
 
@@ -187,8 +191,8 @@ export async function writeEpisode(ctx: WriteContext & { reason: string; replanS
     return saveProcessPart(setup, episode, result, ctx.reason);
   }
   if (episode.partNumber !== 1) throw new Error("Write Part 1 first: it researches the product and plans every part.");
-  const produced = saved?.episodes.filter((e) => !["DRAFT", "SCRIPTED", "FAILED"].includes(e.status)) ?? [];
-  if (produced.length) throw new Error(`Part ${produced[0].partNumber} has already been produced, so the series can't be replanned. Rewrite individual parts instead.`);
+  const produced = saved?.episodes.filter((e) => !REPLANNABLE.includes(e.status)) ?? [];
+  if (produced.length) throw new Error(`Part ${produced[0].partNumber} has already been approved or is in production, so the series can't be replanned. Rewrite individual parts instead.`);
 
   if (!research) {
     research = await researchProcess(input, deps);

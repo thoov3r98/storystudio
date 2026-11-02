@@ -168,13 +168,17 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
         case "process_plan": {
           const [, min, max] = /across (\d+)–(\d+) videos/.exec(system) ?? ["", "1", "1"];
           const stages = [...user.matchAll(/^(T\d+) /gm)].map((m) => m[1]);
-          const count = Math.max(Number(min), Math.min(Number(max), stages.length));
-          const per = Math.ceil(stages.length / count);
+          // Part 1 runs through the hook's step when the prompt asks; the rest are spread evenly.
+          const reach = /Part 1 must run through (T\d+)/.exec(system)?.[1];
+          const reachAt = reach ? stages.indexOf(reach) + 1 : 0;
+          const count = Math.max(Number(min), Math.min(Number(max), stages.length - Math.max(0, reachAt - 1)));
+          const first = Math.max(Math.ceil(stages.length / count), reachAt);
+          const per = Math.ceil((stages.length - first) / Math.max(1, count - 1));
           return out({
             parts: Array.from({ length: count }, (_, i) => ({
               part: i + 1,
               title: `Stage group ${i + 1}`,
-              stages: stages.slice(i * per, (i + 1) * per),
+              stages: i === 0 ? stages.slice(0, first) : stages.slice(first + (i - 1) * per, first + i * per),
               opening: i === 0 ? "This is how crayons are made." : `Crayons, part ${i + 1}.`,
               endsAt: i === count - 1 ? "Boxed and shipped" : `Stage group ${i + 2}`,
             })),
