@@ -6,8 +6,8 @@ import type { EpisodeDraft } from "@/lib/schemas/episode";
 import { MOTION_PRESETS, sceneCountRange, targetWordRange } from "@/lib/constants";
 import { countWords, joinNarration, tokenize } from "@/lib/text";
 
-/** Targeted script revisions before the script goes to the producer with whatever is still open. */
-export const MAX_SCRIPT_REVISIONS = 2;
+/** Full rewrites from the editor's notes before the script goes to the producer with whatever is still open. */
+export const MAX_SCRIPT_REVISIONS = 1;
 
 export type ScriptDeps = {
   text: StructuredTextClient;

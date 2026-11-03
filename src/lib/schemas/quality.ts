@@ -10,8 +10,20 @@ export const LOGIC_CATEGORIES = ["unsupported-claim", "temporal", "missing-conne
 export const SEVERITIES = ["blocking", "significant", "minor"] as const;
 export type Severity = (typeof SEVERITIES)[number];
 
-/** Attention and payoff: editorial pacing problems. Never blocking: they can't hold back a factually sound script. */
-export const ATTENTION_CATEGORIES = ["weak-opening", "slow-start", "unanswered-question", "filler", "missing-payoff", "weak-ending", "name-dropping", "stall"] as const;
+/** Editorial craft: pacing, payoff and how it sounds read aloud. Never blocking: they can't hold back a factually sound script. */
+export const ATTENTION_CATEGORIES = [
+  "weak-opening",
+  "slow-start",
+  "unanswered-question",
+  "filler",
+  "missing-payoff",
+  "weak-ending",
+  "name-dropping",
+  "stall",
+  "hedging",
+  "negative-framing",
+  "awkward-wording",
+] as const;
 export const ISSUE_CATEGORIES = [...LOGIC_CATEGORIES, ...ATTENTION_CATEGORIES] as const;
 
 const issueFields = {
@@ -23,20 +35,20 @@ const issueFields = {
   repair: z.string().describe("The smallest change that fixes it."),
 };
 
-export const AuditIssueSchema = z.object({ category: z.enum(LOGIC_CATEGORIES), ...issueFields });
-export const AttentionIssueSchema = z.object({ category: z.enum(ATTENTION_CATEGORIES), ...issueFields });
-export type AuditIssue = z.infer<typeof AuditIssueSchema> | z.infer<typeof AttentionIssueSchema>;
+const AuditIssueSchema = z.object({ category: z.enum(ISSUE_CATEGORIES), ...issueFields });
+export type AuditIssue = z.infer<typeof AuditIssueSchema>;
 
-export const LogicAuditSchema = z.object({
+/** Facts and logic go in the fact-check stage; everything else is editorial craft. */
+export const isFactCategory = (c: string) => (LOGIC_CATEGORIES as readonly string[]).includes(c) && !["tone", "too-technical", "clarity"].includes(c);
+
+/** The one editor pass: facts against the research and craft, in one read. Its stage follows from the category. */
+export const EditorReviewSchema = z.object({
   intendedUnknowns: z.array(z.string()).describe("Things deliberately left out or simplified by design. These are not issues."),
   issues: z.array(AuditIssueSchema),
   previousIssues: z
     .array(z.object({ id: z.string(), resolved: z.boolean(), note: z.string() }))
     .describe("Only when earlier issues are listed: whether each one is now fixed."),
 });
-export type LogicAudit = z.infer<typeof LogicAuditSchema>;
-
-export const AttentionAuditSchema = z.object({ issues: z.array(AttentionIssueSchema) });
 
 // ── Quality record stored on each version ─────────────────────────────
 

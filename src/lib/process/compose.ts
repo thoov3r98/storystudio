@@ -2,7 +2,6 @@ import type { ResearchClient } from "@/lib/ai/research";
 import { recordCost } from "@/lib/costs/record";
 import { textCost } from "@/lib/costs/pricing";
 import {
-  processAttentionPrompt,
   processAuditPrompt,
   processBreakdownPrompt,
   processNarrationPrompt,
@@ -24,7 +23,7 @@ import {
   ResearchNotesSchema,
   validateProcessPlan,
 } from "@/lib/schemas/process";
-import { AttentionAuditSchema, LogicAuditSchema, type QualityRecord, type RecordedIssue } from "@/lib/schemas/quality";
+import { EditorReviewSchema, isFactCategory, type QualityRecord, type RecordedIssue } from "@/lib/schemas/quality";
 import { type Creative, hookOpeningIssues, type Pattern } from "@/lib/schemas/storytelling";
 import { type EpisodeDraft, SceneBreakdownSchema } from "@/lib/schemas/episode";
 import { changeLogIssues, firstSentence, makeRunner, MAX_SCRIPT_REVISIONS, narrationLengthIssues, type Run, type ScriptDeps, validateDraft } from "./script";
@@ -35,10 +34,10 @@ import { writingStyle } from "@/lib/ai/writing-styles";
 /*
  * Researched explainers (each channel's writing style: writing-styles.ts). Research first, then the plan and
  * every script are built only from the research notes, and each script is
- * fact-checked against them:
- *   web research → notes → storytelling decision → hooks → hook review →
- *   plan (parts; Part 1 reaches the hook's step) → for each part: narration (Part 1 opens with the hook) →
- *   fact/clarity audit + attention audit (targeted revisions) → storyboard.
+ * checked against them:
+ *   web research → notes → creative plan (pattern + openings, one call) →
+ *   plan (parts; skipped for a single video) → for each part: narration (Part 1 opens with the hook) →
+ *   editor (facts, then craft) → if it needs work, one full rewrite and a final check → storyboard.
  * Never touches the database.
  */
 
@@ -81,7 +80,17 @@ async function research(run: Run, input: ProcessInput, deps: ProcessDeps, spent:
   return { ...notes, sources, researchedAt: new Date().toISOString() };
 }
 
+/** A channel that only makes single videos needs no planning call: one part tells every stage. */
+function singlePart(input: ProcessInput, notes: ResearchRecord): ProcessPlan {
+  const first = notes.stages[0];
+  const last = notes.stages.at(-1)!;
+  return {
+    parts: [{ part: 1, title: input.title, stages: notes.stages.map((s) => s.id), opening: first.steps[0]?.what ?? first.name, endsAt: last.steps.at(-1)?.what ?? last.name }],
+  };
+}
+
 async function plan(run: Run, input: ProcessInput, notes: ResearchRecord, creative: Creative): Promise<ProcessPlan> {
+  if (input.parts[1] === 1) return singlePart(input, notes);
   const part1Reaches = part1MustReach(notes, creative.hook?.featuredStageId, input.parts[0]);
   return run({
     prompt: processPlanPrompt({ ...input, research: notes, part1Reaches }),
@@ -114,24 +123,25 @@ async function narrate(run: Run, input: ProcessInput, notes: ResearchRecord, p: 
   return { part, title: v.title, narration: v.storyNarration, summary: v.summary };
 }
 
-/** The fact/clarity audit and the attention audit run side by side on each round; their issues share one gate. */
+/** One editor pass: facts against the research, then craft. Fact issues can block; craft issues never do. */
 async function audit(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, s: PartState, earlier: string[], previous: { id: string; text: string }[] | undefined, round: number, creative?: Creative | null) {
   const looseOpening = looseOpeningFor(input.channel, s.part);
-  const prompt = processAuditPrompt({ format: input.channel.format, title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, earlier, previous, hook: hookFor(creative, s.part), looseOpening });
-  const attentionPrompt = processAttentionPrompt({ format: input.channel.format, title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, creative, looseOpening });
-  const [result, attention] = await Promise.all([
-    run({ prompt, schema: LogicAuditSchema, schemaName: "process_audit", role: "reviewer", operation: "script-audit", budget: 0.08 }),
-    run({ prompt: attentionPrompt, schema: AttentionAuditSchema, schemaName: "process_attention", role: "reviewer", operation: "attention-audit", budget: 0.05 }),
-  ]);
+  const prompt = processAuditPrompt({ format: input.channel.format, title: input.title, research: notes, plan: p, part: s.part, narration: s.narration, earlier, previous, hook: hookFor(creative, s.part), looseOpening, creative });
+  const result = await run({ prompt, schema: EditorReviewSchema, schemaName: "process_audit", role: "reviewer", operation: "script-audit", budget: 0.08 });
+  const facts = result.issues.filter((i) => isFactCategory(i.category));
+  const craft = result.issues.filter((i) => !isFactCategory(i.category));
+  // Quotes must come from the script itself, not the research shown alongside it.
   const issues = [
-    ...recordIssues(result.issues, { stage: "script", source: prompt.user, prefix: `S${round}.` }).map((i) => (i.category === "series-continuity" ? { ...i, stage: "continuity" as const } : i)),
-    // Quotes must come from the script itself, not the research shown alongside it.
-    ...recordIssues(attention.issues, { stage: "attention", source: s.narration, prefix: `A${round}.` }),
+    ...recordIssues(facts, { stage: "script", source: s.narration, prefix: `S${round}.` }).map((i) => (i.category === "series-continuity" ? { ...i, stage: "continuity" as const } : i)),
+    ...recordIssues(craft, { stage: "attention", source: s.narration, prefix: `A${round}.` }),
   ];
   return { issues, unresolvedPrevious: result.previousIssues.filter((x) => !x.resolved).map((x) => x.id) };
 }
 
-/** Audits a part and revises it with targeted fixes until it is clean or the revision limit is reached. */
+/**
+ * Edits a part the way an editor and writer would: one read; if it needs work,
+ * one full rewrite from every note, then a final check whose findings go to the producer.
+ */
 async function refine(run: Run, input: ProcessInput, notes: ResearchRecord, p: ProcessPlan, start: PartState, earlier: string[], initial?: RecordedIssue[], creative?: Creative | null) {
   let state = start;
   const rounds: Round[] = [];

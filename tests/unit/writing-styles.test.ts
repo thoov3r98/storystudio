@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { processAuditPrompt, processBreakdownPrompt, processNarrationPrompt, questionAllowed } from "@/lib/ai/process-prompts";
+import { CRAFT, processAuditPrompt, processBreakdownPrompt, processNarrationPrompt, processRevisionPrompt, questionAllowed, researchNotesPrompt } from "@/lib/ai/process-prompts";
 import { channelDesignPrompt, pitchPickPrompt, pitchPrompt } from "@/lib/ai/channel-prompts";
 import { WRITING_STYLES, writingStyle } from "@/lib/ai/writing-styles";
 import { SOUND_EFFECTS } from "@/lib/constants";
@@ -59,10 +59,33 @@ describe("writing styles per channel", () => {
 
   it("asks What happens when… for a shocking opening and a little deadpan humor", () => {
     const system = processNarrationPrompt({ ...base, channel: channel("INVISIBLE_EXPLAINER"), earlier: [] }).system;
-    expect(system).toContain("Inside your brain, caffeine occupies spots");
+    expect(system).toContain("Caffeine doesn't give you energy. It hides your tiredness.");
     expect(system).toContain("awkward, deadpan humor");
     const audit = processAuditPrompt({ format: "INVISIBLE_EXPLAINER", title: "T", research, plan: onePart, part: 1, narration: "n", earlier: [] }).system;
     expect(audit).toContain("deadpan asides");
+  });
+
+  it("writer, editor and rewrite work to the same craft rules, and the ending must add something new", () => {
+    for (const format of ["INVISIBLE_EXPLAINER", "PROCESS_EXPLAINER"] as const) {
+      const narration = processNarrationPrompt({ ...base, channel: channel(format), earlier: [] }).system;
+      const rewrite = processRevisionPrompt({ ...base, channel: channel(format), narration: "n", issues: [{ id: "A1.1", text: "t" }] }).system;
+      const editor = processAuditPrompt({ format, title: "T", research, plan: onePart, part: 1, narration: "n", earlier: [] }).system;
+      expect(narration).toContain(CRAFT);
+      expect(rewrite).toContain(CRAFT);
+      expect(rewrite).toContain("Rewrite the whole script");
+      for (const category of ["hedging", "negative-framing", "awkward-wording", "weak-ending", "unsupported-claim"]) expect(editor).toContain(`- ${category}:`);
+      expect(editor).toContain("made-up cause");
+    }
+    const invisible = processNarrationPrompt({ ...base, channel: channel("INVISIBLE_EXPLAINER"), earlier: [] }).system;
+    expect(invisible).toContain("Never restate the opening hook");
+    expect(invisible).toContain("how long it lasts");
+  });
+
+  it("research notes keep myths out of the steps and typical values out of uncertain", () => {
+    const system = researchNotesPrompt({ format: "INVISIBLE_EXPLAINER", product: "Coffee", text: "t", sources: [], minStages: 3 }).system;
+    expect(system).toContain("Never record a correction of a myth as a step");
+    expect(system).toContain("a range is not a dispute");
+    expect(system).toContain("what the viewer notices and when");
   });
 
   it("checks tone against the style's voice", () => {

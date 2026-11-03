@@ -63,9 +63,12 @@ export function openItems(quality: QualityRecord): { blocking: RecordedIssue[]; 
   return { blocking: open.filter((i) => i.severity === "blocking"), significant: open.filter((i) => i.severity === "significant") };
 }
 
-/** Issues as a numbered list for a revision prompt, with ids the model reports back on. */
+/**
+ * Issues as a numbered list for a rewrite, with ids the model reports back on.
+ * A rewrite fixes the polish notes too; unverified quotes (likely misreadings) are left out.
+ */
 export function issueBrief(issues: RecordedIssue[]): { id: string; text: string }[] {
   return issues
-    .filter((i) => i.severity !== "minor")
+    .filter((i) => i.severity !== "minor" || i.verified)
     .map((i) => ({ id: i.id, text: `[${i.severity}, ${i.category}] at ${i.location}: "${i.evidence}" — ${i.problem} Suggested repair: ${i.repair}` }));
 }

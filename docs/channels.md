@@ -55,11 +55,11 @@ Make Videos → channel → product (kept exactly) or Surprise me
 
 ```
 web research (OpenAI web_search, cited) → research notes (stages T1..TN, steps, details, main route, sources, uncertain)
-  → part plan (consecutive stages, 1+ per part, within the channel's range)
-    ∥ storytelling decision (pattern, featured stage, per-stage visual metadata)
-  → 5 hooks citing research claims → deterministic support checks → independent hook review → recommended hook
+  → creative plan, one call: pattern, featured stage, per-stage visuals and 4 openings (strongest first) citing research claims
+    → deterministic support checks → first clean opening recommended
+  → part plan (consecutive stages within the channel's range; no call when the channel makes single videos)
   → per part: narration from the notes only (Part 1 opens with the hook) →
-    fact/clarity/tone audit + attention/payoff audit → targeted revisions (max 2)
+    one editor pass (facts against the notes, then craft) → if anything significant: one full rewrite from every note → final check
   → storyboard
 ```
 
@@ -67,15 +67,17 @@ web research (OpenAI web_search, cited) → research notes (stages T1..TN, steps
 
 - Research steps are numbered claims: `T2.1` is stage T2, step 1. Prompts show them as `[T2.1]`.
 - **Patterns**: Transformation, Hidden engineering problem, Factory reveal. Chosen from the researched facts (`ManufacturingStorytellingDecision`, one per story). They shape emphasis only: the opening may preview a later step, the steps are always told in factory order, and the fact auditor is told the preview is intended.
-- **Hooks** (`ManufacturingHookCandidate`): each cites claim ids. Code flags a hook that cites a missing claim, cites none, says a number not in its cited claims, uses an unsupported superlative or a stock opener; the reviewer's `supported: false` flags it too. A flagged hook is never recommended. If none passes, Part 1 opens plainly. Hook totals are editorial heuristics, not view predictions.
+- **Hooks** (`ManufacturingHookCandidate`): each cites claim ids. Code flags a hook that cites a missing claim, cites none, says a number not in its cited claims, uses an unsupported superlative or a stock opener; hooks are written strongest first and the first clean one is recommended. If none passes, Part 1 opens plainly. Hooks written before November 2026 also carry a reviewer's scores.
 - The writer must open Part 1 with the selected hook, word for word or tightened (`hookOpeningIssues`). Later parts continue the one story.
 - **Overrides** (episode page, "How it's told"): *Use this opening* rewrites Part 1 only (`choose-hook`); *Switch pattern* writes a new decision and hooks and rewrites every unproduced part (`switch-pattern`). Both reuse the saved research and plan. Stories written before this get a decision on their next Part 1 rewrite, without new research.
 - Each version records `spec.process.creative` (pattern, hook id, hook line).
 
 - The research is stored on `Story.research` and reused for part rewrites and replans, so a retry doesn't pay for the search again.
 - Each version stores `spec.process` (the plan and its part) and `spec.quality` (every check, revision and its cost).
-- Audit categories: `unsupported-claim`, `temporal`, `missing-connection`, `clarity`, `series-continuity`, `tone` and `too-technical`. A stated fact that contradicts the research is blocking.
-- Attention audit (stage `attention`): `weak-opening`, `slow-start`, `unanswered-question`, `filler`, `missing-payoff`, `weak-ending`, `name-dropping`. Always a creative concern, so at most significant: it can trigger a targeted revision or leave the script "needs attention", never block it. Every revision is fact-checked again, and the reviser is told engagement never permits a new fact.
+- The writer, the editor and the rewrite share one set of craft rules (`CRAFT` in `process-prompts.ts`): say what happens, not what doesn't; at most one hedge; never invent a cause; every phrase picturable on one hearing; varied sentence length; the ending adds something new instead of restating the opening.
+- Editor, facts (stage `script`): `unsupported-claim` (including a made-up "because"), `temporal`, `missing-connection`, `series-continuity` (stage `continuity`). A stated fact that contradicts the research is blocking.
+- Editor, craft (stage `attention`): `weak-opening`, `weak-ending`, `missing-payoff`, `hedging`, `negative-framing`, `awkward-wording`, `filler`, `slow-start`, `stall`, `unanswered-question`, `name-dropping`, `clarity`, `tone`, `too-technical`. Always a creative concern, so at most significant: it can trigger the rewrite or leave the script "needs attention", never block it.
+- The rewrite is a second draft, not a patch: any sentence may change, every note (polish included) is fixed, facts stay within the research, and the result is checked once more.
 - Unproduced episodes beyond the planned count are removed (`settlePartCount`).
 
 ### Storyboard, on-screen hook and sound
@@ -94,7 +96,7 @@ web research (OpenAI web_search, cited) → research notes (stages T1..TN, steps
 
 ### Looser opening (per channel)
 
-Off by default. When on, Part 1's opening line(s) may say "you" and be one genuine question the video answers; everything after stays third person. It outranks the channel's voice rules for the opening only, and the writer, hook writer, fact-checker and attention check are all told. Recorded on each version (`spec.process.creative.looseOpening`) for comparison.
+Off by default. When on, Part 1's opening line(s) may say "you" and be one genuine question the video answers; everything after stays third person. It outranks the channel's voice rules for the opening only, and the writer, hook writer and editor are all told. Recorded on each version (`spec.process.creative.looseOpening`) for comparison.
 
 ### Posting and results
 
@@ -105,8 +107,8 @@ Off by default. When on, Part 1's opening line(s) may say "you" and be one genui
 ## The script gate
 
 - **Blocking**: a contradiction with the research, or a missing link a viewer would notice. The script is saved so it can be read, but it can't be approved until it is fixed, regenerated, or the issue is dismissed as a false positive (recorded).
-- **Significant**: triggers a targeted revision. If it survives the retry limit, the script is "needs attention" and approving it is an explicit override.
-- **Minor**: shown, never triggers a revision.
+- **Significant**: triggers one full rewrite. If it survives, the script is "needs attention" and approving it is an explicit override.
+- **Minor**: shown, never triggers a rewrite on its own (a rewrite fixes it too).
 - Creative concerns can never block. Each issue must quote the script; if the quote is not found, the issue is shown as unverified and downgraded to minor.
 
 Approving an episode only locks its script version; there is no story bible or continuation step.

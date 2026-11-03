@@ -64,10 +64,9 @@ export type WritingStyle = {
   storyEditor: string;
   hookIntro: string;
   hookRules: string[];
-  hookConnection: string;
 
-  audit: { intro: string; temporal: string; clarity: string; tone: string; looseOpeningNote: string };
-  attention: { intro: string; slowStart: string; stall: string };
+  /** The editor's style-specific wording; the checks themselves are shared (process-prompts editorRules). */
+  audit: { intro: string; temporal: string; clarity: string; tone: string; looseOpeningNote: string; slowStart: string; stall: string };
 
   storyboard: {
     role: string;
@@ -144,7 +143,8 @@ Part 1 is the video most people see first, so it must reach a step where the raw
       "Make it one flowing chain, not a list of facts: each sentence picks up the material or machine the last one ended on and says what happens to it next, or why. A viewer should always know where the material is and what it looks like now.",
       "Follow the main route. Another route (a different raw material or method) gets one short sentence at most.",
     ],
-    ending: (patternEnd) => (patternEnd ? `End on the finished product, packed and ready to ship, landing the payoff of the story: ${patternEnd}` : "End on the finished product, packed and ready to ship."),
+    ending: (patternEnd) =>
+      `End on the finished product, packed and ready to ship${patternEnd ? `, landing the payoff of the story: ${patternEnd}` : "."} The last line adds something new; it never restates the opening.`,
   },
   sceneRewrite: "Rewrite ONE shot of an existing How It's Made style script.",
 
@@ -187,17 +187,13 @@ Part 1 is the video most people see first, so it must reach a step where the raw
   storyEditor: "You are the story editor of a How It's Made style channel. From the verified research below, decide how this product's process is best told in short vertical videos. The facts and their order are fixed; you choose emphasis.",
   hookIntro: "You write opening lines for a How It's Made style short video. The opening has one or two seconds to make a scrolling viewer understand what they're looking at and want to see how it's done.",
   hookRules: ["names or shows the product (or its raw material) at once, and is concise: at most two short sentences, under 25 words;"],
-  hookConnection: "About the real manufacturing process, not a gimmick.",
 
   audit: {
-    intro: "You are an independent fact-checker and editor for a How It's Made style video.",
+    intro: "You are the independent fact-checker and script editor for a How It's Made style video. Never suggest drama, hype, questions to the viewer or superlatives.",
     temporal: "steps told out of factory order.",
     clarity: "a viewer would be confused about what is being made, where in the process we are, or what a machine does.",
     tone: `jokes, puns, opinions, hype, drama, rhetorical questions, "you", or brand names. Also any framing that breaks the one continuous story: mentioning parts or videos, recaps of earlier parts, "picks up", or announcing what happens next.`,
     looseOpeningNote: `By the producer's choice, the opening line(s) may say "you" and may be one genuine question the video answers. That is not a tone issue there; "you" or a question anywhere after the opening still is.`,
-  },
-  attention: {
-    intro: "You are an independent editor checking whether a How It's Made style short video holds an ordinary viewer's attention. You did not write it. Facts are checked separately; never suggest adding a fact, number, material or machine the research doesn't contain, and never suggest drama, hype, questions to the viewer or superlatives.",
     slowStart: "the narration lingers before the manufacturing process begins.",
     stall: "two or more sentences in a row where nothing visibly happens to the material (storage, sampling, checks, rules), so there is nothing new to watch.",
   },
@@ -262,9 +258,9 @@ Never: brand names or named companies, medical advice or treatment claims, gore,
 
   researchSearch: `You are the researcher for short factual explainer videos about what really happens, step by step, behind an everyday moment people never get to see: inside the body, under the street, behind the walls, inside machines and networks. Use web search to find out exactly what happens, in order, from the everyday moment that starts it to where it ends.
 
-For each stage give concrete, checkable details: what moves where, what changes and how, how long it takes, how far it travels, how much, how fast. Look especially for facts an ordinary person would find surprising, and check them. Prefer medical and scientific institutions, universities, government agencies, utilities, airports and transport authorities, payment networks and industry bodies, and encyclopedias. Say plainly where sources disagree, where a detail varies a lot between people or places, or where it could not be found. Do not guess. Cite your sources.`,
+For each stage give concrete, checkable details: what moves where, what changes and how, how long it takes, how far it travels, how much, how fast. Look especially for facts an ordinary person would find surprising, and check them. Always find what the viewer notices and when: when the effect starts, when it peaks, how long it lasts and when it wears off, with the typical value and its range. Report what happens, not myths: if sources correct a misconception, say only what is true. Prefer medical and scientific institutions, universities, government agencies, utilities, airports and transport authorities, payment networks and industry bodies, and encyclopedias. Say plainly where sources disagree, where a detail varies a lot between people or places, or where it could not be found. Do not guess. Cite your sources.`,
   researchNotes: (minStages) => `mainRoute: the most common case today, in one plain sentence (e.g. "a healthy adult drinking one cup of coffee", "a home connected to a city sewer"). The stages follow that case; mention other cases in a step only where they matter.
-Split what happens into ${minStages}–8 stages in the order they happen (the everyday moment first, where the journey ends last), each a distinct place or change a viewer could picture, with its own steps. Put the surprising specifics (times, distances, speeds, amounts) in details.`,
+Split what happens into ${minStages}–8 stages in the order they happen (the everyday moment first, where the journey ends last), each a distinct place or change a viewer could picture, with its own steps. Put the surprising specifics (times, distances, speeds, amounts) in details. Include, as steps, what the viewer notices and when (when it kicks in, peaks and wears off), with the typical value in details.`,
 
   voice: `Who it's for: ordinary adults scrolling short videos. They know the everyday moment (a sip of coffee, a flush, a card tap) and have never seen what happens behind it. If a viewer would have to look up a word, the script has failed.
 
@@ -285,7 +281,7 @@ How the narration sounds:
 Assign the research's stages, in the order they happen, to consecutive parts. ${parts[1] > 1 ? `Use more than one part only when there is too much for ${durationSec} seconds; each part must stand on its own and contain at least one surprising moment.` : "There is one video: it tells the whole journey."} Never split a stage. The opening line is a short summary of where the journey starts.${reach ? ` Its opening hook promises ${reach.id} (${reach.name}), so Part 1 must run through ${reach.id}.` : ""}`,
   narration: {
     plainOpening: (opening) =>
-      `Open on the most shocking true thing happening inside, as one vivid line that says where, what and what it's doing (like "Inside your brain, caffeine occupies spots that normally catch a tiredness message."), then start the journey: ${opening}`,
+      `Open on the most surprising true thing happening inside, in one or two short lines (like "Caffeine doesn't give you energy. It hides your tiredness."), then start the journey: ${opening}`,
     afterHook: (opening) => `then go straight to the everyday moment where the journey starts (${opening}) and follow it in the order it happens`,
     body: (stages) => [
       `Follow the subject through this video's stages (${stages.join(", ")}) in the order they happen, a sentence or two per stage, folding small steps together. Never skip a step a later one depends on.`,
@@ -295,7 +291,7 @@ Assign the research's stages, in the order they happen, to consecutive parts. ${
       "Follow the main case only, silently. Never mention other cases or exceptions.",
     ],
     ending: (patternEnd) =>
-      `End where the journey ends, with one last line that lands the payoff or makes the viewer see the everyday moment differently. No summary, no "and that's how", no call to follow or comment.${patternEnd ? ` ${patternEnd}` : ""}`,
+      `End on something the viewer hasn't heard yet and will recognise in their own life: usually what this means for them in time (when it kicks in, how long it lasts, when it wears off) or what they'll notice, from the research. A deadpan aside fits well here. Never restate the opening hook, and no summary, no "and that's how", no call to follow or comment. If the channel asks for a sign-off line, it comes after that last new fact, never instead of it.${patternEnd ? ` ${patternEnd}` : ""}`,
   },
   sceneRewrite: `Rewrite ONE shot of an existing "What happens when…" explainer script.`,
 
@@ -338,25 +334,21 @@ Assign the research's stages, in the order they happen, to consecutive parts. ${
   storyEditor:
     'You are the story editor of a "What happens when…" channel. From the verified research below, decide how this moment is best told in one short vertical video. The facts and their order are fixed; you choose emphasis.',
   hookIntro: `You write opening lines for a "What happens when…" short video. The opening has one or two seconds to stop a scrolling thumb, so it lands the most shocking true thing first, as a vivid picture of what is happening inside you (or inside the pipe, the machine, the network) right now.
-The model to beat: "Inside your brain, caffeine occupies spots that normally catch a tiredness message." It names a hidden place, the thing there, and what it is doing, and it makes the viewer go "wait, what?" without a single hype word.`,
+The model to beat: "Caffeine doesn't give you energy. It hides your tiredness." It flips something the viewer is sure of, in plain words, and makes them go "wait, what?" without a single hype word. Another: "Inside your brain, caffeine is sitting in the spots meant for your tiredness signal."`,
   hookRules: [
     `leads with the shock itself, not a setup: a hidden place, the thing there, and what it is doing, in concrete words ("Inside your brain…", "Under your street…", "Two seconds after you tap…"); at most two short sentences, under 20 words;`,
     'talks to the viewer ("you", "your"); a statement is usually stronger, but it may be one short, genuine question this video answers (never "we", "I", "Did you know" or "Have you ever wondered");',
     `never vague teasers ("You won't believe…", "Something strange happens…") and never hype words: the fact does the work;`,
     "firstFrameVisual: the person (or the toilet, the bag, the card) seen from outside, cut away to show the exact inside place the line is about, with the glowing subject there; the camera dives into it.",
   ],
-  hookConnection: "About what really happens, not a gimmick.",
 
   audit: {
-    intro: 'You are an independent fact-checker and editor for a "What happens when…" explainer video.',
+    intro:
+      'You are the independent fact-checker and script editor for a "What happens when…" explainer video. Never suggest hype, drama or superlatives. An opening that sets up instead of landing a surprising true thing in its first line is a weak opening.',
     temporal: "stages told out of the order they really happen (an opening that previews the surprising moment is intended).",
     clarity: "a viewer would be confused about what is being followed, where it is now, or what is happening to it.",
     tone: `hype, exaggeration, drama, fear, opinions, medical advice, brand names, "we" or "I", or more than one question. Talking to the viewer with "you" is intended. One or two deadpan asides (e.g. "Your brain has no idea it's been tricked.") are intended too: flag a joke only if it is a pun, mean, gross or crude, there are more than two, or it states something the research doesn't support as fact. Playful personification ("your brain thinks…") is a figure of speech, not a claim. Also mentioning parts or videos, or announcing what comes next.`,
     looseOpeningNote: "",
-  },
-  attention: {
-    intro:
-      'You are an independent editor checking whether a short "What happens when…" video holds an ordinary viewer\'s attention. You did not write it. Facts are checked separately; never suggest adding a fact or number the research doesn\'t contain, and never suggest hype, drama or superlatives. An opening that sets up instead of landing the most shocking true thing in its first line is a weak opening.',
     slowStart: "the narration lingers before the journey begins.",
     stall: "two or more sentences in a row where the subject doesn't move or change (definitions, background, caveats), so there is nothing new to see.",
   },

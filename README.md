@@ -29,8 +29,8 @@ Make Videos ──► Batch ──► Trigger.dev "ideate-batch"            (see
 
 "Write script" ──► Trigger.dev "episode-job"
    1. Web research (OpenAI web search, cited) → research notes (stages, main route, sources, uncertain points)
-   2. Part plan: the stages split into 3–5 consecutive parts in factory order
-   3. Each part: narration from the notes only → fact, clarity and tone check against the notes → targeted revisions (≤2)
+   2. Creative plan (pattern + openings, one call), then the part plan (skipped when the channel makes single videos)
+   3. Each part: narration from the notes only → one editor pass (facts against the notes, then craft) → if it needs work, one full rewrite and a final check
    4. Shots cut word-for-word from each part's narration, with the visual state
    ── Script gate, per part: passed / needs attention (approve with override) / blocked (cannot be produced) ──
    5. Illustrate shots (OpenAI Images, style references, per-image checks and one redraw)

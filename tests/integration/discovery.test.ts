@@ -229,7 +229,7 @@ describe.skipIf(!url)("topic discovery and storytelling (integration)", () => {
     const w = fakeDeps();
     await writeScripts(story.episodes[0].id, w.deps);
     // The approved angle reaches the storytelling decision as a hint, never as a source.
-    expect(w.text.prompts.storytelling_decision[0]).toContain(`Topic angle the producer approved (a hint; keep only what the research supports): ${top.curiosityAngle}`);
+    expect(w.text.prompts.creative_plan[0]).toContain(`Topic angle the producer approved (a hint; keep only what the research supports): ${top.curiosityAngle}`);
   });
 
   it("keeps a producer's own product exactly and attaches library evidence", async () => {
@@ -250,16 +250,18 @@ describe.skipIf(!url)("topic discovery and storytelling (integration)", () => {
     const f = fakeDeps();
     await writeScripts(episodeId, f.deps);
 
-    expect(f.text.calls).toMatchObject({ storytelling_decision: 1, hook_candidates: 1, hook_review: 1, process_attention: 2 });
-    expect(f.text.models.hook_review).toBe(f.text.models.process_audit);
+    // Pattern and openings come from one call; there is no separate hook review or attention audit.
+    expect(f.text.calls).toMatchObject({ creative_plan: 1, process_audit: 2 });
+    expect(f.text.calls.hook_review).toBeUndefined();
+    expect(f.text.calls.process_attention).toBeUndefined();
     const decision = await db.manufacturingStorytellingDecision.findUniqueOrThrow({ where: { storyId: story.id }, include: { selectedHook: true } });
     expect(decision).toMatchObject({ pattern: "FACTORY_REVEAL", patternSource: "recommended", featuredStageId: "T2" });
     expect((decision.stageVisuals as { stageId: string }[]).map((s) => s.stageId)).toEqual(["T1", "T2", "T3", "T4"]);
 
     const hooks = await db.manufacturingHookCandidate.findMany({ where: { storyId: story.id } });
-    expect(hooks).toHaveLength(5);
+    expect(hooks).toHaveLength(4);
     const by = (text: string) => hooks.find((h) => h.line.includes(text))!;
-    expect(by("999").flags.join(" ")).toMatch(/999, which the cited claims don't contain.*Reviewer: 999 degrees/);
+    expect(by("999").flags.join(" ")).toMatch(/999, which the cited claims don't contain/);
     expect(by("checked by hand").flags).toContain("Cites claims that don't exist: T9.9.");
     expect(by("80 degrees").flags).toEqual([]);
     expect(decision.selectedHook!.line).toBe(FAKE_HOOKS.FACTORY_REVEAL);
@@ -289,13 +291,13 @@ describe.skipIf(!url)("topic discovery and storytelling (integration)", () => {
     await writeScripts(episodeId, f.deps);
     const research = (await db.story.findUniqueOrThrow({ where: { id: story.id } })).research;
     const part2Before = await db.episode.findFirstOrThrow({ where: { storyId: story.id, partNumber: 2 } });
-    const alt = await db.manufacturingHookCandidate.findFirstOrThrow({ where: { storyId: story.id, line: { startsWith: "A box of crayons" } } });
+    const alt = await db.manufacturingHookCandidate.findFirstOrThrow({ where: { storyId: story.id, line: { startsWith: "Wax is heated" } } });
     const before = { ...f.text.calls };
 
     await act(episodeId, f.deps, { action: "choose-hook", hookId: alt.id });
 
     expect(f.research.calls).toBe(1);
-    expect(f.text.calls).toMatchObject({ research_notes: before.research_notes, process_plan: before.process_plan, storytelling_decision: 1, hook_candidates: 1 });
+    expect(f.text.calls).toMatchObject({ research_notes: before.research_notes, process_plan: before.process_plan, creative_plan: 1 });
     expect((await db.story.findUniqueOrThrow({ where: { id: story.id } })).research).toEqual(research);
     const v = await part1Narration(story.id);
     expect(v).toMatchObject({ version: 2, reason: "choose-hook" });
@@ -313,12 +315,12 @@ describe.skipIf(!url)("topic discovery and storytelling (integration)", () => {
     await act(episodeId, f.deps, { action: "switch-pattern", pattern: "TRANSFORMATION" });
 
     expect(f.research.calls).toBe(1);
-    expect(f.text.calls).toMatchObject({ research_notes: 1, process_plan: 1, storytelling_decision: 2, hook_candidates: 2, hook_review: 2 });
-    expect(f.text.systems.storytelling_decision[1]).toContain("The producer has chosen TRANSFORMATION.");
+    expect(f.text.calls).toMatchObject({ research_notes: 1, process_plan: 1, creative_plan: 2 });
+    expect(f.text.systems.creative_plan[1]).toContain("The producer has chosen TRANSFORMATION.");
     const d = await db.manufacturingStorytellingDecision.findUniqueOrThrow({ where: { storyId: story.id }, include: { selectedHook: true } });
     expect(d).toMatchObject({ pattern: "TRANSFORMATION", patternSource: "producer" });
     expect(d.selectedHook!.line).toBe(FAKE_HOOKS.TRANSFORMATION);
-    expect(await db.manufacturingHookCandidate.count({ where: { storyId: story.id } })).toBe(10); // earlier openings kept
+    expect(await db.manufacturingHookCandidate.count({ where: { storyId: story.id } })).toBe(8); // earlier openings kept
     const eps = await db.episode.findMany({ where: { storyId: story.id }, orderBy: { partNumber: "asc" }, include: { currentVersion: true } });
     for (const e of eps) {
       const spec = e.currentVersion!.spec as EpisodeSpecRecord;
@@ -333,12 +335,14 @@ describe.skipIf(!url)("topic discovery and storytelling (integration)", () => {
     await expect(act(episodeId, f.deps, { action: "choose-hook", hookId: old.id })).rejects.toThrow(/another storytelling pattern/);
   });
 
-  it("an attention problem triggers targeted revisions under the fact check, but never blocks", async () => {
+  it("a craft problem triggers one full rewrite, checked again, but never blocks", async () => {
     const { episodeId } = await crayonStory();
     const f = fakeDeps({ attention: "significant-always" });
     await writeScripts(episodeId, f.deps);
+    // A single-video channel needs no planning call.
+    expect(f.text.calls.process_plan).toBeUndefined();
     expect(f.text.calls.process_revision).toBe(MAX_SCRIPT_REVISIONS);
-    // Every revision is fact-checked again, and the reviser is told it may not add facts.
+    // The rewrite is checked again, and the writer is told it may not add facts.
     expect(f.text.calls.process_audit).toBe(MAX_SCRIPT_REVISIONS + 1);
     expect(f.text.prompts.process_revision[0]).toMatch(/A\d\.1/);
     expect(f.text.systems.process_revision[0]).toContain("never permits a new fact");
@@ -360,7 +364,7 @@ describe.skipIf(!url)("topic discovery and storytelling (integration)", () => {
 
     expect(f.research.calls).toBe(1);
     expect(f.text.calls.research_notes).toBe(1);
-    expect(f.text.calls.storytelling_decision).toBe(2);
+    expect(f.text.calls.creative_plan).toBe(2);
     expect(await db.manufacturingStorytellingDecision.count({ where: { storyId: story.id } })).toBe(1);
     expect((await part1Narration(story.id)).narration.startsWith(FAKE_HOOKS.FACTORY_REVEAL)).toBe(true);
   });

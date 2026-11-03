@@ -405,7 +405,7 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     await writeScripts(episodeId, f.deps);
     const fixed = fakeDeps();
     await runEpisodeJob({ jobId: (await newJob({ type: "REGENERATE_SCRIPT", episodeId })).id, episodeId, continueProduction: false, request: { action: "revise-script" } }, fixed.deps);
-    expect(fixed.text.prompts.process_revision[0]).toContain("S3.1");
+    expect(fixed.text.prompts.process_revision[0]).toContain("S2.1");
     const revised = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: true } });
     expect(revised.currentVersion).toMatchObject({ version: 2, reason: "revise-issues", qualityStatus: "passed" });
     expect(revised.status).toBe("SCRIPTED");

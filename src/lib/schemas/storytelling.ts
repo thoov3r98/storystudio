@@ -60,7 +60,10 @@ export const HookCandidateSchema = z.object({
 });
 export type HookCandidate = z.infer<typeof HookCandidateSchema>;
 
-export const HookBatchSchema = z.object({ hooks: z.array(HookCandidateSchema) });
+/** The creative stage in one call: how to tell it, and the openings for it (best first). */
+export const CreativePlanSchema = StorytellingDecisionSchema.extend({
+  hooks: z.array(HookCandidateSchema).describe("The openings, strongest first."),
+});
 
 export const HOOK_CRITERIA = ["clarity", "curiosity", "specificity", "connection", "factualSupport", "visualPotential", "naturalLanguage"] as const;
 export type HookCriterion = (typeof HOOK_CRITERIA)[number];
@@ -74,27 +77,10 @@ export const HOOK_CRITERIA_LABELS: Record<HookCriterion, string> = {
   naturalLanguage: "Sounds natural",
 };
 
-const score = z.number().int().describe("1–5");
-export const HookReviewSchema = z.object({
-  reviews: z.array(
-    z.object({
-      index: z.number().int(),
-      clarity: score.describe("A viewer instantly knows what subject and what moment this is."),
-      curiosity: score.describe("Creates a specific reason to keep watching."),
-      specificity: score.describe("Concrete, not generic."),
-      connection: score.describe("About the real process, not a gimmick."),
-      factualSupport: score.describe("Every fact is in the cited research claims."),
-      visualPotential: score.describe("The first frame can show it."),
-      naturalLanguage: score.describe("Sounds like a person talking."),
-      supported: z.boolean().describe("Every fact in the line is in the cited claims."),
-      unsupportedDetail: z.string().describe("If not supported: exactly what isn't. Otherwise empty."),
-      note: z.string().describe("One plain sentence."),
-    }),
-  ),
-});
-export type HookReview = z.infer<typeof HookReviewSchema>["reviews"][number];
+/** A reviewer's scores, kept on hooks written before openings stopped being scored separately. */
+export type HookReview = Record<HookCriterion, number> & { supported: boolean; unsupportedDetail: string; note: string };
 
-/** A hook with its deterministic checks and review, as compose returns it and the database stores it. */
+/** A hook with its deterministic checks (and, for older hooks, a review), as compose returns it and the database stores it. */
 export type ReviewedHook = HookCandidate & { pattern: Pattern; flags: string[]; review: Omit<HookReview, "index"> | null; total: number | null; rank: number | null };
 
 /** What a script is written with: the pattern, featured stage and (Part 1) its approved opening. */
@@ -156,12 +142,15 @@ export function hookTotal(review: Record<HookCriterion, number>): number {
   return Math.round((sum / max) * 1000) / 10;
 }
 
-/** The best hook that passed every check, or null when none did (the script then opens plainly). */
+/**
+ * The best hook that passed every check, or null when none did (the script then opens plainly).
+ * Hooks come strongest first, so without scores the first clean one wins; older scored hooks go by total.
+ */
 export function recommendHook<T extends { flags: string[]; review: { supported: boolean } | null; total: number | null }>(hooks: T[]): number | null {
   let best: number | null = null;
   hooks.forEach((h, i) => {
-    if (h.flags.length || !h.review?.supported || h.total === null) return;
-    if (best === null || h.total > hooks[best].total!) best = i;
+    if (h.flags.length || (h.review && !h.review.supported)) return;
+    if (best === null || (h.total ?? -1) > (hooks[best].total ?? -1)) best = i;
   });
   return best;
 }

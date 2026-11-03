@@ -17,7 +17,7 @@ const PRODUCTS = ["Pencils", "Glass bottles", "Tennis balls", "Chocolate bars", 
 export type FakeTextOptions = {
   /** Fact-check: an unsupported claim that one revision fixes or that never goes away, or a contradiction that never goes away. */
   processAudit?: "pass" | "significant-once" | "significant-always" | "blocking-always";
-  /** Attention audit: a pacing problem that never goes away (never blocking). */
+  /** Editor, craft: a pacing problem that never goes away (never blocking). */
   attention?: "pass" | "significant-always";
   /** Topic ideas: the first attempt cites a reference id that doesn't exist. */
   topicBadReferenceOnce?: boolean;
@@ -191,9 +191,11 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
           const d = makeDraft(part === 1 ? (hook ?? "This is how crayons are made.") : `Crayons, part ${part}.`, part);
           return out({ title: `How crayons are made, part ${part}`, storyNarration: d.storyNarration, summary: `Part ${part} of crayons.` });
         }
-        case "storytelling_decision": {
+        case "creative_plan": {
           const stages = [...user.matchAll(/^(T\d+) /gm)].map((m) => m[1]);
           const pattern = /The producer has chosen (\w+)\./.exec(system)?.[1] ?? "FACTORY_REVEAL";
+          const visual = { visualSubject: "wax", operation: "melting", materialBefore: "wax blocks", materialAfter: "liquid wax", machinery: "", visualMoment: "Wax melts." };
+          const hook = (line: string, strategy: string, claimIds: string[]) => ({ line, strategy, claimIds, featuredStageId: "T2", firstFrameVisual: "A tray of wax.", whyItWorks: "It is clear.", uncertainty: "", visual });
           return out({
             pattern,
             reason: `The research shows a fast moulding line (${pattern}).`,
@@ -202,42 +204,14 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
             visualPayoff: "Crayons pop out of the mould.",
             alternatives: ["TRANSFORMATION", "HIDDEN_PROBLEM", "FACTORY_REVEAL"].filter((x) => x !== pattern).slice(0, 1),
             stageVisuals: stages.map((id) => ({ stageId: id, visualSubject: `Stage ${id}`, operation: "It happens.", materialBefore: "wax", materialAfter: "crayons", machinery: "", visualMoment: "The moment.", claimIds: [`${id}.1`] })),
-          });
-        }
-        case "hook_candidates": {
-          const pattern = /^Pattern: (TRANSFORMATION|HIDDEN_PROBLEM|FACTORY_REVEAL) \(/m.exec(system)?.[1] ?? "FACTORY_REVEAL";
-          const visual = { visualSubject: "wax", operation: "melting", materialBefore: "wax blocks", materialAfter: "liquid wax", machinery: "", visualMoment: "Wax melts." };
-          const hook = (line: string, strategy: string, claimIds: string[]) => ({ line, strategy, claimIds, featuredStageId: "T2", firstFrameVisual: "A tray of wax.", whyItWorks: "It is clear.", uncertainty: "", visual });
-          return out({
             hooks: [
+              // Unsupported: the research never says 999, so the strongest-listed opening is flagged and skipped.
+              hook("Crayon wax is heated to 999 degrees.", "material-contrast", ["T1.1"]),
               hook(FAKE_HOOKS[pattern], "intriguing-operation", ["T1.1", "T2.1"]),
               hook("Wax is heated to about 80 degrees Celsius before it becomes a crayon.", "counterintuitive-fact", ["T1.1"]),
-              // Unsupported: the research never says 999.
-              hook("Crayon wax is heated to 999 degrees.", "material-contrast", ["T1.1"]),
               // Cites a claim that doesn't exist.
               hook("Every crayon is checked by hand.", "hidden-difficulty", ["T9.9"]),
-              hook("A box of crayons starts as melted wax.", "unexpected-transformation", ["T1.1", "T4.1"]),
             ],
-          });
-        }
-        case "hook_review": {
-          const lines = [...user.matchAll(/^\[(\d+)\] "(.*)" \(/gm)].map((m) => m[2]);
-          return out({
-            reviews: lines.map((line, index) => {
-              const v = index === 0 ? 5 : 3;
-              const supported = !line.includes("999");
-              return { index, clarity: v, curiosity: v, specificity: v, connection: v, factualSupport: supported ? v : 1, visualPotential: v, naturalLanguage: v, supported, unsupportedDetail: supported ? "" : "999 degrees is not in the research.", note: "ok" };
-            }),
-          });
-        }
-        case "process_attention": {
-          const narration = between(user, "SCRIPT\n");
-          const quote = narration.split(" ").slice(2, 8).join(" ");
-          return out({
-            issues:
-              opts.attention === "significant-always"
-                ? [{ category: "filler", severity: "blocking", kind: "contradiction", location: "Sentence 1", evidence: quote, problem: "Repeats itself.", repair: "Cut the repeat." }]
-                : [],
           });
         }
         case "topic_ideas": {
@@ -278,9 +252,11 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
           const narration = between(user, "SCRIPT\n");
           const quote = narration.split(" ").slice(6, 12).join(" ");
           const fail = opts.processAudit === "blocking-always" || opts.processAudit === "significant-always" || (opts.processAudit === "significant-once" && calls.process_audit === 1);
+          // A craft problem the editor keeps raising; the reviewer even calls it blocking, which code never allows.
+          const craft = opts.attention === "significant-always" ? [{ category: "filler", severity: "blocking", kind: "contradiction", location: "Sentence 1", evidence: narration.split(" ").slice(2, 8).join(" "), problem: "Repeats itself.", repair: "Cut the repeat." }] : [];
           return out({
             intendedUnknowns: [],
-            issues: fail ? [AUDIT_ISSUE(opts.processAudit === "blocking-always" ? "blocking" : "significant", quote)] : [],
+            issues: [...(fail ? [AUDIT_ISSUE(opts.processAudit === "blocking-always" ? "blocking" : "significant", quote)] : []), ...craft],
             previousIssues: user.includes("EARLIER ISSUES") ? issueIds(user).map((id) => ({ id, resolved: !fail, note: "" })) : [],
           });
         }
