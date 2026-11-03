@@ -144,7 +144,8 @@ export function bandColorFor(storyId: string): string {
   return BAND_PALETTE[h % BAND_PALETTE.length];
 }
 
-export const MOTION_PRESETS = ["slow-zoom-in", "slow-zoom-out", "pan-left", "pan-right", "pan-up", "still"] as const;
+/** "dive-in" is a fast, accelerating push for an opening shot that goes inside (a head, a pipe); styles say when to use it. */
+export const MOTION_PRESETS = ["slow-zoom-in", "slow-zoom-out", "pan-left", "pan-right", "pan-up", "still", "dive-in"] as const;
 export type MotionPreset = (typeof MOTION_PRESETS)[number];
 
 /**

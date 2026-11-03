@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { processAuditPrompt, processBreakdownPrompt, processNarrationPrompt, questionAllowed } from "@/lib/ai/process-prompts";
-import { channelDesignPrompt, pitchPrompt } from "@/lib/ai/channel-prompts";
+import { channelDesignPrompt, pitchPickPrompt, pitchPrompt } from "@/lib/ai/channel-prompts";
 import { WRITING_STYLES, writingStyle } from "@/lib/ai/writing-styles";
 import { SOUND_EFFECTS } from "@/lib/constants";
 import { parseProfile, type ChannelFormat } from "@/lib/schemas/channel";
@@ -48,11 +48,21 @@ describe("writing styles per channel", () => {
     expect(invisible).toMatch(/heartbeat \(heartbeat\)/);
     expect(invisible).not.toMatch(/press \(press\)/);
     expect(invisible).toContain("a short question is allowed");
+    expect(invisible).toContain("dive-in");
 
     const factory = processBreakdownPrompt({ ...base, channel: channel("PROCESS_EXPLAINER"), narration: "n" }).system;
     expect(factory).toContain("The material is the star");
     expect(factory).not.toContain("STORYBOARD RULES");
     expect(factory).toContain("a statement, never a question");
+    expect(factory).not.toContain("dive-in");
+  });
+
+  it("asks What happens when… for a shocking opening and a little deadpan humor", () => {
+    const system = processNarrationPrompt({ ...base, channel: channel("INVISIBLE_EXPLAINER"), earlier: [] }).system;
+    expect(system).toContain("Inside your brain, caffeine occupies spots");
+    expect(system).toContain("awkward, deadpan humor");
+    const audit = processAuditPrompt({ format: "INVISIBLE_EXPLAINER", title: "T", research, plan: onePart, part: 1, narration: "n", earlier: [] }).system;
+    expect(audit).toContain("deadpan asides");
   });
 
   it("checks tone against the style's voice", () => {
@@ -72,7 +82,19 @@ describe("writing styles per channel", () => {
     const pitch = pitchPrompt({ channel: channel("INVISIBLE_EXPLAINER"), idea: null, count: 6, avoidTitles: [], parts: [1, 1] });
     expect(pitch.system).toContain("one standalone short video");
     expect(pitch.system).toContain("everyday moment");
-    expect(channelDesignPrompt({ format: "INVISIBLE_EXPLAINER", brief: "b", existingNames: [] }).system).toContain("30–45 seconds");
+    const design = channelDesignPrompt({ format: "INVISIBLE_EXPLAINER", brief: "b", existingNames: [] }).system;
+    expect(design).toContain("30–45 seconds");
+    expect(design).toContain("Never a third-person narrator");
+  });
+
+  it("keeps a producer's idea at its own scope for What happens when…, but lets How It's Made narrow a broad product", () => {
+    const idea = "What happens when you drink coffee";
+    const invisible = pitchPrompt({ channel: channel("INVISIBLE_EXPLAINER"), idea, count: 6, avoidTitles: [], parts: [1, 1] }).user;
+    expect(invisible).toContain("Never narrow it");
+    expect(invisible).not.toContain("one specific everyday version");
+    const pick = pitchPickPrompt({ channel: channel("INVISIBLE_EXPLAINER"), idea, pitches: [], keep: 3 }).system;
+    expect(pick).toContain("narrows it");
+    expect(pitchPrompt({ channel: channel("PROCESS_EXPLAINER"), idea: "cookies", count: 6, avoidTitles: [], parts: [2, 4] }).user).toContain("one specific everyday version");
   });
 
   it("every style's sounds exist and each has its own music bed", () => {

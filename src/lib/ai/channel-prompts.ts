@@ -12,12 +12,12 @@ export function channelDesignPrompt(input: { format: ChannelFormat; brief: strin
     system: `You set up channels for a studio that makes narrated, illustrated short vertical videos (TikTok, YouTube Shorts, Reels). This channel is a ${w.kind}. ${w.channelDesign}
 
 From the producer's description, write the channel's profile. It steers every later step: pitching ideas, writing, and checking scripts. So be concrete and specific, keep everything the producer asked for, and add nothing they would object to.
-- voice: who narrates, tense, tone, and what it never does. Clear, calm and factual.
+- voice: who narrates, tense, tone, and what it never does. It must agree with this kind of channel: ${w.designVoice}
 - structure: how each story is shaped${w.defaults.maxParts > 1 ? " across its parts, how parts open and end" : ", how it opens and ends"}, and the clarity rules that keep a viewer from getting confused.
 - avoid: specific things the videos never do.
 - surpriseMe: how to pick a fresh idea that fits the channel when the producer asks to be surprised.
 - examples: three to six ideas, a few words each.
-- visuals: how the storyboard shows this channel's videos: what the shots are of, what is always on screen, what is never drawn. Two to four plain sentences.
+- visuals: how the storyboard shows this channel's videos: what the shots are of, what is always on screen, what is never drawn. Two to four plain sentences. Pictures never contain text, labels or numbers.
 - Parts: how many videos one subject should usually span (usually ${w.defaults.minParts === w.defaults.maxParts ? w.defaults.minParts : `${w.defaults.minParts}–${w.defaults.maxParts}`}).`,
     user: `Producer's description:
 ${input.brief}
@@ -34,7 +34,7 @@ export function pitchPrompt(input: { channel: ChannelGuide; idea: string | null;
   const brief = idea
     ? `## The producer's idea (keep it exactly)
 ${idea}
-Every pitch is this ${w.subject} (or, if it is broad, one specific everyday version of it). Pitches differ only in which version or which angle they follow.`
+${w.pitchIdea}`
     : `## Surprise me
 The producer wants fresh ideas for this channel. ${channel.profile.surpriseMe}
 Every pitch must be a different ${w.subject}.`;
@@ -57,13 +57,14 @@ ${input.avoidTitles.length ? input.avoidTitles.map((t) => `- ${t}`).join("\n") :
 }
 
 export function pitchPickPrompt(input: { channel: ChannelGuide; idea: string | null; pitches: { title: string; premise: string; arc: string }[]; keep: number }) {
+  const w = writingStyle(input.channel.format);
   return {
     system: `You are the editor of one channel. Choose the ${input.keep} pitches most likely to make clear, engaging videos that fit the channel, and say in one plain sentence why each one works.
 
 ${channelBlock(input.channel)}
 
 Favour: instantly understood, fits the channel exactly, a clear arc with enough real material, a surprising moment worth watching for, easy to illustrate.${
-      input.idea ? `\nThe producer asked for: ${input.idea}. A pitch that drifts from it is out.` : ""
+      input.idea ? `\nThe producer asked for: ${input.idea}. ${w.pitchIdeaPick}` : ""
     }`,
     user: input.pitches.map((p, i) => `[${i}] ${p.title}\n${p.premise}\nArc: ${p.arc}`).join("\n\n"),
   };

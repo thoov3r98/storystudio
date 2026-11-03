@@ -174,6 +174,7 @@ async function breakdown(run: Run, input: ProcessInput, notes: ResearchRecord, p
     validate: (v) => [
       ...validateDraft({ ...fixed, ...v }, { ...input, allowQuestion: questionAllowed(input.channel, s.part) }),
       ...soundIssues(v.scenes, input.channel.format),
+      ...motionIssues(v.scenes),
     ],
   });
   return { ...fixed, ...b };
@@ -184,6 +185,12 @@ function soundIssues(scenes: { sceneNumber: number; soundEffect: string }[], for
   const allowed = new Set<string>([...writingStyle(format).soundEffects, "none"]);
   const wrong = scenes.filter((s) => !allowed.has(s.soundEffect));
   return wrong.length ? [`soundEffect must be one of ${[...allowed].join(", ")}; shots ${wrong.map((s) => s.sceneNumber).join(", ")} use others.`] : [];
+}
+
+/** The fast dive is for the opening shot only. */
+function motionIssues(scenes: { sceneNumber: number; motionPreset: string }[]): string[] {
+  const late = scenes.filter((s) => s.motionPreset === "dive-in" && s.sceneNumber !== 1);
+  return late.length ? [`dive-in is only for shot 1; shots ${late.map((s) => s.sceneNumber).join(", ")} must use another motionPreset.`] : [];
 }
 
 function quality(part: number, rounds: Round[], revisions: number, startedAt: number, costUsd: number): QualityRecord {

@@ -27,6 +27,8 @@ type Scene = EpisodeProps["scenes"][number];
 
 /** How far a push-in goes. Gentle: the art is ~1024px shown at 1080px, so more would blur. */
 const PUSH = 0.14;
+/** The opening dive goes much further and speeds up as it goes; the motion hides the softness. */
+const DIVE = 0.65;
 
 /**
  * One continuous camera move per shot, never a cut within it: zooms push toward (or pull back from) the
@@ -41,6 +43,8 @@ function cameraMove(preset: string, t: number, focus: Scene["focus"]): { transfo
   switch (preset) {
     case "slow-zoom-in":
       return { transform: `scale(${1 + PUSH * e})`, transformOrigin: onFocus };
+    case "dive-in":
+      return { transform: `scale(${1 + DIVE * Easing.in(Easing.cubic)(t)})`, transformOrigin: onFocus };
     case "slow-zoom-out":
       return { transform: `scale(${1 + PUSH - PUSH * e})`, transformOrigin: onFocus };
     case "pan-left":

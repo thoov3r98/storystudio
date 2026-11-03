@@ -214,7 +214,7 @@ export function processBreakdownPrompt(input: ProcessPromptInput & { research: R
   const featured = c && p.stages.includes(c.decision.featuredStageId) ? visuals.find((v) => v.stageId === c.decision.featuredStageId) : undefined;
   const shotPlan = [
     hook?.firstFrameVisual
-      ? `- Shot 1 is the first frame a scrolling viewer sees, narrated by the hook. Show exactly this, big and simple, filling the frame: ${hook.firstFrameVisual}`
+      ? `- Shot 1 is the first frame a scrolling viewer sees, narrated by the hook. Show exactly this, big and simple, filling the frame: ${hook.firstFrameVisual}${w.storyboard.firstShotMotion ? ` ${w.storyboard.firstShotMotion}` : ""}`
       : `- Shot 1 is the first frame a scrolling viewer sees: ${w.storyboard.firstShot}`,
     featured
       ? `- The payoff: where the narration reaches ${featured.stageId} (${featured.operation}), give it its own close-up shot of this moment, with slow-zoom-in: ${featured.visualMoment}. ${c!.decision.visualPayoff}`

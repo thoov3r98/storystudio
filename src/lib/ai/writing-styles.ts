@@ -34,8 +34,14 @@ export type WritingStyle = {
   researchingLabel: string;
 
   channelDesign: string;
+  /** What a new channel's profile voice must say, so the profile never contradicts the style's voice. */
+  designVoice: string;
   pitchRules: string;
   pitchArc: string;
+  /** How pitches treat an idea the producer typed: whether they may narrow it, and how the pitches differ. */
+  pitchIdea: string;
+  /** Added to the pitch editor's brief when the producer typed an idea. */
+  pitchIdeaPick: string;
 
   researchSearch: string;
   researchNotes: (minStages: number) => string;
@@ -70,6 +76,8 @@ export type WritingStyle = {
     motion: string;
     stepLabel: string;
     firstShot: string;
+    /** Added to shot 1 even when an approved hook describes its picture. */
+    firstShotMotion: string;
     onScreen: { part1: string; later: string; examples: string };
   };
   soundEffects: readonly SoundEffectKey[];
@@ -91,12 +99,16 @@ const HOW_ITS_MADE: WritingStyle = {
   researchingLabel: "Researching how it's made",
 
   channelDesign: "Every channel explains, step by step, how real things are made or work, researched on the web before writing. Each subject is told across several videos (parts).",
+  designVoice: "An unseen narrator in the third person, present tense; clear, calm and factual.",
   pitchRules: `What makes a strong idea:
 - One specific, everyday product a viewer recognises instantly and has never seen made.
 - A real factory process with several distinct, visual stages (enough for every part).
 - Plain title naming the product, e.g. "How Crayons Are Made".
 Never: brand names or named companies, history-only topics, products whose making is a secret or can't be researched, or more than one product per pitch.`,
   pitchArc: "the real manufacturing stages in order, from raw material to packed product",
+  pitchIdea:
+    "Every pitch is this product (or, if it is broad, one specific everyday version of it). Pitches differ only in which version or which angle they follow.",
+  pitchIdeaPick: "A pitch that drifts from it is out.",
 
   researchSearch: `You are the researcher for a factual video series in the style of the TV show How It's Made. Use web search to find out exactly how the product is made in a modern factory today.
 
@@ -201,6 +213,7 @@ Part 1 is the video most people see first, so it must reach a step where the raw
     motion: "slow-zoom-in for detail, pan for a moving line, still for a finished result.",
     stepLabel: `the manufacturing step the shot belongs to, 2–4 plain words in sentence case, shown on screen (e.g. "Melting the wax", "Filling the moulds"). Consecutive shots of one step use exactly the same words; a new label only when the process moves on. Plain words, never an industry name. A shot that previews a later step (an opening hook) takes the label of the step it shows.`,
     firstShot: "the single most striking picture its narration allows, close and simple, the material or machine filling the frame.",
+    firstShotMotion: "",
     onScreen: {
       part1: "the surprising contrast between what the product starts as and what it becomes",
       later: "the most surprising thing this video shows happening",
@@ -235,6 +248,8 @@ const INVISIBLE: WritingStyle = {
 
   channelDesign:
     "Every channel shows what really happens behind an everyday moment people never get to see (inside the body, under the street, behind the walls, inside machines and networks), researched on the web before writing. Each subject is usually one standalone video of 30–45 seconds that opens on its most surprising moment.",
+  designVoice:
+    'Talks to the viewer as "you", in the present tense, as if it is happening now; curious, quick and strictly factual, with one or two deadpan, slightly awkward asides per video; never "we" or "I". Never a third-person narrator, and never forbid humor.',
   pitchRules: `What makes a strong idea:
 - One everyday moment the viewer has lived hundreds of times (drinking coffee, flushing, tapping a card, checking a bag, sneezing) with a hidden journey behind it they have never seen.
 - Something real that moves or changes through several distinct stages, each one possible to draw.
@@ -242,6 +257,8 @@ const INVISIBLE: WritingStyle = {
 - A plain title naming the moment, e.g. "What Happens When You Drink Coffee" or "Where Your Flush Goes".
 Never: brand names or named companies, medical advice or treatment claims, gore, fear-mongering, conspiracy theories, myths told as facts, or more than one moment per pitch.`,
   pitchArc: "the real stages in the order they happen, from the everyday moment to where the journey ends",
+  pitchIdea: `Every pitch is exactly this moment at the same scope, told as the whole journey from the moment itself to where it ends. Never narrow it to one stage, one ingredient, one organ, one side effect or one special case (for "What happens when you drink coffee": not "Why coffee makes you need the bathroom" or "What caffeine does to your heart"). The title is the producer's idea in plain words, e.g. "What Happens When You Drink Coffee". Pitches differ only in how they tell it: which shocking true fact opens the video, which surprises they build to, and how far the journey goes.`,
+  pitchIdeaPick: "A pitch that drifts from it, or narrows it to one part, one stage or one side effect of it, is out; prefer the pitch with the most shocking true opening.",
 
   researchSearch: `You are the researcher for short factual explainer videos about what really happens, step by step, behind an everyday moment people never get to see: inside the body, under the street, behind the walls, inside machines and networks. Use web search to find out exactly what happens, in order, from the everyday moment that starts it to where it ends.
 
@@ -254,19 +271,21 @@ Split what happens into ${minStages}–8 stages in the order they happen (the ev
 How the narration sounds:
 - Talks to the viewer with "you" and "your", in the present tense, as if it is happening right now ("You take a sip. Within minutes, caffeine is in your blood."). Never "we" or "I".
 - Curious, quick and warm, like a friend telling you something they just found out. Strictly factual: the surprise comes from the facts themselves, never from hype words, drama or exaggeration.
+- A bit of awkward, deadpan humor: one or two dry asides per video about what your body or the system is "thinking" or how unglamorous it really is ("Your brain has no idea it's been tricked. It just feels great about it."). Said flatly, as a fact-adjacent observation; never a pun, never at anyone's expense, never gross or crude, and never changing or adding a fact.
 - Follow one thing on its journey (the caffeine, the water, the bag, the payment) and keep it the subject of the sentences. The viewer always knows where it is now and what is happening to it.
 - Describe things, don't name them: "a chemical that builds up while you're awake and makes you sleepy", not its scientific name. Use a name only when it is an everyday word ("stomach", "pipe", "card reader").
 - Help the viewer picture size, speed and time with everyday comparisons ("faster than a blink", "about a bathtub's worth"). Comparisons describe what things are like; they never add facts.
 - One or two striking numbers per video at most, said so they mean something. Never a run of figures, ranges or alternatives.
 - Short, spoken sentences. Never list more than three things in a row. No colons, semicolons or parentheses.
-- At most one question, and only as the opening. No medical advice, no warnings, no brand names or named companies.`,
+- At most one question, and only as the opening (a shocking statement usually hooks harder). No medical advice, no warnings, no brand names or named companies.`,
   plan: ({ parts, durationSec, reach }) => `You plan a short "What happens when…" explainer, told in ${parts[0] === parts[1] ? parts[0] : `${parts[0]}–${parts[1]}`} video${parts[1] > 1 ? "s" : ""} of about ${durationSec} seconds each.
 
 {CHANNEL}
 
 Assign the research's stages, in the order they happen, to consecutive parts. ${parts[1] > 1 ? `Use more than one part only when there is too much for ${durationSec} seconds; each part must stand on its own and contain at least one surprising moment.` : "There is one video: it tells the whole journey."} Never split a stage. The opening line is a short summary of where the journey starts.${reach ? ` Its opening hook promises ${reach.id} (${reach.name}), so Part 1 must run through ${reach.id}.` : ""}`,
   narration: {
-    plainOpening: (opening) => `Open on the most surprising true thing about this moment in one short line, then start the journey: ${opening}`,
+    plainOpening: (opening) =>
+      `Open on the most shocking true thing happening inside, as one vivid line that says where, what and what it's doing (like "Inside your brain, caffeine occupies spots that normally catch a tiredness message."), then start the journey: ${opening}`,
     afterHook: (opening) => `then go straight to the everyday moment where the journey starts (${opening}) and follow it in the order it happens`,
     body: (stages) => [
       `Follow the subject through this video's stages (${stages.join(", ")}) in the order they happen, a sentence or two per stage, folding small steps together. Never skip a step a later one depends on.`,
@@ -315,14 +334,16 @@ Assign the research's stages, in the order they happen, to consecutive parts. ${
       ],
     },
   },
-  hookStrategies: ["counterintuitive-fact", "hidden-journey", "surprising-speed-or-scale", "everyday-moment-twist", "what-you-never-see"],
+  hookStrategies: ["shocking-inside-fact", "counterintuitive-fact", "hidden-journey", "surprising-speed-or-scale", "what-you-never-see"],
   storyEditor:
     'You are the story editor of a "What happens when…" channel. From the verified research below, decide how this moment is best told in one short vertical video. The facts and their order are fixed; you choose emphasis.',
-  hookIntro:
-    'You write opening lines for a "What happens when…" short video. The opening has one or two seconds to make a scrolling viewer recognise the everyday moment and need to know what is really going on.',
+  hookIntro: `You write opening lines for a "What happens when…" short video. The opening has one or two seconds to stop a scrolling thumb, so it lands the most shocking true thing first, as a vivid picture of what is happening inside you (or inside the pipe, the machine, the network) right now.
+The model to beat: "Inside your brain, caffeine occupies spots that normally catch a tiredness message." It names a hidden place, the thing there, and what it is doing, and it makes the viewer go "wait, what?" without a single hype word.`,
   hookRules: [
-    "starts from the everyday moment or from the surprise itself, so a viewer knows in a second what this is about, and is concise: at most two short sentences, under 20 words;",
-    'talks to the viewer ("you", "your") and may be one short, genuine question this video answers (never "we", "I", "Did you know" or "Have you ever wondered");',
+    `leads with the shock itself, not a setup: a hidden place, the thing there, and what it is doing, in concrete words ("Inside your brain…", "Under your street…", "Two seconds after you tap…"); at most two short sentences, under 20 words;`,
+    'talks to the viewer ("you", "your"); a statement is usually stronger, but it may be one short, genuine question this video answers (never "we", "I", "Did you know" or "Have you ever wondered");',
+    `never vague teasers ("You won't believe…", "Something strange happens…") and never hype words: the fact does the work;`,
+    "firstFrameVisual: the person (or the toilet, the bag, the card) seen from outside, cut away to show the exact inside place the line is about, with the glowing subject there; the camera dives into it.",
   ],
   hookConnection: "About what really happens, not a gimmick.",
 
@@ -330,12 +351,12 @@ Assign the research's stages, in the order they happen, to consecutive parts. ${
     intro: 'You are an independent fact-checker and editor for a "What happens when…" explainer video.',
     temporal: "stages told out of the order they really happen (an opening that previews the surprising moment is intended).",
     clarity: "a viewer would be confused about what is being followed, where it is now, or what is happening to it.",
-    tone: `hype, exaggeration, drama, fear, opinions, medical advice, brand names, "we" or "I", or more than one question. Talking to the viewer with "you" is intended. Also mentioning parts or videos, or announcing what comes next.`,
+    tone: `hype, exaggeration, drama, fear, opinions, medical advice, brand names, "we" or "I", or more than one question. Talking to the viewer with "you" is intended. One or two deadpan asides (e.g. "Your brain has no idea it's been tricked.") are intended too: flag a joke only if it is a pun, mean, gross or crude, there are more than two, or it states something the research doesn't support as fact. Playful personification ("your brain thinks…") is a figure of speech, not a claim. Also mentioning parts or videos, or announcing what comes next.`,
     looseOpeningNote: "",
   },
   attention: {
     intro:
-      'You are an independent editor checking whether a short "What happens when…" video holds an ordinary viewer\'s attention. You did not write it. Facts are checked separately; never suggest adding a fact or number the research doesn\'t contain, and never suggest hype, drama or superlatives.',
+      'You are an independent editor checking whether a short "What happens when…" video holds an ordinary viewer\'s attention. You did not write it. Facts are checked separately; never suggest adding a fact or number the research doesn\'t contain, and never suggest hype, drama or superlatives. An opening that sets up instead of landing the most shocking true thing in its first line is a weak opening.',
     slowStart: "the narration lingers before the journey begins.",
     stall: "two or more sentences in a row where the subject doesn't move or change (definitions, background, caveats), so there is nothing new to see.",
   },
@@ -349,13 +370,15 @@ Assign the research's stages, in the order they happen, to consecutive parts. ${
       "The subject the video follows is in every shot after the opening: the brightest thing, easy to spot. Say in imagePrompt what it is, where it is and what it is doing.",
       'The "you" character looks the same in every shot it appears in (heroLook). Never more than three people in a shot.',
     ],
-    motion: "slow-zoom-in to go deeper inside, pan to follow the subject along a path (a pipe, the bloodstream, a belt), slow-zoom-out to reveal the bigger picture, still for a result.",
+    motion: "dive-in for shot 1 only (a fast dive into the inside), slow-zoom-in to go deeper inside, pan to follow the subject along a path (a pipe, the bloodstream, a belt), slow-zoom-out to reveal the bigger picture, still for a result.",
     stepLabel: `where the subject is or what is happening to it now, 2–4 plain words in sentence case, shown on screen (e.g. "Into your stomach", "Under the street", "Reaching the brain"). Consecutive shots of one stage use exactly the same words; a new label only when the journey moves on. A shot that previews a later moment (an opening hook) takes the label of the moment it shows.`,
-    firstShot: "the single most surprising picture its narration allows, close and simple, the glowing subject at its most striking moment.",
+    firstShot:
+      "the person (or the toilet, the bag, the card reader) seen from outside, cut away to reveal the exact inside place the opening line is about, with the glowing subject there. Its motionPreset is dive-in: the camera dives into that spot.",
+    firstShotMotion: "Shot 1's motionPreset is dive-in, so the camera dives into the inside place the opening line is about.",
     onScreen: {
       part1: "the question or surprise the video answers",
       later: "the most surprising thing this video shows",
-      examples: `the everyday thing first, e.g. "Where does your flush *go*?" or "Coffee doesn't *wake* you up"`,
+      examples: `the shock in plain words, e.g. "Caffeine is *blocking* your brain" or "Your flush travels *miles*"`,
     },
   },
   soundEffects: ["gulp", "heartbeat", "flow", "drip", "flush", "whoosh", "beep", "electric", "crowd", "hiss", "pour", "conveyor", "machine", "clunk", "spray", "bubbling"],
