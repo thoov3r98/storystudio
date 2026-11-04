@@ -62,12 +62,12 @@ export const ILLUSTRATION_STYLES = {
   "invisible-cutaway": {
     label: "Cutaway: the invisible made visible",
     description:
-      "Friendly cartoon cutaways and x-ray views that open up bodies, pipes, walls and machines; the hidden thing the video follows glows in one bright cyan.",
+      "Friendly cartoon scenes, with cutaway and x-ray views where something physical is hidden (a body, a wall, the ground); a hidden thing the video follows glows in one bright cyan.",
     spec: [
-      "Clean, friendly flat cartoon illustration in the style of a modern science-explainer channel, made to show what normally can't be seen.",
-      "Cutaway and x-ray views: open up whatever hides the action (a body, a wall, a pipe, the ground, a machine, a card reader) with a neat cross-section edge, so the inside is plainly visible right next to the familiar outside.",
-      "The hidden subject the episode follows (molecules, a signal, water, a bag on a belt, a nerve message, data) is drawn as simple bold shapes in one bright accent colour, electric cyan (#16C7E8), with a soft glow. It is the brightest thing in every image and the eye goes to it first; its path may show as a short glowing dotted trail.",
-      "Everything else in a calm, muted palette: soft warm greys, pale blues and gentle skin and organ tones, with thick, consistent dark navy (#1E2A3A) outlines. Anatomy and machinery are simplified and friendly, never gory and never medical-textbook realistic.",
+      "Clean, friendly flat cartoon illustration in the style of a modern explainer channel.",
+      "Draw the real people, places and objects of the moment. Only when the action is physically hidden inside something (a body, a wall, the ground) open it up with a neat cross-section edge, so the inside is plainly visible next to the familiar outside; never invent machines, pipes, conveyors or gears to stand for an idea.",
+      "When the scene does follow a hidden physical subject (molecules, water, a nerve message), it is drawn as simple bold shapes in one bright accent colour, electric cyan (#16C7E8), with a soft glow, the brightest thing in the image; its path may show as a short glowing dotted trail. Otherwise use the cyan only as a small highlight on the most important thing.",
+      "Everything else in a calm, muted palette: soft warm greys, pale blues and gentle skin tones, with thick, consistent dark navy (#1E2A3A) outlines. Anatomy is simplified and friendly, never gory and never medical-textbook realistic.",
       "People are simple rounded cartoon figures with bean-shaped bodies, dot eyes and expressive poses; at most three figures, one clear action, and the main subject large enough to fill most of the frame.",
       "Light off-white (#F7F6F2) background. Flat colour everywhere except the accent's soft glow; no photorealism, no 3D-render look, no heavy shading, no logos, no text, labels, letters, numbers or captions anywhere in the image.",
     ].join(" "),

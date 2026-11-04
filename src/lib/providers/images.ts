@@ -51,6 +51,7 @@ export function buildImagePrompt(input: {
     `COMPOSITION: ${input.scene.composition}. ${IMAGE_SHAPES[input.shape ?? "square"].safeArea}`,
     input.scene.objects.length ? `KEY OBJECTS: ${input.scene.objects.join(", ")}` : "",
     input.shot ? "Draw exactly the moment of THIS MOMENT, true to the episode facts and continuity." : "",
+    "Show real people, places and things as the narration describes them; never add invented machines, conveyors, pipes or gears to stand for an idea.",
     input.shot
       ? "Keep the STYLE's palette and light background in every shot. Show time of day and weather with small cues only (sun position, a pale tint in the sky, lit windows, long shadows, falling snow); never wash the whole image in a colour."
       : "",

@@ -53,6 +53,7 @@ STEP 3 — scenes: cut the narration into ${minScenes}–${maxScenes} shots, in 
 ${w.storyboard.shots.map((x) => `- ${x}`).join("\n")}
 - Shot 1 is the first frame a scrolling viewer sees: ${w.storyboard.firstShot}
 - Each shot is one single picture of one moment: never two views, a before-and-after, an inset or a comparison in one image.
+- Draw what the narration literally talks about. Never invent machines, conveyors, pipes, gears, tubes or control panels to stand for an idea, a rule or a decision; only draw machinery the narration itself describes.
 - characters: leave empty unless a named character is visible.
 - imagePrompt: one or two specific sentences: what is happening, to what, where, and what it looks like at this moment. Subject only: no art-style words, no text, labels, numbers, dials with readings, or brand names.
 - continuity: what must be true in this shot, including how the subject looks at this stage.
