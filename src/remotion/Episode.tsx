@@ -312,7 +312,15 @@ export const Episode: React.FC<EpisodeProps> = (props) => {
         </Sequence>
       ) : null}
       {props.showCaptions ? <Captions captions={props.captions} layout={props.layout} /> : null}
-      <Audio src={props.voiceoverUrl} volume={props.voiceVolume} playbackRate={props.voicePlaybackRate} />
+      {props.voiceClips.length ? (
+        props.voiceClips.map((clip, i) => (
+          <Sequence key={`voice-${i}`} from={clip.fromFrame} durationInFrames={Math.max(1, Math.ceil(clip.sourceFrames / props.voicePlaybackRate))} name={`Voice ${i + 1}`} layout="none">
+            <Audio src={props.voiceoverUrl} volume={props.voiceVolume} playbackRate={props.voicePlaybackRate} trimBefore={clip.trimBefore} durationInFrames={clip.sourceFrames} />
+          </Sequence>
+        ))
+      ) : (
+        <Audio src={props.voiceoverUrl} volume={props.voiceVolume} playbackRate={props.voicePlaybackRate} />
+      )}
       {props.music ? <Audio src={props.music.url} volume={props.music.volume} loop /> : null}
     </AbsoluteFill>
   );

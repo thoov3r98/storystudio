@@ -1,5 +1,5 @@
 import { type ImageShape, VIDEO } from "@/lib/constants";
-import { msToFrames, type EpisodeTiming } from "@/lib/timing";
+import { msToFrames, pauseTrimmedClips, trimmedTime, type EpisodeTiming } from "@/lib/timing";
 import type { EpisodeProps } from "@/remotion/schema";
 
 const DEFAULT_FOCUS = { x: 0.5, y: 0.45 };
@@ -39,6 +39,8 @@ export function buildEpisodeProps(input: {
   showCaptions?: boolean;
   /** Narration playback rate; stored timing is for 1×, so it is compressed to match. */
   narrationSpeed?: number;
+  /** Longest pause kept between words (ms); longer ones are cut down to it. Omitted: pauses play as recorded. */
+  maxPauseMs?: number | null;
   /** Series title, part label and band colour. Omitted → legacy full-frame layout. */
   bands?: { seriesTitle: string; partLabel: string; accentColor: string } | null;
   /** The version's art: square art gets the square layout, landscape art the bands layout. */
@@ -46,9 +48,11 @@ export function buildEpisodeProps(input: {
 }): EpisodeProps {
   const fps = VIDEO.fps;
   const speed = input.narrationSpeed ?? 1;
-  // Narration time is compressed; the silent tail after the narration keeps its length.
+  // Long pauses are cut out and the narration is sped up; the silent tail after it keeps its length.
   const speechEndMs = Math.max(0, input.timing.totalDurationMs - VIDEO.tailMs);
-  const at = (ms: number) => (ms <= speechEndMs ? ms / speed : speechEndMs / speed + (ms - speechEndMs));
+  const clips = input.maxPauseMs ? pauseTrimmedClips(input.timing.words, speechEndMs, input.maxPauseMs) : [{ startMs: 0, endMs: speechEndMs }];
+  const narrated = (ms: number) => trimmedTime(clips, ms) / speed;
+  const at = (ms: number) => (ms <= speechEndMs ? narrated(ms) : narrated(speechEndMs) + (ms - speechEndMs));
   const durationInFrames = Math.max(1, msToFrames(at(input.timing.totalDurationMs), fps));
   const scenes = input.scenes.map((scene) => {
     const t = input.timing.scenes.find((s) => s.sceneNumber === scene.sceneNumber);
@@ -75,6 +79,12 @@ export function buildEpisodeProps(input: {
     voiceoverUrl: input.voiceoverUrl,
     voiceVolume: input.voiceVolume,
     voicePlaybackRate: speed,
+    // Source frames are unaffected by the playback rate; each clip starts where the previous one ends.
+    voiceClips: clips.map((c) => ({
+      fromFrame: msToFrames(at(c.startMs), fps),
+      trimBefore: msToFrames(c.startMs, fps),
+      sourceFrames: Math.max(1, msToFrames(c.endMs, fps) - msToFrames(c.startMs, fps)),
+    })),
     music: input.music,
     sfxVolume: input.sfxVolume ?? 0,
     hookText,

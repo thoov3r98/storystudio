@@ -27,7 +27,8 @@ export const EpisodeActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("regenerate-image"), sceneNumbers: z.array(z.number().int()).min(1) }),
   z.object({ action: z.literal("regenerate-voiceover") }),
   /** At the script gate, `acceptOpenNotes` is the producer's explicit override of non-blocking issues. */
-  z.object({ action: z.literal("render"), acceptOpenNotes: z.boolean().optional() }),
+  /** `rerender`: render again with the current settings even if no picture or voiceover changed; nothing is regenerated. */
+  z.object({ action: z.literal("render"), acceptOpenNotes: z.boolean().optional(), rerender: z.boolean().optional() }),
 ]);
 
 export const EpisodeJobPayloadSchema = z.object({
@@ -76,7 +77,7 @@ async function assertScriptApproved(episodeId: string, acceptOpenNotes: boolean)
  * stage whose artifact is already present and current. This is what makes
  * retries resume instead of restarting, and keeps regeneration minimal.
  */
-async function produceDownstream(episodeId: string, jobId: string, cost: CostContext, deps: PipelineDeps) {
+async function produceDownstream(episodeId: string, jobId: string, cost: CostContext, deps: PipelineDeps, opts: { rerender?: boolean } = {}) {
   await assertScriptApproved(episodeId, false);
   const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId } });
   const versionId = episode.currentVersionId;
@@ -118,11 +119,15 @@ async function produceDownstream(episodeId: string, jobId: string, cost: CostCon
     hasTiming: Boolean(v.timing),
     latestSucceededRender: latest ? { inputs: latest.inputs as { voiceoverId: string; imageIds: Record<string, string> } } : null,
   });
-  if (staleness.renderMissing || staleness.renderOutdated) {
+  // A re-render picks up changed settings (pauses, speed, volumes, music), which the inputs don't record.
+  if (opts.rerender || staleness.renderMissing || staleness.renderOutdated) {
     await setJobStage(jobId, "RENDERING_VIDEO", "Rendering video", 0.8);
     await renderVersion({ versionId, jobId, cost, client: deps.render(), sound: deps.sound });
     // The posting text is a convenience: a failure is logged, and it can be written again from the episode page.
-    await writePostCopy({ versionId, cost, deps }).catch((err) => console.warn(`Post text not written: ${String((err as Error)?.message ?? err)}`));
+    // The script hasn't changed on a re-render, so existing text is kept.
+    if (!(opts.rerender && v.postCopy)) {
+      await writePostCopy({ versionId, cost, deps }).catch((err) => console.warn(`Post text not written: ${String((err as Error)?.message ?? err)}`));
+    }
   } else {
     await db.episode.update({ where: { id: episodeId }, data: { status: "READY" } });
     await refreshStoryStatus(episode.storyId);
@@ -211,7 +216,7 @@ export async function runEpisodeJob(payload: EpisodeJobPayload, deps: PipelineDe
     }
     case "render": {
       await assertScriptApproved(episode.id, req.acceptOpenNotes ?? false);
-      return produceDownstream(episode.id, jobId, cost, deps);
+      return produceDownstream(episode.id, jobId, cost, deps, { rerender: req.rerender });
     }
   }
 }

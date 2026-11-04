@@ -294,6 +294,25 @@ describe.skipIf(!url)("production pipeline (integration)", () => {
     expect(f.render.renders[1]).toMatchObject({ sounds: 12, music: true });
   });
 
+  it("re-renders with the current settings without regenerating anything", async () => {
+    const { episodeId } = await crayonStory();
+    const f = fakeDeps();
+    await writeScripts(episodeId, f.deps);
+    await approveScript(episodeId, f.deps);
+    const counts = { images: f.images.count, speech: f.speech.count, text: { ...f.text.calls } };
+
+    // A plain render with nothing changed makes no new MP4; an explicit re-render does.
+    await approveScript(episodeId, f.deps);
+    expect(f.render.renders).toHaveLength(1);
+    await runEpisodeJob({ jobId: (await newJob({ type: "RENDER", episodeId })).id, episodeId, continueProduction: true, request: { action: "render", rerender: true } }, f.deps);
+
+    expect(f.render.renders).toHaveLength(2);
+    expect(f.images.count).toBe(counts.images);
+    expect(f.speech.count).toBe(counts.speech);
+    expect(f.text.calls).toEqual(counts.text); // post text kept, nothing rewritten
+    expect((await db.episode.findUniqueOrThrow({ where: { id: episodeId } })).status).toBe("READY");
+  });
+
   it("forks a new version instead of editing an approved one", async () => {
     const { episodeId } = await crayonStory();
     const f = fakeDeps();

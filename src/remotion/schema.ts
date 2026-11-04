@@ -9,6 +9,10 @@ export const EpisodePropsSchema = z.object({
   voiceoverUrl: z.string().url(),
   voiceVolume: z.number().min(0).max(2),
   voicePlaybackRate: z.number().min(1).max(1.5).default(1),
+  /** The voiceover as clips played back to back, with long pauses cut out. Empty: the whole file plays once. */
+  voiceClips: z
+    .array(z.object({ fromFrame: z.number().int().nonnegative(), trimBefore: z.number().int().nonnegative(), sourceFrames: z.number().int().positive() }))
+    .default([]),
   music: z.object({ url: z.string().url(), volume: z.number().min(0).max(1) }).nullable(),
   sfxVolume: z.number().min(0).max(1).default(0),
   /** Shown in place of the series title over the first `hookFrames`; "*word*" is highlighted. Empty: the title shows from the start. */

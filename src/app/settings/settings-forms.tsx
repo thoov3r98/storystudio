@@ -124,6 +124,19 @@ export function SettingsForms(props: {
             Speeds the narration up in the video without raising its pitch; scenes and captions stay in sync. Overall pace ≈ {(vs.speed * mix.narrationSpeed).toFixed(2)}× a normal
             voice. New scripts are written longer to keep the target length; existing episodes just need a re-render.
           </p>
+          <SliderField
+            label="Longest pause"
+            value={mix.maxPauseMs}
+            onChange={(v) => setMix({ ...mix, maxPauseMs: v })}
+            min={100}
+            max={1500}
+            step={50}
+            format={(v) => (v >= 1500 ? "As recorded" : `${(v / 1000).toFixed(2)} s`)}
+          />
+          <p className="-mt-2 text-xs text-muted-foreground">
+            The voice pauses up to a second between sentences. Pauses longer than this are cut down to it in the video; scenes and captions stay in sync. Existing episodes just need a
+            re-render.
+          </p>
           <SliderField label="Voiceover volume" value={mix.voiceVolume} onChange={(v) => setMix({ ...mix, voiceVolume: v })} min={0} max={2} step={0.05} format={(v) => `${Math.round(v * 100)}%`} />
           <SliderField label="Background music volume" value={mix.musicVolume} onChange={(v) => setMix({ ...mix, musicVolume: v })} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} />
           <SliderField label="Sound effects volume" value={mix.sfxVolume} onChange={(v) => setMix({ ...mix, sfxVolume: v })} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} />

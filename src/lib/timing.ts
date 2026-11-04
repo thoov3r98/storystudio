@@ -152,6 +152,43 @@ export function buildEpisodeTiming(input: {
   };
 }
 
+/** A stretch of the voiceover to play, in milliseconds of the original audio. */
+export type VoiceClip = { startMs: number; endMs: number };
+
+/**
+ * The stretches of voiceover to keep so no pause between words runs longer than `maxPauseMs`
+ * (and the lead-in silence is at most half that). Each long pause is cut from its middle, so a
+ * word's tail and the breath into the next word stay intact. Played back to back, in order.
+ */
+export function pauseTrimmedClips(words: { startMs: number; endMs: number }[], audioEndMs: number, maxPauseMs: number): VoiceClip[] {
+  const half = maxPauseMs / 2;
+  const clips: VoiceClip[] = [];
+  let start = words.length ? Math.max(0, words[0].startMs - half) : 0;
+  for (let i = 1; i < words.length; i++) {
+    if (words[i].startMs - words[i - 1].endMs <= maxPauseMs) continue;
+    clips.push({ startMs: start, endMs: words[i - 1].endMs + half });
+    start = words[i].startMs - half;
+  }
+  clips.push({ startMs: start, endMs: Math.max(start, audioEndMs) });
+  return clips;
+}
+
+/** Where a moment of the original audio lands once the clips play back to back. A moment inside a cut lands at the cut. */
+export function trimmedTime(clips: VoiceClip[], ms: number): number {
+  let out = 0;
+  for (const c of clips) {
+    if (ms <= c.startMs) return out;
+    if (ms <= c.endMs) return out + (ms - c.startMs);
+    out += c.endMs - c.startMs;
+  }
+  return out + (ms - (clips.at(-1)?.endMs ?? 0));
+}
+
+/** How long a voiceover lasts once its pauses are trimmed. */
+export function trimmedDurationMs(words: { startMs: number; endMs: number }[], audioEndMs: number, maxPauseMs: number): number {
+  return pauseTrimmedClips(words, audioEndMs, maxPauseMs).reduce((t, c) => t + (c.endMs - c.startMs), 0);
+}
+
 export function msToFrames(ms: number, fps: number): number {
   return Math.round((ms / 1000) * fps);
 }

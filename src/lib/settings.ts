@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { DEFAULT_PRICING, type Pricing, PricingSchema } from "@/lib/costs/pricing";
 import { QUALITY_PRESETS } from "@/lib/constants";
+import { trimmedDurationMs } from "@/lib/timing";
 import type { Quality } from "@/generated/prisma/enums";
 
 export const VoiceSchema = z.object({
@@ -30,6 +31,8 @@ export const AudioMixSchema = z.object({
   musicAssetId: z.string().nullable().default(null),
   /** Render-time narration speed-up on top of ElevenLabs' own speed (which caps at 1.2×). Pitch is preserved. */
   narrationSpeed: z.number().min(1).max(1.5).default(1),
+  /** Longest pause kept between words in the video (ms); the voice's longer pauses are cut down to it at render. */
+  maxPauseMs: z.number().min(100).max(1500).default(250),
 });
 export type AudioMix = z.infer<typeof AudioMixSchema>;
 
@@ -95,17 +98,20 @@ export async function getModels(): Promise<Models> {
 }
 
 /** Measured narration rate for a voice, from previously generated voiceovers. */
-export async function voiceWordsPerSecond(voiceId: string): Promise<number | null> {
+/** The voice's pace as it plays in the video: measured from recent voiceovers, with pauses trimmed to `maxPauseMs` as the render does. */
+export async function voiceWordsPerSecond(voiceId: string, maxPauseMs?: number | null): Promise<number | null> {
   const recent = await db.voiceover.findMany({
     where: { voiceId, status: "SUCCEEDED", durationMs: { not: null } },
     orderBy: { createdAt: "desc" },
     take: 10,
-    select: { text: true, durationMs: true },
+    select: { text: true, durationMs: true, words: true },
   });
   const rates = recent
     .map((v) => {
       const words = v.text.trim().split(/\s+/).length;
-      return v.durationMs ? words / (v.durationMs / 1000) : 0;
+      const timed = Array.isArray(v.words) ? (v.words as { startMs: number; endMs: number }[]) : [];
+      const ms = maxPauseMs && timed.length && v.durationMs ? trimmedDurationMs(timed, v.durationMs, maxPauseMs) : v.durationMs;
+      return ms ? words / (ms / 1000) : 0;
     })
     .filter((r) => r > 1 && r < 5);
   if (rates.length === 0) return null;

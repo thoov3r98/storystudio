@@ -208,12 +208,20 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
               <div className="flex flex-wrap gap-2">
                 <EpisodeActionButton
                   episodeId={episode.id}
-                  request={{ action: "render" }}
+                  request={latestRender ? { action: "render", rerender: true } : { action: "render" }}
                   disabled={busy || !staleness?.readyToRender}
-                  label={latestRender ? "Re-render MP4" : "Render MP4"}
+                  label={latestRender ? "Re-render with current settings" : "Render MP4"}
                   size="sm"
+                  confirm={
+                    latestRender
+                      ? "Makes a new MP4 from the same pictures, voiceover and script, using today's Settings → Audio mix (longest pause, speed, volumes, music). Nothing is regenerated; only the render costs anything. The old MP4 stays in Render history."
+                      : undefined
+                  }
                 />
               </div>
+              {latestRender ? (
+                <p className="text-xs text-muted-foreground">Changed a setting like pause length or speed? Re-render to apply it; pictures and voice are reused.</p>
+              ) : null}
               {v.renders.length ? (
                 <details className="text-xs text-muted-foreground">
                   <summary className="cursor-pointer">Render history ({v.renders.length})</summary>

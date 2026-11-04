@@ -5,6 +5,7 @@ import type { EpisodeDraft } from "@/lib/schemas/episode";
 import { estimateEpisodeCost, estimateIdeationCost } from "@/lib/costs/estimate";
 import { DEFAULT_PRICING, textCost } from "@/lib/costs/pricing";
 import { countWords, estimateSpokenDuration } from "@/lib/text";
+import { pauseTrimmedClips, trimmedDurationMs, trimmedTime } from "@/lib/timing";
 import { buildEpisodeProps, hookDurationMs, imageFocus } from "@/lib/pipeline/render-props";
 import { postCopyIssues } from "@/lib/pipeline/post";
 import { hookWords } from "@/remotion/Episode";
@@ -169,6 +170,64 @@ describe("buildEpisodeProps", () => {
     expect(props).toMatchObject({ durationInFrames: 123, voicePlaybackRate: 1.25 });
     expect(props.scenes[1]).toMatchObject({ startFrame: 48, durationInFrames: 75 });
     expect(props.captions[0].words[1]).toMatchObject({ startMs: 1200, endMs: 1600 });
+  });
+
+  it("cuts long pauses down to the longest allowed, keeping scenes, captions and audio in step", () => {
+    // "One." (0–500) · 1000ms pause · "Two." (1500–2000) · 200ms pause · "Three." (2200–3000)
+    const words = [
+      { text: "One.", startMs: 0, endMs: 500, charStart: 0, charEnd: 4 },
+      { text: "Two.", startMs: 1500, endMs: 2000, charStart: 5, charEnd: 9 },
+      { text: "Three.", startMs: 2200, endMs: 3000, charStart: 10, charEnd: 16 },
+    ];
+    expect(pauseTrimmedClips(words, 3000, 250)).toEqual([
+      { startMs: 0, endMs: 625 },
+      { startMs: 1375, endMs: 3000 },
+    ]);
+    expect(trimmedTime(pauseTrimmedClips(words, 3000, 250), 1500)).toBe(750); // "Two." now starts 250ms after "One." ends
+    expect(trimmedTime(pauseTrimmedClips(words, 3000, 250), 1000)).toBe(625); // inside the cut → at the cut
+    expect(trimmedDurationMs(words, 3000, 250)).toBe(2250);
+
+    const props = buildEpisodeProps({
+      scenes: [
+        { sceneNumber: 1, imageUrl: "https://x.test/1.png", motionPreset: "still" },
+        { sceneNumber: 2, imageUrl: "https://x.test/2.png", motionPreset: "still" },
+      ],
+      timing: {
+        audioDurationMs: 3000,
+        speechEndMs: 3000,
+        totalDurationMs: 3900,
+        scenes: [
+          { sceneNumber: 1, startMs: 0, endMs: 1500 },
+          { sceneNumber: 2, startMs: 1500, endMs: 3900 },
+        ],
+        words,
+        captions: [{ text: "Two.", startMs: 1500, endMs: 2000, words: [{ text: "Two.", startMs: 1500, endMs: 2000 }] }],
+      },
+      voiceoverUrl: "https://x.test/vo.mp3",
+      voiceVolume: 1,
+      music: null,
+      maxPauseMs: 250,
+    });
+    // 2250ms of narration + 900ms tail = 3150ms = 95 frames (was 117).
+    expect(props.durationInFrames).toBe(95);
+    expect(props.scenes[1].startFrame).toBe(23); // 750ms
+    expect(props.captions[0]).toMatchObject({ startMs: 750, endMs: 1250 });
+    expect(props.voiceClips).toEqual([
+      { fromFrame: 0, trimBefore: 0, sourceFrames: 19 },
+      { fromFrame: 19, trimBefore: 41, sourceFrames: 49 },
+    ]);
+  });
+
+  it("plays the whole voiceover as one clip when pauses aren't trimmed", () => {
+    const props = buildEpisodeProps({
+      scenes: [{ sceneNumber: 1, imageUrl: "https://x.test/1.png", motionPreset: "still" }],
+      timing: { audioDurationMs: 3000, speechEndMs: 3000, totalDurationMs: 3900, scenes: [{ sceneNumber: 1, startMs: 0, endMs: 3900 }], words: [], captions: [] },
+      voiceoverUrl: "https://x.test/vo.mp3",
+      voiceVolume: 1,
+      music: null,
+    });
+    expect(props.voiceClips).toEqual([{ fromFrame: 0, trimBefore: 0, sourceFrames: 90 }]);
+    expect(props.durationInFrames).toBe(117);
   });
 });
 

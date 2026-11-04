@@ -18,6 +18,7 @@ const sample: EpisodeProps = {
   voiceoverUrl: "https://example.com/voiceover.mp3",
   voiceVolume: 1,
   voicePlaybackRate: 1,
+  voiceClips: [],
   music: null,
   sfxVolume: 0.3,
   hookText: "Crayons start as *hot liquid*",

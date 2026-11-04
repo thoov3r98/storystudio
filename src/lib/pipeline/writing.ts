@@ -42,8 +42,9 @@ async function loadEpisodeSetup(episodeId: string) {
   const models = await getModels();
   const pricing = await getPricing();
   // The render-time speed-up shortens the video, so scripts are sized for the faster rate.
-  const { narrationSpeed } = await getAudioMix();
-  const wps = ((story.voiceId ? await voiceWordsPerSecond(story.voiceId) : null) ?? DEFAULT_WORDS_PER_SECOND) * narrationSpeed;
+  // Long pauses are trimmed at render too, so scripts are sized for the trimmed pace.
+  const { narrationSpeed, maxPauseMs } = await getAudioMix();
+  const wps = ((story.voiceId ? await voiceWordsPerSecond(story.voiceId, maxPauseMs) : null) ?? DEFAULT_WORDS_PER_SECOND) * narrationSpeed;
   return { episode, story, channel: story.channel, guide: channelGuide(story.channel), pricing, wps, ...scriptModels(story.quality, models) };
 }
 

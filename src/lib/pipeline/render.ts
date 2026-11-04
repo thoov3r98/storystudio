@@ -71,6 +71,7 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
     hookSpokenWords: countWords(spec?.process?.creative?.hookLine ?? firstSentence(version.narration)),
     imageShape: imageShape(version.imageShape),
     narrationSpeed: mix.narrationSpeed,
+    maxPauseMs: mix.maxPauseMs,
     bands: {
       seriesTitle: version.episode.story.title,
       // A one-video story has no part pill.
