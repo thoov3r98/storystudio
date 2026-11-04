@@ -160,7 +160,9 @@ const TitleBand: React.FC<{
   const stepIn = interpolate(sinceStep, [0, 8], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.out(Easing.cubic) });
   // Long series names step down in size so they fit in at most three lines.
   const bigTitle = title.length > 48 ? 60 : title.length > 30 ? 70 : 84;
-  const stepSize = (step?.label.length ?? 0) > 22 ? 58 : 70;
+  // With a step line under it, the title stays the big text but leaves room for the step.
+  const titleWithStep = title.length > 48 ? 52 : title.length > 30 ? 60 : 68;
+  const stepSize = (step?.label.length ?? 0) > 22 ? 36 : 42;
   return (
     <div
       style={{
@@ -182,18 +184,17 @@ const TitleBand: React.FC<{
       {showHook ? (
         <HookText text={hookText} endFrame={hookFrames} />
       ) : step ? (
-        <div style={{ opacity: after, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-          <div style={{ color: "rgba(255,255,255,0.78)", fontWeight: 800, fontSize: 38, lineHeight: 1.1 }}>{title}</div>
+        <div style={{ opacity: after, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+          <div style={{ color: "#FFFFFF", fontWeight: 900, fontSize: titleWithStep, lineHeight: 1.05, textShadow: "0 4px 0 rgba(0,0,0,0.28)", textWrap: "balance" }}>{title}</div>
           <div
             style={{
-              color: "#FFFFFF",
-              fontWeight: 900,
+              color: "rgba(255,255,255,0.85)",
+              fontWeight: 800,
               fontSize: stepSize,
-              lineHeight: 1.05,
-              textShadow: "0 4px 0 rgba(0,0,0,0.28)",
+              lineHeight: 1.1,
               textWrap: "balance",
               opacity: stepIn,
-              transform: `translateY(${(1 - stepIn) * 18}px)`,
+              transform: `translateY(${(1 - stepIn) * 12}px)`,
             }}
           >
             {step.label}
