@@ -8,8 +8,8 @@ import { Progress } from "@/components/ui/progress";
 import { EpisodeStatusBadge, Money, PageHeader, PageSkeleton, Section, StoryStatusBadge, Thumb, relativeTime } from "@/components/studio";
 import { AutoRefresh } from "@/components/client-helpers";
 import { getStory } from "@/lib/queries";
-import { JOB_STATUS_LABELS } from "@/lib/constants";
-import { ResearchRecordSchema } from "@/lib/schemas/process";
+import { ACTIVE_JOB_STATUSES, JOB_STATUS_LABELS } from "@/lib/constants";
+import { countWords } from "@/lib/text";
 import { downloadUrl, previewUrl } from "@/lib/urls";
 import { ApproveEpisodeButton, MetricsDialog, PublishDialog, StoryHeaderActions } from "./story-client";
 
@@ -28,8 +28,9 @@ async function StoryContent({ params }: { params: PageProps<"/stories/[storyId]"
   const data = await getStory(storyId);
   if (!data) notFound();
   const { story, costs } = data;
-  const research = ResearchRecordSchema.safeParse(story.research);
-  const activeJobs = story.episodes.flatMap((e) => e.jobs);
+  const storyboard = story.jobs[0];
+  const storyboarding = storyboard && ACTIVE_JOB_STATUSES.includes(storyboard.status) ? storyboard : null;
+  const activeJobs = [...story.episodes.flatMap((e) => e.jobs), ...(storyboarding ? [storyboarding] : [])];
   const totalCost = costs.reduce((a, c) => a + c.usd, 0);
 
   return (
@@ -52,13 +53,13 @@ async function StoryContent({ params }: { params: PageProps<"/stories/[storyId]"
           </span>
         }
         title={story.title}
-        description={story.premise}
+        description={story.sourceScript ? (story.plannedParts > 1 ? `${story.plannedParts} videos from your script` : "One video from your script") : undefined}
         actions={<StoryHeaderActions storyId={story.id} title={story.title} archived={story.status === "ARCHIVED"} />}
       />
 
       <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
         <StoryStatusBadge status={story.status} />
-        <span>{story.targetDurationSec}s episodes</span>
+        <span>≈ {story.targetDurationSec}s each</span>
         <span>Created {story.createdAt.toLocaleDateString()}</span>
         <span>Active {relativeTime(story.lastActivityAt)}</span>
         <span>
@@ -69,6 +70,22 @@ async function StoryContent({ params }: { params: PageProps<"/stories/[storyId]"
       <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="space-y-10">
           <Section title="Episodes" description="In chronological order.">
+            {storyboarding ? (
+              <div className="mb-3 space-y-1 rounded-xl border bg-card p-4">
+                <div className="text-xs text-muted-foreground">
+                  {JOB_STATUS_LABELS[storyboarding.status]} — {storyboarding.stage}
+                </div>
+                <Progress value={storyboarding.progress * 100} />
+              </div>
+            ) : storyboard?.status === "FAILED" ? (
+              <div className="mb-3 rounded-xl border border-red-200 bg-red-50/60 p-4 text-sm text-red-800">
+                Storyboarding failed: {(storyboard.error as { message?: string } | null)?.message ?? "unknown error"}.{" "}
+                <Link href="/jobs?status=failed" className="underline">
+                  Retry it on the Jobs page
+                </Link>
+                ; finished parts are kept.
+              </div>
+            ) : null}
             <div className="space-y-3">
               {story.episodes.map((e) => {
                 const v = e.currentVersion;
@@ -86,12 +103,12 @@ async function StoryContent({ params }: { params: PageProps<"/stories/[storyId]"
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Part {e.partNumber}</span>
                           <EpisodeStatusBadge status={e.status} />
-                          {v ? <span className="text-xs text-muted-foreground">script v{v.version}</span> : null}
+                          {v ? <span className="text-xs text-muted-foreground">v{v.version} · {v.wordCount} words · ~{Math.round(v.estimatedDurationSec)}s</span> : null}
                         </div>
                         <Link href={`/episodes/${e.id}`} className="block font-medium hover:underline">
                           {e.title}
                         </Link>
-                        {v ? <p className="line-clamp-3 text-sm text-muted-foreground">{v.summary}</p> : <p className="text-sm text-muted-foreground">No script yet.</p>}
+                        {v ? <p className="line-clamp-3 text-sm text-muted-foreground">{v.summary}</p> : <p className="line-clamp-3 text-sm text-muted-foreground">{e.script ?? "Waiting to be storyboarded."}</p>}
                         {job ? (
                           <div className="space-y-1">
                             <div className="text-xs text-muted-foreground">
@@ -148,27 +165,17 @@ async function StoryContent({ params }: { params: PageProps<"/stories/[storyId]"
         </div>
 
         <div className="space-y-10">
-          <Section title="Research" description={research.success ? `Gathered ${new Date(research.data.researchedAt).toLocaleDateString()}. Every script is written and fact-checked from it.` : undefined}>
-            <div className="rounded-xl border bg-card p-5 text-sm">
-              {research.success ? (
-                <div className="space-y-3">
-                  <p>{research.data.overview}</p>
-                  {research.data.mainRoute ? <p className="text-muted-foreground">Main route: {research.data.mainRoute}</p> : null}
-                  <ol className="ml-4 list-decimal space-y-1 text-xs text-muted-foreground">
-                    {research.data.sources.map((src) => (
-                      <li key={src.n}>
-                        <a href={src.url} target="_blank" rel="noreferrer" className="underline">
-                          {src.title}
-                        </a>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              ) : (
-                <p className="text-muted-foreground">Not researched yet. Writing Part 1 researches the product first.</p>
-              )}
-            </div>
-          </Section>
+          {story.sourceScript ? (
+            <Section title="Your script" description={`${countWords(story.sourceScript)} words, exactly as pasted.`}>
+              <div className="rounded-xl border bg-card p-5 text-sm">
+                <details>
+                  <summary className="cursor-pointer font-medium">Show the script</summary>
+                  <p className="mt-2 whitespace-pre-line leading-relaxed">{story.sourceScript}</p>
+                </details>
+                {story.visualNotes ? <p className="mt-3 text-xs text-muted-foreground">Notes for the pictures: {story.visualNotes}</p> : null}
+              </div>
+            </Section>
+          ) : null}
 
           <Section title="Production costs" description="Estimated from configured pricing and recorded usage.">
             <div className="rounded-xl border bg-card p-4 text-sm">

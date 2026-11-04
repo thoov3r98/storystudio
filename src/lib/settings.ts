@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { DEFAULT_PRICING, type Pricing, PricingSchema } from "@/lib/costs/pricing";
 import { QUALITY_PRESETS } from "@/lib/constants";
 import { trimmedDurationMs } from "@/lib/timing";
+import { DEFAULT_WORDS_PER_SECOND } from "@/lib/text";
 import type { Quality } from "@/generated/prisma/enums";
 
 export const VoiceSchema = z.object({
@@ -37,8 +38,6 @@ export const AudioMixSchema = z.object({
 export type AudioMix = z.infer<typeof AudioMixSchema>;
 
 export const DefaultsSchema = z.object({
-  /** Spending ceiling for pitching one batch of ideas. Style, length and quality are set per channel. */
-  maxBatchBudgetUsd: z.number().default(25),
   /** Check each illustration against its line and redraw it once if it is wrong. */
   imageCheck: z.boolean().default(true),
   useStyleReferences: z.boolean().default(true),
@@ -80,12 +79,10 @@ export async function getDefaults(): Promise<Defaults> {
 }
 
 export const ModelsSchema = z.object({
-  /** Writes concepts, outlines and scripts. */
+  /** Splits and storyboards pasted scripts. */
   main: z.string().trim().min(1),
-  /** Scores concepts; Draft quality writes and checks with it too. */
+  /** Checks images and writes post text; Draft quality storyboards with it too. */
   fast: z.string().trim().min(1),
-  /** Fact-checks scripts against the research. Defaults to the main model; a different model or family gives a more independent read. */
-  reviewer: z.string().trim().optional(),
   image: z.string().trim().min(1),
   speech: z.string().trim().min(1),
 });
@@ -118,11 +115,14 @@ export async function voiceWordsPerSecond(voiceId: string, maxPauseMs?: number |
   return rates.reduce((a, b) => a + b, 0) / rates.length;
 }
 
-/** Who writes and who checks a script. Checking decides quality, so it uses the strongest model except at Draft quality. */
-export function scriptModels(quality: Quality, models: Models): { writer: string; reviewer: string } {
-  const preset = QUALITY_PRESETS[quality];
-  return {
-    writer: preset.writerModel === "main" ? models.main : models.fast,
-    reviewer: quality === "DRAFT" ? models.fast : models.reviewer?.trim() || models.main,
-  };
+/** The model that splits and storyboards pasted scripts: the main model except at Draft quality. */
+export function storyboardModel(quality: Quality, models: Models): string {
+  return QUALITY_PRESETS[quality].writerModel === "main" ? models.main : models.fast;
+}
+
+/** Words per second as the video plays: the voice's measured pace (pauses trimmed as the render does), sped up by the render's narration speed. */
+export async function playbackWordsPerSecond(voiceId: string | null | undefined): Promise<number> {
+  const mix = await getAudioMix();
+  const measured = voiceId ? await voiceWordsPerSecond(voiceId, mix.maxPauseMs) : null;
+  return (measured ?? DEFAULT_WORDS_PER_SECOND) * mix.narrationSpeed;
 }

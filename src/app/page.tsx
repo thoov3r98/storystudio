@@ -13,7 +13,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="Dashboard"
-        description="Scripts waiting for you, and everything currently in production."
+        description="Videos waiting for your review, and everything currently in production."
         actions={
           <Button asChild size="lg">
             <Link href="/generate">
@@ -30,7 +30,7 @@ export default function DashboardPage() {
 }
 
 async function DashboardContent() {
-  const { stats, recentStories, recentRenders, scriptsToReview } = await getDashboard();
+  const { stats, recentStories, recentRenders, videosToReview } = await getDashboard();
   return (
     <div className="space-y-10">
       <AutoRefresh active={stats.activeJobs > 0} intervalMs={8000} />
@@ -44,10 +44,10 @@ async function DashboardContent() {
         <StatCard label="Spend (est.)" value={<Money value={stats.spendUsd} />} icon={CircleDollarSign} hint="From configured pricing" />
       </div>
 
-      {scriptsToReview.length ? (
-        <Section title={`Scripts to review (${scriptsToReview.length})`} description="Each one is written and waiting. Nothing is spent on images, narration or rendering until you approve it.">
+      {videosToReview.length ? (
+        <Section title={`Videos to review (${videosToReview.length})`} description="Rendered and waiting for you. Watch, fix any shot, then approve.">
           <ul className="divide-y rounded-xl border bg-card">
-            {scriptsToReview.map((e) => (
+            {videosToReview.map((e) => (
               <li key={e.id}>
                 <Link href={`/episodes/${e.id}`} className="flex flex-col gap-1 p-4 hover:bg-muted/50 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
                   <div className="min-w-0">
@@ -75,7 +75,7 @@ async function DashboardContent() {
         {recentStories.length === 0 ? (
           <EmptyState
             title="No stories yet"
-            description="Pitch ideas for a channel to start your library. Pitching costs a few cents."
+            description="Paste a script to make your first videos."
             action={
               <Button asChild>
                 <Link href="/generate">Make videos</Link>

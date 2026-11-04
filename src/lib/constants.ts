@@ -1,26 +1,5 @@
 import type { JobStatus, Quality, StoryStatus } from "@/generated/prisma/enums";
 
-export const TARGET_DURATIONS = [30, 45, 60, 75, 90] as const;
-export type TargetDuration = (typeof TARGET_DURATIONS)[number];
-
-/** Approximate spoken words for a duration at a conversational ~2.3 words/second, before voice calibration. */
-export function targetWordRange(durationSec: number, wordsPerSecond = 2.3): [number, number] {
-  const center = durationSec * wordsPerSecond;
-  return [Math.round(center * 0.88), Math.round(center * 1.02)];
-}
-
-export const SCENE_COUNT_RANGE: Record<TargetDuration, [number, number]> = {
-  30: [5, 8],
-  45: [6, 10],
-  60: [8, 12],
-  75: [10, 15],
-  90: [12, 17],
-};
-
-export function sceneCountRange(durationSec: number): [number, number] {
-  return SCENE_COUNT_RANGE[durationSec as TargetDuration] ?? [10, 15];
-}
-
 /**
  * Global illustration style specifications. Every image prompt is built from
  * one of these, so the look stays consistent across scenes and episodes.
@@ -186,11 +165,11 @@ export const MUSIC_BED_MS = 90_000;
 
 export const QUALITY_PRESETS: Record<
   Quality,
-  { label: string; description: string; writerModel: "main" | "fast"; reviewerModel: "main" | "fast"; imageQuality: "low" | "medium" | "high" }
+  { label: string; description: string; writerModel: "main" | "fast"; imageQuality: "low" | "medium" | "high" }
 > = {
-  DRAFT: { label: "Draft", description: "Fast model, low-quality images. For trying ideas.", writerModel: "fast", reviewerModel: "fast", imageQuality: "low" },
-  STANDARD: { label: "Standard", description: "Main model writes and checks, medium images.", writerModel: "main", reviewerModel: "main", imageQuality: "medium" },
-  PREMIUM: { label: "Premium", description: "Main model everywhere, high-quality images.", writerModel: "main", reviewerModel: "main", imageQuality: "high" },
+  DRAFT: { label: "Draft", description: "Fast model storyboards, low-quality images. For trying things out.", writerModel: "fast", imageQuality: "low" },
+  STANDARD: { label: "Standard", description: "Main model storyboards, medium images.", writerModel: "main", imageQuality: "medium" },
+  PREMIUM: { label: "Premium", description: "Main model storyboards, high-quality images.", writerModel: "main", imageQuality: "high" },
 };
 
 export const STORY_STATUS_LABELS: Record<StoryStatus, string> = {
@@ -204,9 +183,7 @@ export const STORY_STATUS_LABELS: Record<StoryStatus, string> = {
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   QUEUED: "Queued",
-  GENERATING_IDEAS: "Generating ideas",
-  EVALUATING_CONCEPTS: "Evaluating concepts",
-  WRITING_STORY: "Writing story",
+  STORYBOARDING: "Storyboarding",
   GENERATING_SCENES: "Generating scenes",
   GENERATING_ILLUSTRATIONS: "Generating illustrations",
   GENERATING_VOICEOVER: "Generating voiceover",
@@ -220,9 +197,7 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
 
 export const ACTIVE_JOB_STATUSES: JobStatus[] = [
   "QUEUED",
-  "GENERATING_IDEAS",
-  "EVALUATING_CONCEPTS",
-  "WRITING_STORY",
+  "STORYBOARDING",
   "GENERATING_SCENES",
   "GENERATING_ILLUSTRATIONS",
   "GENERATING_VOICEOVER",

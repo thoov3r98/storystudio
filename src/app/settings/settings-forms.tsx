@@ -209,14 +209,8 @@ export function SettingsForms(props: {
         </Card>
       </Section>
 
-      <Section title="Defaults" description="Used by the pipeline. Style, length and quality are set on each channel.">
+      <Section title="Defaults" description="Used by the pipeline. Voice, style and quality are set on each channel.">
         <Card>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Budget per pitch batch (USD)</Label>
-              <Input type="number" min={1} value={defaults.maxBatchBudgetUsd} onChange={(e) => setDefaults({ ...defaults, maxBatchBudgetUsd: Number(e.target.value) })} />
-            </div>
-          </div>
           <div className="flex items-center justify-between gap-4">
             <div>
               <Label htmlFor="refs">Use style reference images</Label>

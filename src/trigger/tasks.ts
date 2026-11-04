@@ -1,9 +1,9 @@
 import { AbortTaskRunError, logger, schemaTask } from "@trigger.dev/sdk";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { runTrackedJob } from "@/lib/jobs";
-import { runChannelIdeation, runTopicDiscovery } from "@/lib/pipeline/channels";
 import { EpisodeJobPayloadSchema, runEpisodeJob } from "@/lib/pipeline/produce";
+import { runScriptJob, ScriptJobPayloadSchema } from "@/lib/pipeline/paste";
+import { enqueueEpisodeJob } from "@/lib/enqueue";
 import { productionDeps } from "@/lib/pipeline/deps";
 import { refreshStoryStatus } from "@/lib/pipeline/versions";
 import { BudgetExceededError } from "@/lib/costs/record";
@@ -26,37 +26,30 @@ function isPermanent(err: unknown): boolean {
     err instanceof BudgetExceededError ||
     err instanceof MissingConfigError ||
     err instanceof StructuredOutputError ||
-    (err instanceof Error && ["ScriptGateError", "StoryQualityError", "ApprovalBlockedError", "JobCanceledError"].includes(err.name))
+    (err instanceof Error && ["ApprovalBlockedError", "JobCanceledError"].includes(err.name))
   );
 }
 
-export const ideateBatchTask = schemaTask({
-  id: "ideate-batch",
-  schema: z.object({ jobId: z.string(), batchId: z.string() }),
+export const scriptJobTask = schemaTask({
+  id: "script-job",
+  schema: ScriptJobPayloadSchema,
   maxDuration: 900,
   retry: { maxAttempts: 2 },
-  run: async ({ jobId, batchId }, { ctx }) => {
+  run: async (payload, { ctx }) => {
     try {
-      // Pitches for a channel; the producer picks one, and only then is a script written.
-      return await runTrackedJob(jobId, ctx.run.id, () => runChannelIdeation({ batchId, jobId, deps: productionDeps }));
+      // Split and storyboard (finished parts are kept on retry), then every part goes straight on to its video.
+      const result = await runTrackedJob(payload.jobId, ctx.run.id, () => runScriptJob(payload, productionDeps));
+      if (!result) return result;
+      for (const episodeId of result.episodeIds) {
+        const episode = await db.episode.findUnique({ where: { id: episodeId }, select: { status: true } });
+        if (episode?.status !== "SCRIPTED") continue;
+        await enqueueEpisodeJob({ episodeId, continueProduction: true, request: { action: "render" }, fromTask: true }).catch((err) =>
+          logger.warn("Production not queued", { episodeId, error: err instanceof Error ? err.message : String(err) }),
+        );
+      }
+      return result;
     } catch (err) {
       if (isPermanent(err)) throw new AbortTaskRunError(err instanceof Error ? err.message : String(err));
-      throw err;
-    }
-  },
-});
-
-export const discoverTopicsTask = schemaTask({
-  id: "discover-topics",
-  schema: z.object({ jobId: z.string(), channelId: z.string() }),
-  maxDuration: 600,
-  retry: { maxAttempts: 2 },
-  run: async ({ jobId, channelId }, { ctx }) => {
-    try {
-      // Saved candidates are kept on retry, so a retry never pays for the same ideas twice.
-      return await runTrackedJob(jobId, ctx.run.id, () => runTopicDiscovery({ channelId, jobId, deps: productionDeps }));
-    } catch (err) {
-      if (isPermanent(err) || (err instanceof Error && err.name === "EmptyLibraryError")) throw new AbortTaskRunError(err instanceof Error ? err.message : String(err));
       throw err;
     }
   },

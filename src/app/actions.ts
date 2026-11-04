@@ -4,42 +4,25 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { cancelJob, enqueueEpisodeJob, enqueueIdeation, enqueueTopicDiscovery, retryJob } from "@/lib/enqueue";
-import { ILLUSTRATION_STYLES, TARGET_DURATIONS } from "@/lib/constants";
+import { cancelJob, enqueueEpisodeJob, enqueueScriptJob, retryJob } from "@/lib/enqueue";
+import { ILLUSTRATION_STYLES } from "@/lib/constants";
 import { PricingSchema } from "@/lib/costs/pricing";
 import {
   AudioMixSchema,
   DefaultsSchema,
-  getDefaults,
   getVoices,
   ModelsSchema,
   VoiceSchema,
   VoiceSettingsSchema,
   writeSetting,
 } from "@/lib/settings";
-import { approveEpisode as approve, ensureEditableVersion, forkVersion, refreshStoryStatus } from "@/lib/pipeline/versions";
+import { approveEpisode as approve, editHeadline, editScene, ensureEditableVersion, forkVersion, refreshStoryStatus } from "@/lib/pipeline/versions";
 import { listElevenLabsVoices } from "@/lib/providers/speech";
 import { normalizeTitle } from "@/lib/text";
-import { conceptFromCandidate, createChannelFromBrief, PITCHES_SHOWN, storyFromPitch } from "@/lib/pipeline/channels";
-import {
-  addMetricObservation,
-  addStarterReferences,
-  createReference,
-  deleteMetricObservation,
-  deleteReference,
-  fetchVideoMetadata,
-  type ImportedMetadata,
-  importReferenceMetadata,
-  recordOwnVideo,
-  updateReference,
-} from "@/lib/topics/references";
-import type { MetricInput, ReferenceInput } from "@/lib/schemas/topics";
-import { CHANNEL_FORMATS, type ChannelFormat, ChannelEditSchema } from "@/lib/schemas/channel";
-import { writingStyle } from "@/lib/ai/writing-styles";
+import { ChannelCreateSchema, ChannelEditSchema } from "@/lib/schemas/channel";
 import { productionDeps } from "@/lib/pipeline/deps";
 import { writePostCopy } from "@/lib/pipeline/post";
-import type { EpisodeSpecRecord } from "@/lib/schemas/episode";
-import { withDismissal } from "@/lib/process/review";
+import { createStoryFromScript, type ScriptInput } from "@/lib/pipeline/paste";
 
 export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -56,13 +39,13 @@ async function attempt<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
 
 // ───────────────────────────── Channels ─────────────────────────────
 
-/** Designs a channel of the chosen kind from the producer's prompt, then opens it to review and edit. */
-export async function createChannel(brief: string, format: string = "PROCESS_EXPLAINER"): Promise<ActionResult<{ channelId: string }>> {
+/** Sets up a channel: its kind of video, voice, art style, quality and storyboard rules. */
+export async function createChannel(input: unknown): Promise<ActionResult<{ channelId: string }>> {
   let channelId = "";
   const result = await attempt(async () => {
-    const text = z.string().trim().min(10, "Describe the channel in a sentence or two.").max(3000).parse(brief);
-    const kind = z.enum(Object.keys(CHANNEL_FORMATS) as [ChannelFormat, ...ChannelFormat[]], { message: "Choose what kind of channel this is." }).parse(format);
-    const channel = await createChannelFromBrief({ brief: text, format: kind, deps: productionDeps });
+    const data = ChannelCreateSchema.parse(input);
+    if (!(data.styleKey in ILLUSTRATION_STYLES)) throw new Error("Unknown illustration style.");
+    const channel = await db.channel.create({ data });
     channelId = channel.id;
     return { channelId };
   });
@@ -73,7 +56,6 @@ export async function createChannel(brief: string, format: string = "PROCESS_EXP
 export async function updateChannel(channelId: string, input: unknown) {
   return attempt(async () => {
     const data = ChannelEditSchema.parse(input);
-    if (!(TARGET_DURATIONS as readonly number[]).includes(data.targetDurationSec)) throw new Error(`Duration must be one of ${TARGET_DURATIONS.join(", ")} seconds.`);
     if (!(data.styleKey in ILLUSTRATION_STYLES)) throw new Error("Unknown illustration style.");
     await db.channel.update({ where: { id: channelId }, data });
   });
@@ -85,125 +67,22 @@ export async function setChannelArchived(channelId: string, archived: boolean) {
   });
 }
 
-// ───────────────────────────── Generate ─────────────────────────────
+// ───────────────────────────── Make videos ─────────────────────────────
 
-/** Pitches ideas for a channel from the producer's idea, or fresh ones when `idea` is empty ("Surprise me"). */
-export async function pitchIdeas(channelId: string, idea: string | null): Promise<ActionResult<{ batchId: string }>> {
-  let batchId = "";
-  const result = await attempt(async () => {
-    const text = z.string().trim().max(2000).nullable().parse(idea) || null;
-    const channel = await db.channel.findUniqueOrThrow({ where: { id: channelId } });
-    if (channel.archivedAt) throw new Error("This channel is archived.");
-    const voiceId = channel.voiceId ?? (await getVoices())[0]?.id;
-    if (!voiceId) throw new Error("Add a narrator voice in Settings first.");
-    const batch = await db.batch.create({
-      data: {
-        customDirection: text,
-        requestedCount: PITCHES_SHOWN,
-        targetDurationSec: channel.targetDurationSec,
-        styleKey: channel.styleKey,
-        voiceId,
-        quality: channel.quality,
-        maxBudgetUsd: (await getDefaults()).maxBatchBudgetUsd.toFixed(2),
-        channelId: channel.id,
-      },
-    });
-    batchId = batch.id;
-    await enqueueIdeation(batch.id);
-    return { batchId };
-  });
-  if (result.ok) redirect(`/batches/${batchId}`);
-  return result;
-}
-
-/** The producer picks a pitch: it becomes a story and every part's script is written (each stops at the script gate). */
-export async function writePitch(conceptId: string): Promise<ActionResult<{ storyId: string }>> {
+/** The producer's script becomes a story of `parts` videos: split, storyboarded, illustrated, voiced and rendered. */
+export async function createFromScript(input: ScriptInput): Promise<ActionResult<{ storyId: string }>> {
   let storyId = "";
   const result = await attempt(async () => {
-    const story = await storyFromPitch(conceptId);
+    const channel = await db.channel.findUniqueOrThrow({ where: { id: input.channelId } });
+    if (!channel.voiceId && !(await getVoices())[0]) throw new Error("Add a narrator voice in Settings first.");
+    if (!channel.voiceId) await db.channel.update({ where: { id: channel.id }, data: { voiceId: (await getVoices())[0].id } });
+    const story = await createStoryFromScript(input);
     storyId = story.id;
-    const part1 = await db.episode.findFirstOrThrow({ where: { storyId: story.id, partNumber: 1 } });
-    if (part1.status === "DRAFT" && !part1.currentVersionId) {
-      await enqueueEpisodeJob({ episodeId: part1.id, continueProduction: true, request: { action: "produce" } });
-    }
+    await enqueueScriptJob({ storyId, hook: input.hook?.trim() || null, titleLocked: Boolean(input.title?.trim()) });
     return { storyId };
   });
   if (result.ok) redirect(`/stories/${storyId}`);
   return result;
-}
-
-// ───────────────────────────── Topic research ─────────────────────────────
-
-export async function createReferenceAction(input: ReferenceInput, metrics?: MetricInput | null) {
-  return attempt(async () => {
-    const ref = await createReference(input);
-    if (metrics) await addMetricObservation(ref.id, metrics);
-    return { id: ref.id };
-  });
-}
-
-export async function updateReferenceAction(id: string, input: ReferenceInput) {
-  return attempt(async () => void (await updateReference(id, input)));
-}
-
-export async function deleteReferenceAction(id: string) {
-  return attempt(() => deleteReference(id));
-}
-
-export async function addMetricAction(referenceId: string, input: MetricInput) {
-  return attempt(async () => void (await addMetricObservation(referenceId, input)));
-}
-
-export async function deleteMetricAction(id: string) {
-  return attempt(() => deleteMetricObservation(id));
-}
-
-/** Reads title and creator (and, with a YouTube API key, verified numbers) from the platform for a saved reference. */
-export async function importReferenceAction(id: string) {
-  return attempt(async () => {
-    const meta = await importReferenceMetadata(id);
-    return { method: meta.method, metrics: Boolean(meta.metrics) };
-  });
-}
-
-/** Fills the add form from a link via the platform's official endpoint. Nothing is saved. */
-export async function previewVideoMetadata(url: string): Promise<ActionResult<ImportedMetadata | null>> {
-  try {
-    return { ok: true, data: await fetchVideoMetadata(z.string().trim().url().parse(url)) };
-  } catch (err) {
-    return { ok: false, error: err instanceof z.ZodError ? "Enter a valid URL." : err instanceof Error ? err.message : String(err) };
-  }
-}
-
-export async function addStarterReferencesAction() {
-  return attempt(async () => ({ added: await addStarterReferences() }));
-}
-
-export async function discoverTopicsAction(channelId: string) {
-  return attempt(async () => {
-    const channel = await db.channel.findUniqueOrThrow({ where: { id: channelId }, select: { format: true, name: true } });
-    if (!writingStyle(channel.format).topicDiscovery) throw new Error(`Topic research uses the manufacturing video library, so it only works for How It's Made channels. Use Make Videos → Surprise me for ${channel.name}.`);
-    return { jobId: await enqueueTopicDiscovery(channelId) };
-  });
-}
-
-export async function setTopicStatus(candidateId: string, status: "APPROVED" | "REJECTED" | "PROPOSED") {
-  return attempt(async () => {
-    const value = z.enum(["APPROVED", "REJECTED", "PROPOSED"]).parse(status);
-    const c = await db.manufacturingTopicCandidate.findUniqueOrThrow({ where: { id: candidateId } });
-    if (c.status === "USED" || c.status === "DUPLICATE") throw new Error("This topic can't be changed.");
-    await db.manufacturingTopicCandidate.update({ where: { id: candidateId }, data: { status: value } });
-  });
-}
-
-/** An approved topic goes into the normal production pipeline: its story is created and its scripts written. */
-export async function makeVideoFromTopic(candidateId: string): Promise<ActionResult<{ storyId: string }>> {
-  let conceptId = "";
-  const made = await attempt(async () => {
-    conceptId = await conceptFromCandidate(candidateId);
-  });
-  if (!made.ok) return made;
-  return writePitch(conceptId);
 }
 
 // ───────────────────────────── Stories ─────────────────────────────
@@ -282,8 +161,6 @@ export async function addMetrics(episodeId: string, input: z.input<typeof Metric
     const cleaned = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== "" && v !== undefined && v !== null));
     const data = MetricsSchema.parse(cleaned);
     await db.performanceMetric.create({ data: { episodeId, ...data } });
-    // Our own published videos become evidence for topic discovery too.
-    await recordOwnVideo(episodeId, data);
   });
 }
 
@@ -291,7 +168,7 @@ export async function addMetrics(episodeId: string, input: z.input<typeof Metric
 export async function writePostCopyAction(episodeId: string) {
   return attempt(async () => {
     const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId } });
-    if (!episode.currentVersionId) throw new Error("This episode has no script yet.");
+    if (!episode.currentVersionId) throw new Error("This part hasn't been storyboarded yet.");
     await writePostCopy({ versionId: episode.currentVersionId, cost: { storyId: episode.storyId, episodeId }, deps: productionDeps });
   });
 }
@@ -307,26 +184,31 @@ export async function runEpisodeAction(episodeId: string, request: EpisodeReques
   });
 }
 
-// ───────────────────────────── Script checks ───────────────────────────
-
-/** The producer judges a flagged issue to be wrong. Recorded (it counts as a false positive) and the gate is re-evaluated. */
-export async function dismissScriptIssue(versionId: string, issueId: string, note: string) {
+/** The producer's edit of one shot's words and picture. Saves a new version, then makes only what changed and a new MP4. */
+export async function editSceneAction(episodeId: string, sceneNumber: number, edit: { narration: string; imagePrompt: string }) {
   return attempt(async () => {
-    const version = await db.episodeVersion.findUniqueOrThrow({ where: { id: versionId }, include: { episode: true } });
-    if (version.episode.currentVersionId !== versionId) throw new Error("This is not the current script version.");
-    const spec = version.spec as EpisodeSpecRecord;
-    if (!spec.quality) throw new Error("This script has no checks to dismiss.");
-    const quality = withDismissal(spec.quality, issueId, z.string().max(500).parse(note ?? ""));
-    await db.episodeVersion.update({ where: { id: versionId }, data: { spec: { ...spec, quality }, qualityStatus: quality.status } });
+    const data = z.object({ narration: z.string().max(2000), imagePrompt: z.string().max(2000) }).parse(edit);
+    await assertNotArchived(episodeId);
+    const { changed } = await editScene(episodeId, z.number().int().parse(sceneNumber), data);
+    if (changed) await enqueueEpisodeJob({ episodeId, continueProduction: true, request: { action: "render" } });
+    return { changed };
   });
 }
 
-/** The producer's own 1–5 rating of a script. */
-export async function rateScript(versionId: string, rating: number | null) {
+/** The producer's own title and on-screen hook text. A new MP4 is rendered with them; nothing else is regenerated. */
+export async function editHeadlineAction(episodeId: string, edit: { title: string; onScreenHook: string }) {
   return attempt(async () => {
-    const value = rating === null ? null : z.number().int().min(1).max(5).parse(rating);
-    await db.episodeVersion.update({ where: { id: versionId }, data: { humanRating: value } });
+    const data = z.object({ title: z.string().max(200), onScreenHook: z.string().max(80) }).parse(edit);
+    await assertNotArchived(episodeId);
+    const { changed } = await editHeadline(episodeId, data);
+    if (changed) await enqueueEpisodeJob({ episodeId, continueProduction: true, request: { action: "render" } });
+    return { changed };
   });
+}
+
+async function assertNotArchived(episodeId: string) {
+  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { story: true } });
+  if (episode.story.status === "ARCHIVED") throw new Error("Unarchive the story first.");
 }
 
 /** Makes a previous image of a scene current again (forks a locked version first). */
@@ -345,7 +227,9 @@ export async function restoreVersion(episodeId: string, versionId: string) {
     const v = await db.episodeVersion.findUniqueOrThrow({ where: { id: versionId } });
     if (v.episodeId !== episodeId) throw new Error("Version does not belong to this episode.");
     await forkVersion(versionId, { reason: `restore-v${v.version}`, keepVoiceover: true });
-    await db.episode.update({ where: { id: episodeId }, data: { status: "SCRIPTED" } });
+    // A restored version needs rendering (and approving) again; the page offers "Render now".
+    const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId } });
+    if (episode.status === "APPROVED" || episode.status === "PUBLISHED") await db.episode.update({ where: { id: episodeId }, data: { status: "READY" } });
   });
 }
 

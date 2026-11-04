@@ -1,11 +1,9 @@
 import { db } from "@/lib/db";
+import { firstSentence } from "@/lib/script";
+import { playbackWordsPerSecond } from "@/lib/settings";
 import { countWords, estimateSpokenDuration, joinNarration } from "@/lib/text";
 
 type SceneOverride = { narration?: string; imagePrompt?: string; composition?: string; dropImage?: boolean };
-
-function firstSentence(text: string): string {
-  return (/^.*?[.!?](?=\s|$)/.exec(text.trim())?.[0] ?? text.trim()).trim();
-}
 
 /**
  * Copies a version into a new DRAFT version. Scenes keep their current images
@@ -17,10 +15,12 @@ export async function forkVersion(
 ): Promise<string> {
   const source = await db.episodeVersion.findUniqueOrThrow({
     where: { id: versionId },
-    include: { scenes: { orderBy: { sceneNumber: "asc" } } },
+    include: { scenes: { orderBy: { sceneNumber: "asc" } }, episode: { include: { story: { select: { voiceId: true } } } } },
   });
+  const wps = await playbackWordsPerSecond(source.episode.story.voiceId);
   const scenes = source.scenes.map((s) => {
     const o = opts.sceneOverrides?.[s.sceneNumber];
+    const narrationEdited = o?.narration !== undefined && o.narration !== s.narration;
     return {
       sceneNumber: s.sceneNumber,
       narration: o?.narration ?? s.narration,
@@ -29,7 +29,7 @@ export async function forkVersion(
       continuity: s.continuity,
       characters: s.characters,
       objects: s.objects,
-      intendedDurationSec: s.intendedDurationSec,
+      intendedDurationSec: narrationEdited ? estimateSpokenDuration(o.narration!, wps) : s.intendedDurationSec,
       motionPreset: s.motionPreset,
       soundEffect: s.soundEffect,
       stepLabel: s.stepLabel,
@@ -52,10 +52,8 @@ export async function forkVersion(
         spec,
         narration,
         wordCount: countWords(narration),
-        estimatedDurationSec: narrationChanged ? estimateSpokenDuration(narration) : source.estimatedDurationSec,
+        estimatedDurationSec: narrationChanged ? estimateSpokenDuration(narration, wps) : source.estimatedDurationSec,
         summary: source.summary,
-        // Carried over; a narration edit is re-checked by the caller, which updates it.
-        qualityStatus: source.qualityStatus,
         styleKey: source.styleKey,
         imageShape: source.imageShape,
         voiceoverId: opts.keepVoiceover && !narrationChanged ? source.voiceoverId : null,
@@ -70,12 +68,61 @@ export async function forkVersion(
 }
 
 /**
+ * The producer's own edit of one shot: its words, its picture, or both. Changed words
+ * mean a new voiceover; a changed picture means only that shot is drawn again.
+ */
+export async function editScene(episodeId: string, sceneNumber: number, edit: { narration: string; imagePrompt: string }): Promise<{ changed: boolean }> {
+  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: { include: { scenes: true } } } });
+  const v = episode.currentVersion;
+  if (!v) throw new Error("This part hasn't been storyboarded yet.");
+  const scene = v.scenes.find((s) => s.sceneNumber === sceneNumber);
+  if (!scene) throw new Error(`There is no shot ${sceneNumber}.`);
+  const narration = edit.narration.replace(/\s+/g, " ").trim();
+  const imagePrompt = edit.imagePrompt.trim();
+  if (!narration) throw new Error("A shot needs some narration. To drop its words, add them to the shot before or after it.");
+  if (!imagePrompt) throw new Error("Describe what the picture shows.");
+  const words = narration !== scene.narration;
+  const picture = imagePrompt !== scene.imagePrompt;
+  if (!words && !picture) return { changed: false };
+  await forkVersion(v.id, {
+    reason: `edit-scene-${sceneNumber}`,
+    keepVoiceover: true,
+    sceneOverrides: { [sceneNumber]: { narration, imagePrompt, dropImage: picture } },
+  });
+  await markEdited(episodeId, v.status);
+  return { changed: true };
+}
+
+/** The producer's own title and on-screen hook for a part. Nothing is regenerated; the next render shows them. */
+export async function editHeadline(episodeId: string, edit: { title: string; onScreenHook: string }): Promise<{ changed: boolean }> {
+  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: true } });
+  const v = episode.currentVersion;
+  if (!v) throw new Error("This part hasn't been storyboarded yet.");
+  const title = edit.title.trim();
+  const onScreenHook = edit.onScreenHook.trim();
+  if (!title) throw new Error("Give the video a title.");
+  const spec = v.spec as { title?: string; onScreenHook?: string };
+  if (title === (spec.title ?? episode.title) && onScreenHook === (spec.onScreenHook ?? "")) return { changed: false };
+  await forkVersion(v.id, { reason: "edit-headline", keepVoiceover: true, specPatch: { title, onScreenHook: onScreenHook || undefined } });
+  await db.episode.update({ where: { id: episodeId }, data: { title } });
+  await markEdited(episodeId, v.status);
+  return { changed: true };
+}
+
+/** An edited part needs a new MP4 (and, if it was approved, approving again). */
+async function markEdited(episodeId: string, previousVersionStatus: string) {
+  const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId } });
+  if (previousVersionStatus === "APPROVED" || episode.status === "READY") await db.episode.update({ where: { id: episodeId }, data: { status: "READY" } });
+  await db.story.update({ where: { id: episode.storyId }, data: { lastActivityAt: new Date() } });
+}
+
+/**
  * Returns a version that may be modified. Approved/published versions are
  * locked, so a DRAFT copy is forked (and becomes current) instead.
  */
 export async function ensureEditableVersion(episodeId: string, reason: string): Promise<string> {
   const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: true } });
-  if (!episode.currentVersion) throw new Error("This episode has no script yet.");
+  if (!episode.currentVersion) throw new Error("This part hasn't been storyboarded yet.");
   if (episode.currentVersion.status !== "APPROVED") return episode.currentVersion.id;
   const forked = await forkVersion(episode.currentVersion.id, { reason: `fork-locked:${reason}`, keepVoiceover: true });
   // A changed episode must be re-approved; published state is kept on the episode for history.
@@ -94,7 +141,7 @@ export class ApprovalBlockedError extends Error {
 export async function approvalBlockers(episodeId: string): Promise<string[]> {
   const episode = await db.episode.findUniqueOrThrow({ where: { id: episodeId }, include: { currentVersion: true } });
   const reasons: string[] = [];
-  if (!episode.currentVersion) return ["There is no script to approve."];
+  if (!episode.currentVersion) return ["There is no video to approve."];
   if (episode.partNumber > 1) {
     const earlier = await db.episode.count({ where: { storyId: episode.storyId, partNumber: { lt: episode.partNumber }, status: { notIn: ["APPROVED", "PUBLISHED"] } } });
     if (earlier > 0) reasons.push("Earlier parts must be approved first.");

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useState } from "react";
-import { BookOpen, Cog, LayoutDashboard, ListChecks, Menu, Sparkles, Gauge, Telescope, Tv } from "lucide-react";
+import { BookOpen, Cog, LayoutDashboard, ListChecks, Menu, Sparkles, Tv } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -11,18 +11,15 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/channels", label: "Channels", icon: Tv },
-  { href: "/topics", label: "Topic Research", icon: Telescope },
   { href: "/generate", label: "Make Videos", icon: Sparkles },
   { href: "/stories", label: "Story Library", icon: BookOpen },
   { href: "/jobs", label: "Generation Jobs", icon: ListChecks },
-  { href: "/quality", label: "Script Quality", icon: Gauge },
   { href: "/settings", label: "Settings", icon: Cog },
 ];
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   if (href === "/stories") return pathname.startsWith("/stories") || pathname.startsWith("/episodes");
-  if (href === "/generate") return pathname.startsWith("/generate") || pathname.startsWith("/batches");
   return pathname.startsWith(href);
 }
 

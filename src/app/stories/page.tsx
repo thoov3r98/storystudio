@@ -78,7 +78,7 @@ async function StoriesContent({ searchParams }: { searchParams: PageProps<"/stor
           </select>
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input name="q" defaultValue={q} placeholder="Search title, premise, keyword" className="w-64 max-w-full pl-8" />
+            <Input name="q" defaultValue={q} placeholder="Search title or script" className="w-64 max-w-full pl-8" />
           </div>
           <Button type="submit" variant="outline">
             Search
@@ -102,7 +102,7 @@ async function StoriesContent({ searchParams }: { searchParams: PageProps<"/stor
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="line-clamp-2 font-medium text-balance group-hover:underline">{s.title}</h3>
                 </div>
-                <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">{s.premise}</p>
+                {s.sourceScript ? <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">{s.sourceScript}</p> : null}
                 <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-3 text-xs text-muted-foreground">
                   <StoryStatusBadge status={s.status} />
                   <span>{s.channel?.name ?? "Before channels"}</span>

@@ -13,7 +13,7 @@ import { computeStaleness, type RenderInputs } from "@/lib/invalidation";
 
 export async function getDashboard() {
   await connection();
-  const [stories, openingEpisodes, completedVideos, activeJobs, failedJobs, spend, recentStories, recentRenders, scriptsToReview] = await Promise.all([
+  const [stories, openingEpisodes, completedVideos, activeJobs, failedJobs, spend, recentStories, recentRenders, videosToReview] = await Promise.all([
     db.story.count(),
     db.episode.count({ where: { partNumber: 1 } }),
     db.render.count({ where: { status: "SUCCEEDED" } }),
@@ -27,9 +27,9 @@ export async function getDashboard() {
       take: 6,
       include: { episodeVersion: { include: { episode: { include: { story: { select: { id: true, title: true, thumbnailUrl: true } } } } } } },
     }),
-    // Scripts waiting at the gate, so nothing sits unreviewed.
+    // Finished videos waiting for approval, so nothing sits unreviewed.
     db.episode.findMany({
-      where: { status: "SCRIPTED", currentVersionId: { not: null }, story: { status: { not: "ARCHIVED" } } },
+      where: { status: "READY", currentVersionId: { not: null }, story: { status: { not: "ARCHIVED" } } },
       orderBy: { updatedAt: "desc" },
       take: 20,
       select: { id: true, title: true, partNumber: true, updatedAt: true, story: { select: { title: true } }, currentVersion: { select: { summary: true } } },
@@ -39,7 +39,7 @@ export async function getDashboard() {
     stats: { stories, openingEpisodes, completedVideos, activeJobs, failedJobs, spendUsd: Number(spend._sum.costUsd ?? 0) },
     recentStories,
     recentRenders,
-    scriptsToReview,
+    videosToReview,
   };
 }
 
@@ -65,8 +65,7 @@ export async function listStories(params: { filter?: string; q?: string; channel
         ? {
             OR: [
               { title: { contains: q, mode: "insensitive" } },
-              { premise: { contains: q, mode: "insensitive" } },
-              { keywords: { has: q.toLowerCase() } },
+              { sourceScript: { contains: q, mode: "insensitive" } },
             ],
           }
         : {},
@@ -98,7 +97,8 @@ export async function getStory(storyId: string) {
           jobs: { where: { status: { in: ACTIVE_JOB_STATUSES } }, select: { id: true, status: true, stage: true, progress: true } },
         },
       },
-      concept: true,
+      // The storyboard job runs for the whole story, before any part has a job of its own.
+      jobs: { where: { type: "STORYBOARD" }, orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!story) return null;
@@ -153,27 +153,11 @@ export async function listJobs(params: { status?: string }) {
     include: {
       story: { select: { id: true, title: true } },
       episode: { select: { id: true, partNumber: true, title: true } },
-      batch: { select: { id: true, requestedCount: true } },
     },
   });
   const costs = await db.costEntry.groupBy({ by: ["jobId"], where: { jobId: { in: jobs.map((j) => j.id) } }, _sum: { costUsd: true } });
   const costByJob = new Map(costs.map((c) => [c.jobId, Number(c._sum.costUsd ?? 0)]));
   return jobs.map((j) => ({ ...j, costUsd: costByJob.get(j.id) ?? 0 }));
-}
-
-export async function getBatch(batchId: string) {
-  await connection();
-  const batch = await db.batch.findUnique({
-    where: { id: batchId },
-    include: {
-      concepts: { orderBy: [{ rank: "asc" }, { createdAt: "asc" }], include: { story: { include: { episodes: { where: { partNumber: 1 }, select: { id: true, status: true } } } } } },
-      jobs: { orderBy: { createdAt: "desc" } },
-      channel: { select: { id: true, name: true, format: true } },
-    },
-  });
-  if (!batch) return null;
-  const spend = await db.costEntry.aggregate({ where: { batchId }, _sum: { costUsd: true } });
-  return { batch, spentUsd: Number(spend._sum.costUsd ?? 0) };
 }
 
 export async function storyStatusCounts() {
@@ -197,44 +181,6 @@ export async function getChannel(channelId: string) {
     where: { id: channelId },
     include: {
       stories: { where: { archivedAt: null }, orderBy: { lastActivityAt: "desc" }, take: 30, include: { _count: { select: { episodes: true } } } },
-      batches: { orderBy: { createdAt: "desc" }, take: 8, include: { _count: { select: { concepts: true } } } },
     },
   });
-}
-
-/** Topic Research: the reference library (filtered) and recent proposals with their evidence. */
-export async function getTopicResearch(params: { platform?: string; category?: string; q?: string }) {
-  await connection();
-  const q = params.q?.trim();
-  const where: Prisma.ManufacturingContentReferenceWhereInput = {
-    AND: [
-      params.platform && params.platform !== "all" ? { platform: params.platform } : {},
-      params.category && params.category !== "all" ? { category: params.category } : {},
-      q ? { OR: [{ product: { contains: q, mode: "insensitive" } }, { title: { contains: q, mode: "insensitive" } }, { creator: { contains: q, mode: "insensitive" } }] } : {},
-    ],
-  };
-  const [references, categories, total, candidates, activeJob, channels] = await Promise.all([
-    db.manufacturingContentReference.findMany({ where, orderBy: { updatedAt: "desc" }, include: { metrics: { orderBy: { observedAt: "desc" } } } }),
-    db.manufacturingContentReference.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } }),
-    db.manufacturingContentReference.count(),
-    db.manufacturingTopicCandidate.findMany({
-      where: { batchId: null },
-      orderBy: [{ createdAt: "desc" }],
-      take: 60,
-      include: { evidence: { include: { reference: { include: { metrics: true } } } }, concept: { select: { story: { select: { id: true } } } } },
-    }),
-    db.job.findFirst({ where: { type: "TOPIC_DISCOVERY" }, orderBy: { createdAt: "desc" } }),
-    db.channel.findMany({ where: { archivedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),
-  ]);
-  return { references, categories: categories.map((c) => c.category), total, candidates, activeJob, channels };
-}
-
-/** A story's storytelling decision and every hook written for it. */
-export async function getStorytelling(storyId: string) {
-  await connection();
-  const [decision, hooks] = await Promise.all([
-    db.manufacturingStorytellingDecision.findUnique({ where: { storyId } }),
-    db.manufacturingHookCandidate.findMany({ where: { storyId }, orderBy: [{ createdAt: "desc" }, { rank: "asc" }] }),
-  ]);
-  return { decision, hooks };
 }

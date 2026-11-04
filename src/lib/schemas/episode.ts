@@ -1,7 +1,5 @@
 import { z } from "zod";
 import { MOTION_PRESETS, SOUND_EFFECT_KEYS } from "@/lib/constants";
-import { QualityRecordSchema } from "./quality";
-import { ProcessSpecSchema } from "./process";
 
 export const SceneSpecSchema = z.object({
   sceneNumber: z.number().int(),
@@ -36,12 +34,13 @@ export type VisualState = z.infer<typeof VisualStateSchema>;
 
 export type SceneSpec = z.infer<typeof SceneSpecSchema>;
 
-/** What the writer model returns. Narration, word count and duration are derived by code from the scenes. */
+/** One part's script and storyboard. Narration, word count and duration are derived by code from the scenes. */
 export const EpisodeDraftSchema = z.object({
   title: z.string(),
-  // Written first so the story is told as one continuous piece before it is cut into shots.
-  storyNarration: z.string().describe("The complete voiceover as one continuous, flowing story, written to be read aloud."),
-  selectedHook: z.string().describe("The opening line(s), copied exactly from the start of storyNarration."),
+  /** This part's pasted narration, word for word. */
+  storyNarration: z.string(),
+  /** The opening sentence of storyNarration. */
+  selectedHook: z.string(),
   summary: z.string().describe("3–5 sentence summary of what happens and what is revealed."),
   /** Shown big on screen over the opening seconds. Missing on scripts written before it existed. */
   onScreenHook: z.string().optional(),
@@ -51,19 +50,8 @@ export const EpisodeDraftSchema = z.object({
 
 export type EpisodeDraft = z.infer<typeof EpisodeDraftSchema>;
 
-export const SceneNarrationRewriteSchema = z.object({
-  narration: z.string(),
-  imagePrompt: z.string(),
-  composition: z.string(),
-  rationale: z.string(),
-});
-
 /** The full episode specification stored on each EpisodeVersion. */
 export const EpisodeSpecRecordSchema = EpisodeDraftSchema.omit({ scenes: true }).extend({
-  /** The part plan the script was told from (the research is on the story). */
-  process: ProcessSpecSchema.optional(),
-  /** The record of every check and revision. */
-  quality: QualityRecordSchema.optional(),
   storyId: z.string(),
   partNumber: z.number().int(),
   narration: z.string(),
@@ -73,19 +61,21 @@ export const EpisodeSpecRecordSchema = EpisodeDraftSchema.omit({ scenes: true })
 
 export type EpisodeSpecRecord = z.infer<typeof EpisodeSpecRecordSchema>;
 
-/** The storyboard pass: shots cut from the final narration and the physical facts they respect. */
+/** The storyboard pass: shots cut from the producer's narration and the physical facts they respect. */
 export const SceneBreakdownSchema = z.object({
+  title: z.string().describe("A plain title for this video naming its subject, at most 8 words, e.g. \"How Crayons Are Made\"."),
+  summary: z.string().describe("2–3 plain sentences: what this video shows, for the illustrator's context."),
   onScreenHook: z.string().describe("3–6 words shown big on screen over the first seconds, for viewers watching with the sound off."),
   visualState: VisualStateSchema,
   scenes: z.array(SceneSpecSchema),
 });
 
-/** What the producer pastes when posting a video. Written after it renders; facts only from the script and research. */
+/** What the producer pastes when posting a video. Written after it renders; facts only from the narration. */
 export const PostCopySchema = z.object({
   caption: z.string().describe("The post caption: one or two short, plain sentences, at most 150 characters."),
   hashtags: z.array(z.string()).describe("3–5 hashtags, lowercase, each starting with #."),
   coverSceneNumber: z.number().int().describe("The shot whose picture makes the best cover: the product or material instantly recognisable."),
   coverText: z.string().describe("2–5 words to put on the cover, for the profile grid."),
-  pinnedComment: z.string().describe("A comment to pin: one extra, verified detail from the research that the video doesn't say, in one or two plain sentences."),
+  pinnedComment: z.string().describe("A comment to pin that gets people replying: a short question about what the video shows, in one or two plain sentences, with no new facts."),
 });
 export type PostCopy = z.infer<typeof PostCopySchema>;

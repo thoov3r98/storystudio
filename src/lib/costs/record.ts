@@ -5,10 +5,8 @@ export type CostContext = {
   jobId?: string | null;
   storyId?: string | null;
   episodeId?: string | null;
-  batchId?: string | null;
-  /** Hard ceiling for spend attributed to `budgetScope`. */
+  /** Hard ceiling for the job's spend. */
   budgetUsd?: number | null;
-  budgetScope?: "batch" | "job";
 };
 
 export class BudgetExceededError extends Error {
@@ -35,16 +33,13 @@ export async function recordCost(
       jobId: ctx.jobId ?? null,
       storyId: ctx.storyId ?? null,
       episodeId: ctx.episodeId ?? null,
-      batchId: ctx.batchId ?? null,
     },
   });
 }
 
 export async function spentFor(ctx: CostContext): Promise<number> {
-  const where =
-    ctx.budgetScope === "batch" && ctx.batchId ? { batchId: ctx.batchId } : ctx.jobId ? { jobId: ctx.jobId } : null;
-  if (!where) return 0;
-  const agg = await db.costEntry.aggregate({ where, _sum: { costUsd: true } });
+  if (!ctx.jobId) return 0;
+  const agg = await db.costEntry.aggregate({ where: { jobId: ctx.jobId }, _sum: { costUsd: true } });
   return Number(agg._sum.costUsd ?? 0);
 }
 

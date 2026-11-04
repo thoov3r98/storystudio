@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Loader2, PenLine, Star } from "lucide-react";
+import { Check, Copy, Loader2, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ActionButton, useAction } from "@/components/client-helpers";
-import { dismissScriptIssue, rateScript, restoreVersion, runEpisodeAction, selectSceneImage, writePostCopyAction } from "@/app/actions";
+import { editHeadlineAction, editSceneAction, restoreVersion, runEpisodeAction, selectSceneImage, writePostCopyAction } from "@/app/actions";
 import type { PostCopy } from "@/lib/schemas/episode";
 import { cn } from "@/lib/utils";
 
@@ -49,63 +49,117 @@ export function EpisodeActionButton({
   );
 }
 
-export function RewriteSceneDialog({
+/** The producer's own edit of a shot: its words and what its picture shows. Only what changed is made again. */
+export function EditSceneDialog({
   episodeId,
   sceneNumber,
+  narration,
+  imagePrompt,
   disabled,
-  opening,
-  produced,
+  note,
 }: {
   episodeId: string;
   sceneNumber: number;
+  narration: string;
+  imagePrompt: string;
   disabled?: boolean;
-  opening?: boolean;
-  /** The video has been made before; otherwise the script is still under review and the rewrite stops there. */
-  produced?: boolean;
+  note?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [instruction, setInstruction] = useState("");
-  const [cont, setCont] = useState(Boolean(produced));
+  const [text, setText] = useState(narration);
+  const [prompt, setPrompt] = useState(imagePrompt);
   const { pending, run } = useAction();
+  const wordsChanged = text.replace(/\s+/g, " ").trim() !== narration;
+  const pictureChanged = prompt.trim() !== imagePrompt;
+  const redo = [wordsChanged ? "the voiceover and captions" : "", pictureChanged ? "this picture" : ""].filter(Boolean).join(" and ");
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) {
+          setText(narration);
+          setPrompt(imagePrompt);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="xs" variant="outline" disabled={disabled}>
-          <PenLine /> {opening ? "Rewrite opening" : "Rewrite narration"}
+          <PenLine /> Edit shot
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{opening ? "Rewrite the opening" : `Rewrite scene ${sceneNumber}`}</DialogTitle>
-          <DialogDescription>
-            {produced
-              ? "Creates a new script version and fact-checks it again. The voiceover, timing and captions are regenerated; this scene’s image is regenerated only if its visual changes."
-              : "Creates a new script version and fact-checks it again. Nothing is spent on media until you approve the script."}
-          </DialogDescription>
+          <DialogTitle>Edit shot {sceneNumber}</DialogTitle>
+          <DialogDescription>Saved as a new version, then a new MP4 is made. Only what you change is regenerated.{note}</DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
-          <Label htmlFor={`ins-${sceneNumber}`}>Instruction (optional)</Label>
-          <Textarea id={`ins-${sceneNumber}`} rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} placeholder={opening ? "e.g. Lead with the moment the strip is hardened, in fewer words" : "e.g. Say it more simply and drop the second number"} />
+          <Label htmlFor={`narr-${sceneNumber}`}>Narration</Label>
+          <Textarea id={`narr-${sceneNumber}`} rows={4} value={text} onChange={(e) => setText(e.target.value)} />
         </div>
-        {produced ? (
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <Label htmlFor={`cont-${sceneNumber}`} className="text-sm font-normal">
-              Also make a new MP4 afterwards (if the checks pass)
-            </Label>
-            <Switch id={`cont-${sceneNumber}`} checked={cont} onCheckedChange={setCont} />
-          </div>
-        ) : null}
-        <DialogFooter>
+        <div className="space-y-2">
+          <Label htmlFor={`prompt-${sceneNumber}`}>What the picture shows</Label>
+          <Textarea id={`prompt-${sceneNumber}`} rows={3} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+          <p className="text-xs text-muted-foreground">Describe the subject only; the channel&apos;s art style is added automatically.</p>
+        </div>
+        <DialogFooter className="items-center gap-3 sm:justify-between">
+          <p className="text-xs text-muted-foreground">{redo ? `Regenerates ${redo}.` : "Nothing changed yet."}</p>
           <Button
-            disabled={pending}
+            disabled={pending || !redo}
             onClick={() =>
-              run(() => runEpisodeAction(episodeId, { action: "rewrite-scene", sceneNumber, instruction: instruction.trim() || null }, cont), {
-                success: "Rewrite queued",
-                onSuccess: () => setOpen(false),
-              })
+              run(() => editSceneAction(episodeId, sceneNumber, { narration: text, imagePrompt: prompt }), { success: "Saved; making the new video", onSuccess: () => setOpen(false) })
             }
           >
-            {pending ? <Loader2 className="animate-spin" /> : null} Rewrite
+            {pending ? <Loader2 className="animate-spin" /> : null} Save and remake
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The video's title (on the title band) and the big on-screen text over its opening. */
+export function EditHeadlineDialog({ episodeId, title, onScreenHook, disabled, note }: { episodeId: string; title: string; onScreenHook: string; disabled?: boolean; note?: string }) {
+  const [open, setOpen] = useState(false);
+  const [t, setT] = useState(title);
+  const [hook, setHook] = useState(onScreenHook);
+  const { pending, run } = useAction();
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) {
+          setT(title);
+          setHook(onScreenHook);
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" disabled={disabled}>
+          <PenLine /> Edit title &amp; hook text
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Title and on-screen text</DialogTitle>
+          <DialogDescription>A new MP4 is rendered with them. Pictures and voice are reused.{note}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="edit-title">Title</Label>
+          <Input id="edit-title" value={t} onChange={(e) => setT(e.target.value)} maxLength={200} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-hook">Big text over the opening</Label>
+          <Input id="edit-hook" value={hook} onChange={(e) => setHook(e.target.value)} maxLength={80} placeholder="e.g. Crayons start as *hot liquid*" />
+          <p className="text-xs text-muted-foreground">3–6 words read in a glance. Wrap a word in *asterisks* to highlight it. Leave empty for none.</p>
+        </div>
+        <DialogFooter>
+          <Button
+            disabled={pending || !t.trim()}
+            onClick={() => run(() => editHeadlineAction(episodeId, { title: t, onScreenHook: hook }), { success: "Saved", onSuccess: () => setOpen(false) })}
+          >
+            {pending ? <Loader2 className="animate-spin" /> : null} Save and re-render
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -162,90 +216,6 @@ export function VersionRestoreButton({ episodeId, versionId, disabled }: { episo
     >
       Restore
     </ActionButton>
-  );
-}
-
-/** Dismisses a flagged issue the producer judges to be wrong; it is recorded as a false positive. */
-export function DismissIssueButton({ versionId, issueId }: { versionId: string; issueId: string }) {
-  const [open, setOpen] = useState(false);
-  const [note, setNote] = useState("");
-  const { pending, run } = useAction();
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="xs" variant="ghost">
-          Not a problem
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Dismiss this issue?</DialogTitle>
-          <DialogDescription>Use this when the checker is wrong. It is recorded as a false positive, and the script&apos;s status is re-evaluated.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor={`dismiss-${issueId}`}>Why it&apos;s fine (optional)</Label>
-          <Textarea id={`dismiss-${issueId}`} rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. It's explained in scene 3" />
-        </div>
-        <DialogFooter>
-          <Button
-            disabled={pending}
-            onClick={() => run(() => dismissScriptIssue(versionId, issueId, note.trim()), { success: "Issue dismissed", onSuccess: () => setOpen(false) })}
-          >
-            {pending ? <Loader2 className="animate-spin" /> : null} Dismiss issue
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function ScriptRating({ versionId, rating }: { versionId: string; rating: number | null }) {
-  const { pending, run } = useAction();
-  return (
-    <div className="flex items-center gap-0.5" role="group" aria-label="Your rating">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          aria-label={`${n} star${n === 1 ? "" : "s"}`}
-          aria-pressed={rating === n}
-          disabled={pending}
-          onClick={() => run(() => rateScript(versionId, rating === n ? null : n))}
-          className="rounded p-0.5 text-amber-500 hover:bg-muted disabled:opacity-50"
-        >
-          <Star className={cn("size-5", rating !== null && n <= rating ? "fill-current" : "")} />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** Switch storytelling pattern: new openings from the saved research, and every unproduced part rewritten. */
-export function PatternSwitcher({ episodeId, current, options, disabled }: { episodeId: string; current: string; options: { value: string; label: string }[]; disabled?: boolean }) {
-  const [pattern, setPattern] = useState(options.find((o) => o.value !== current)?.value ?? "");
-  const label = options.find((o) => o.value === pattern)?.label ?? "";
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <select value={pattern} onChange={(e) => setPattern(e.target.value)} className="h-7 rounded-md border bg-background px-2 text-xs" aria-label="Storytelling pattern" disabled={disabled}>
-        {options
-          .filter((o) => o.value !== current)
-          .map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-      </select>
-      <EpisodeActionButton
-        episodeId={episodeId}
-        request={{ action: "switch-pattern", pattern: pattern as "TRANSFORMATION" }}
-        disabled={disabled || !pattern}
-        label="Switch pattern"
-        size="xs"
-        variant="outline"
-        continueProduction={false}
-        confirm={`Tells the story as "${label}": new openings are written and reviewed, and every part not yet produced is rewritten and fact-checked as a new version. The saved research and part plan are reused; nothing is researched again or spent on media.`}
-      />
-    </div>
   );
 }
 

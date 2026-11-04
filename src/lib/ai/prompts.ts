@@ -1,5 +1,5 @@
 /*
- * Prompts shared outside the script pipeline (see process-prompts.ts for the scripts).
+ * The image check's prompt (see storyboard-prompts.ts for the storyboard).
  */
 
 export function imageReviewPrompt(input: { scene: string; rules: string[] }) {

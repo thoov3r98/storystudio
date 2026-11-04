@@ -5,7 +5,7 @@ import { assertWithinBudget, recordCost, type CostContext } from "@/lib/costs/re
 import { env } from "@/lib/env";
 import { bandColorFor, imageShape } from "@/lib/constants";
 import { countWords } from "@/lib/text";
-import { firstSentence } from "@/lib/process/script";
+import { firstSentence } from "@/lib/script";
 import { getAudioMix, getPricing } from "@/lib/settings";
 import { setJobStage } from "@/lib/jobs";
 import { renderClient, type RenderClient } from "@/lib/render/client";
@@ -15,7 +15,7 @@ import type { SoundProvider } from "@/lib/providers/sound";
 import { buildEpisodeProps, imageFocus } from "./render-props";
 import { resolveSoundtrack } from "./sound";
 import { refreshStoryStatus } from "./versions";
-import { writingStyle } from "@/lib/ai/writing-styles";
+import { channelStyle } from "@/lib/ai/channel-styles";
 
 export async function renderVersion(input: { versionId: string; jobId?: string; cost: CostContext; client?: RenderClient; sound?: SoundProvider }) {
   const version = await db.episodeVersion.findUniqueOrThrow({
@@ -50,7 +50,7 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
     mix,
     cost: input.cost,
     sound: input.sound,
-    musicBed: writingStyle(story.channel?.format).music,
+    musicBed: channelStyle(story.channel?.format).music,
   });
   const props = buildEpisodeProps({
     scenes: version.scenes.map((s) => ({
@@ -67,8 +67,8 @@ export async function renderVersion(input: { versionId: string; jobId?: string; 
     music: soundtrack.music ? { url: soundtrack.music.url, volume: mix.musicVolume } : null,
     sfxVolume: mix.sfxVolume,
     hookText: spec?.onScreenHook ?? null,
-    // Part 1's on-screen hook stands for the spoken hook; later parts' for their first sentence.
-    hookSpokenWords: countWords(spec?.process?.creative?.hookLine ?? firstSentence(version.narration)),
+    // The on-screen hook stays up while the first sentence is spoken.
+    hookSpokenWords: countWords(firstSentence(version.narration)),
     imageShape: imageShape(version.imageShape),
     narrationSpeed: mix.narrationSpeed,
     maxPauseMs: mix.maxPauseMs,

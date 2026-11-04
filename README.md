@@ -1,6 +1,6 @@
 # The Invisible World Studio
 
-A private studio for producing narrated, stick-figure illustrated How It's Made style videos for TikTok channels (also Shorts and Reels). It pitches products, researches how each one is really made, writes a series of 3–5 fact-checked scripts from that research, illustrates the shots, records narration and renders 1080×1920 MP4s.
+A private studio for producing narrated, illustrated explainer videos for TikTok channels (also Shorts and Reels). You paste your own script and choose how many videos to split it into. The studio storyboards it word for word, illustrates the shots, records the narration and renders 1080×1920 MP4s. It never writes or changes your narration.
 
 The studio never publishes anything. Its output is a downloadable MP4 plus every editable production asset.
 
@@ -22,32 +22,27 @@ The studio never publishes anything. Its output is a downloadable MP4 plus every
 ## How it works
 
 ```
-Make Videos ──► Batch ──► Trigger.dev "ideate-batch"            (see docs/channels.md)
-                            │  a typed product, or "Surprise me": 6 pitches from the channel profile
-                            │  Surprise me drops repeats of the channel's own products; the reviewer keeps 3
-                            └► you pick one ("Write this story") ──► Story + Part 1
-
-"Write script" ──► Trigger.dev "episode-job"
-   1. Web research (OpenAI web search, cited) → research notes (stages, main route, sources, uncertain points)
-   2. Creative plan (pattern + openings, one call), then the part plan (skipped when the channel makes single videos)
-   3. Each part: narration from the notes only → one editor pass (facts against the notes, then craft) → if it needs work, one full rewrite and a final check
-   4. Shots cut word-for-word from each part's narration, with the visual state
-   ── Script gate, per part: passed / needs attention (approve with override) / blocked (cannot be produced) ──
-   5. Illustrate shots (OpenAI Images, style references, per-image checks and one redraw)
-   6. Narrate (ElevenLabs with character timestamps)
-   7. Synchronize: scene boundaries + word-level captions from the real alignment
-   8. Render: Vercel Sandbox (Remotion) → MP4 uploaded to Vercel Blob
+Make Videos: channel + pasted script + number of videos (+ optional picture notes, title, hook text)
+  live estimate: length per video from the voice's measured pace, and cost
+  ──► Story with Parts 1..N ──► Trigger.dev "script-job"          (see docs/channels.md)
+   1. Split (N > 1): one model call picks the sentences where Parts 2..N start; code cuts the text,
+      so the parts joined are your script exactly. Invalid breaks fall back to an even split by length.
+   2. Storyboard each part (Part 1 first; the rest keep its look): shots cut word for word from your
+      narration, image prompts, step labels, sound effects, the visual state, title and on-screen hook
+  ──► one "episode-job" per part, straight to video:
+   3. Illustrate shots (OpenAI Images, style references, per-image checks and one redraw)
+   4. Narrate (ElevenLabs with character timestamps)
+   5. Synchronize: scene boundaries + word-level captions from the real alignment
+   6. Render: Vercel Sandbox (Remotion) → MP4 uploaded to Vercel Blob, then the post text
 ```
 
 Key design rules:
 
 - **Every artifact is versioned and immutable.** Script versions, scene images, voiceovers and renders are separate rows; "current" pointers choose what is live. Approved versions are locked — any change forks a new draft version.
-- **Minimal regeneration.** An image change replaces one image and re-renders. A voiceover change re-syncs and re-renders. A script change forks a version and invalidates voiceover, timing, captions and render (see `src/lib/invalidation.ts`).
-- **Resumable jobs.** Each stage skips work whose artifact already exists, so retrying a failed job resumes rather than repaying for completed steps. The research is kept on the story, so rewrites never search again. A failed scene image never discards the others.
-- **Nothing beyond the research.** Every part is written only from the research notes and checked against them in a separate pass (its own prompt, and optionally its own model), with quoted evidence. A stated fact that contradicts the research blocks the script; the issues, research, sources and revision history are on the episode page, and the Script Quality page tracks them over time.
-- **Costs are estimates.** Every paid call records a `CostEntry` using the pricing on the Settings page. Batch budgets are hard stops checked before each paid step.
-
-Check results are AI judgements, not predictions of audience performance.
+- **Your words, exactly.** The model never writes narration. Every storyboard is checked word for word against your text and sent back if it differs, and the saved shots are re-cut from your original text, so your punctuation and capitals are what is spoken and captioned.
+- **Minimal regeneration.** Editing a shot's picture description redraws only that shot. Editing its words records a new voiceover. Editing the title or hook text only re-renders. Every edit forks a version (see `src/lib/invalidation.ts`).
+- **Resumable jobs.** Each stage skips work whose artifact already exists, so retrying a failed job resumes rather than repaying for completed steps. A storyboard retry redoes only the parts that failed, and a failed scene image never discards the others.
+- **Costs are estimates.** Every paid call records a `CostEntry` using the pricing on the Settings page.
 
 ---
 
@@ -88,11 +83,10 @@ See `.env.example` for the full list with comments. Summary:
 | Variable | Used for |
 |---|---|
 | `DATABASE_URL` / `DIRECT_URL` | Neon pooled URL (app + jobs) / direct URL (migrations) |
-| `OPENAI_API_KEY`, `OPENAI_TEXT_MODEL`, `OPENAI_TEXT_MODEL_FAST`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_SIZE` | Writing, reviews, illustrations |
+| `OPENAI_API_KEY`, `OPENAI_TEXT_MODEL`, `OPENAI_TEXT_MODEL_FAST`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_SIZE` | Storyboards, image checks, post text, illustrations |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_MODEL_ID`, `ELEVENLABS_DEFAULT_VOICE_ID` | Narration with timestamps |
 | `BLOB_READ_WRITE_TOKEN` | Asset storage |
 | `TRIGGER_SECRET_KEY`, `TRIGGER_PROJECT_REF` | Background jobs |
-| `YOUTUBE_API_KEY` (optional) | Verified, dated view/like/comment counts for YouTube references on Topic Research. Without it, only title and creator are read (oEmbed). |
 | `RENDER_PROVIDER` | `vercel-sandbox` (prod) or `local` |
 | `RENDER_API_SECRET` | Shared secret for internal render routes (≥32 chars) |
 | `STUDIO_APP_URL` | Deployment URL Trigger.dev calls for renders |
@@ -139,7 +133,7 @@ Deployment Protection only gates browsers. The internal render routes independen
 Settings → Narrator voices → **Load from ElevenLabs**, add the voice(s) you want, save. Then review **Provider pricing** and replace the placeholder rates with your actual plan's prices.
 
 ### 6. Smoke test
-On Make Videos, pitch a product (cents), pick a pitch and watch Generation Jobs while every part is researched and written. Approve Part 1's script to make its video; that takes a few minutes, most of it rendering.
+On Make Videos, paste a short script (a hundred words or so), choose 1 video and press Make. Watch the story page while it's storyboarded, then the episode while its video is made; that takes a few minutes, most of it rendering.
 
 ---
 
@@ -160,7 +154,7 @@ pnpm lint
 pnpm test                               # unit tests (no DB needed)
 ```
 
-**Integration tests** run the real pipeline (pitching, research, writing, fact-checks, revisions, images, narration timing, rendering hand-off, approval, versioning, budgets) against a real database with deterministic fake providers that live only in `tests/`:
+**Integration tests** run the real pipeline (splitting, storyboarding, hand edits, images, narration timing, rendering hand-off, approval, versioning, budgets) against a real database with deterministic fake providers that live only in `tests/`:
 
 ```bash
 pnpm prisma dev -d --name iws-test      # note the printed postgres:// URL
@@ -170,7 +164,7 @@ TEST_DATABASE_URL=<url> DATABASE_POOL_MAX=1 pnpm test
 
 **Local prisma commands:** `prisma.config.ts` prefers `DIRECT_URL`, which `.env` points at production. Set `DIRECT_URL` as well as `DATABASE_URL` to the test database when migrating it.
 
-**Browser tests** (Playwright) seed a disposable database and exercise every page, including the script gate, dismissing an issue, approval and the mobile layout:
+**Browser tests** (Playwright) seed a disposable database and exercise every page, including the paste form's estimate, editing a shot, approval and the mobile layout:
 
 ```bash
 pnpm build
@@ -184,8 +178,8 @@ The seed script truncates all tables and refuses to run against a `neon.tech` UR
 ## Operations
 
 - **A job failed.** Open Generation Jobs: the error or failed scenes are shown. **Retry** resumes from the first missing artifact.
-- **A script is blocked.** Its fact-check found a contradiction with the research, so nothing was spent on media. Read the issue and sources on the episode page, then **Fix flagged issues**, rewrite the line, or dismiss the issue if the checker is wrong.
-- **Budget limit reached.** Raise the batch budget by starting a new batch, or produce the remaining episodes individually from the batch page.
+- **Storyboarding failed.** The story page shows the error. Retry it on Generation Jobs: parts already storyboarded are kept.
+- **A shot's picture is wrong.** Edit the shot and describe what the picture should show; only that shot is redrawn.
 - **Render failed in sandbox.** Check the Vercel function logs for `/api/internal/render/start`. Make sure `pnpm build` produced `remotion-bundle/` (it's included in the function via `outputFileTracingIncludes`).
 - **Captions or scenes out of sync.** Timing always derives from the voiceover's character alignment. Regenerate the voiceover to rebuild it.
 - **Canceling** marks the job canceled immediately and cancels the Trigger.dev run; running stages stop at their next checkpoint. Assets already generated are kept.
@@ -200,9 +194,9 @@ src/app/                       Pages and server actions (actions.ts)
   api/internal/render/*        Secret-authenticated Vercel Sandbox render routes
 src/components/                App shell, shared UI, shadcn/ui
 src/lib/
-  ai/                          Prompts, strict structured outputs with bounded retries
-  pipeline/                    Channels and pitching, writing, illustrations, voiceover, render, versions
-  process/                     Script composition: research, plan, narration, fact-checks, revisions, quality metrics
+  ai/                          Storyboard, split, image-check and post prompts; channel styles; structured outputs
+  pipeline/                    Pasted scripts (paste.ts), illustrations, voiceover, render, post text, versions and edits
+  script.ts                    Sentence split, exact part cuts, storyboard checks
   providers/                   OpenAI Images, ElevenLabs
   render/                      Render clients (Vercel Sandbox, local)
   schemas/                     Zod schemas for every AI response

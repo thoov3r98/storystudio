@@ -5,8 +5,9 @@ import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
 import { failJob } from "@/lib/jobs";
 import { refreshStoryStatus } from "@/lib/pipeline/versions";
 import type { JobType } from "@/generated/prisma/enums";
-import type { EpisodeJobPayload } from "@/lib/pipeline/produce";
-import type { discoverTopicsTask, episodeJobTask, ideateBatchTask } from "@/trigger/tasks";
+import { EpisodeJobPayloadSchema, type EpisodeJobPayload } from "@/lib/pipeline/produce";
+import type { ScriptJobPayload } from "@/lib/pipeline/paste";
+import type { episodeJobTask, scriptJobTask } from "@/trigger/tasks";
 
 /*
  * Server-side job submission. A Job row is created first so the UI shows the
@@ -25,27 +26,12 @@ async function markSubmitFailed(jobId: string, err: unknown) {
   });
 }
 
-export async function enqueueIdeation(batchId: string) {
-  const job = await db.job.create({ data: { type: "BATCH_IDEATION", batchId, input: { batchId } } });
+/** Splits and storyboards a pasted script; each part then goes on to its own production job. */
+export async function enqueueScriptJob(input: Omit<ScriptJobPayload, "jobId">) {
+  const job = await db.job.create({ data: { type: "STORYBOARD", storyId: input.storyId, input: input as object } });
   try {
     assertTriggerConfigured();
-    const handle = await tasks.trigger<typeof ideateBatchTask>("ideate-batch", { jobId: job.id, batchId }, { tags: [`batch:${batchId}`] });
-    await db.job.update({ where: { id: job.id }, data: { triggerRunId: handle.id } });
-  } catch (err) {
-    await markSubmitFailed(job.id, err);
-    throw err;
-  }
-  return job.id;
-}
-
-/** Topic Research: proposes and scores products for a channel from the reference library. */
-export async function enqueueTopicDiscovery(channelId: string) {
-  const active = await db.job.findFirst({ where: { type: "TOPIC_DISCOVERY", status: { in: ACTIVE_JOB_STATUSES } }, select: { id: true } });
-  if (active) throw new Error("Topic discovery is already running. Wait for it to finish.");
-  const job = await db.job.create({ data: { type: "TOPIC_DISCOVERY", input: { channelId } } });
-  try {
-    assertTriggerConfigured();
-    const handle = await tasks.trigger<typeof discoverTopicsTask>("discover-topics", { jobId: job.id, channelId }, { tags: [`channel:${channelId}`] });
+    const handle = await tasks.trigger<typeof scriptJobTask>("script-job", { ...input, jobId: job.id }, { tags: [`story:${input.storyId}`] });
     await db.job.update({ where: { id: job.id }, data: { triggerRunId: handle.id } });
   } catch (err) {
     await markSubmitFailed(job.id, err);
@@ -55,18 +41,13 @@ export async function enqueueTopicDiscovery(channelId: string) {
 }
 
 const ACTION_JOB_TYPE: Record<EpisodeJobPayload["request"]["action"], JobType> = {
-  produce: "EPISODE_PRODUCTION",
-  "regenerate-script": "REGENERATE_SCRIPT",
-  "revise-script": "REGENERATE_SCRIPT",
-  "choose-hook": "REGENERATE_SCRIPT",
-  "switch-pattern": "REGENERATE_SCRIPT",
-  "rewrite-scene": "REGENERATE_SCENE_NARRATION",
   "regenerate-image": "REGENERATE_IMAGE",
   "regenerate-voiceover": "REGENERATE_VOICEOVER",
   render: "RENDER",
 };
 
-export async function enqueueEpisodeJob(input: Omit<EpisodeJobPayload, "jobId"> & { type?: JobType }) {
+/** `fromTask`: queued by another task's run, which is itself authenticated with Trigger.dev. */
+export async function enqueueEpisodeJob(input: Omit<EpisodeJobPayload, "jobId"> & { type?: JobType; fromTask?: boolean }) {
   const episode = await db.episode.findUniqueOrThrow({ where: { id: input.episodeId }, select: { storyId: true } });
   const active = await db.job.findFirst({
     where: { episodeId: input.episodeId, status: { notIn: ["COMPLETED", "FAILED", "CANCELED"] } },
@@ -74,18 +55,17 @@ export async function enqueueEpisodeJob(input: Omit<EpisodeJobPayload, "jobId"> 
   });
   if (active) throw new Error("This episode already has a job in progress. Wait for it to finish or cancel it first.");
 
-  const { type, ...rest } = input;
+  const { type, fromTask, ...rest } = input;
   const job = await db.job.create({
     data: {
       type: type ?? ACTION_JOB_TYPE[input.request.action],
       episodeId: input.episodeId,
       storyId: episode.storyId,
-      batchId: input.batchId ?? null,
       input: rest as object,
     },
   });
   try {
-    assertTriggerConfigured();
+    if (!fromTask) assertTriggerConfigured();
     const payload: EpisodeJobPayload = { ...rest, jobId: job.id };
     const handle = await tasks.trigger<typeof episodeJobTask>("episode-job", payload, { tags: [`episode:${input.episodeId}`, `story:${episode.storyId}`] });
     await db.job.update({ where: { id: job.id }, data: { triggerRunId: handle.id } });
@@ -145,15 +125,14 @@ export async function retryJob(jobId: string) {
   assertTriggerConfigured();
   await db.job.update({ where: { id: jobId }, data: { status: "QUEUED", stage: "Queued for retry", completedAt: null } });
   try {
-    if (job.type === "TOPIC_DISCOVERY") {
-      const handle = await tasks.trigger<typeof discoverTopicsTask>("discover-topics", { jobId, channelId: (job.input as { channelId: string }).channelId });
-      await db.job.update({ where: { id: jobId }, data: { triggerRunId: handle.id } });
-    } else if (job.type === "BATCH_IDEATION") {
-      const handle = await tasks.trigger<typeof ideateBatchTask>("ideate-batch", { jobId, batchId: job.batchId! });
+    if (job.type === "STORYBOARD") {
+      const input = job.input as Omit<ScriptJobPayload, "jobId">;
+      const handle = await tasks.trigger<typeof scriptJobTask>("script-job", { ...input, jobId });
       await db.job.update({ where: { id: jobId }, data: { triggerRunId: handle.id } });
     } else {
-      const input = job.input as Omit<EpisodeJobPayload, "jobId">;
-      const handle = await tasks.trigger<typeof episodeJobTask>("episode-job", { ...input, jobId });
+      const parsed = EpisodeJobPayloadSchema.omit({ jobId: true }).safeParse(job.input);
+      if (!parsed.success) throw new Error("This job is from the old script-writing flow and can't be retried. Use the buttons on the episode page instead.");
+      const handle = await tasks.trigger<typeof episodeJobTask>("episode-job", { ...parsed.data, jobId });
       await db.job.update({ where: { id: jobId }, data: { triggerRunId: handle.id } });
     }
   } catch (err) {

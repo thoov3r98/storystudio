@@ -90,8 +90,8 @@ export function StoryStatusBadge({ status }: { status: StoryStatus }) {
 }
 
 const episodeLabels: Record<EpisodeStatus, string> = {
-  DRAFT: "Concept",
-  SCRIPTED: "Script to review",
+  DRAFT: "Waiting",
+  SCRIPTED: "Storyboarded",
   IN_PRODUCTION: "In production",
   READY: "Ready for review",
   APPROVED: "Approved",
@@ -100,7 +100,7 @@ const episodeLabels: Record<EpisodeStatus, string> = {
 };
 const episodeTone: Record<EpisodeStatus, string> = {
   DRAFT: "bg-secondary text-secondary-foreground",
-  SCRIPTED: "bg-amber-50 text-amber-800 border-amber-200",
+  SCRIPTED: "bg-secondary text-secondary-foreground",
   IN_PRODUCTION: "bg-blue-50 text-blue-800 border-blue-200",
   READY: "bg-emerald-50 text-emerald-800 border-emerald-200",
   APPROVED: "bg-emerald-600 text-white border-emerald-600",

@@ -9,7 +9,6 @@ import { ActionButton } from "@/components/client-helpers";
 import { getChannel } from "@/lib/queries";
 import { getVoices } from "@/lib/settings";
 import { CHANNEL_FORMATS, parseProfile } from "@/lib/schemas/channel";
-import { writingStyle } from "@/lib/ai/writing-styles";
 import { setChannelArchived } from "@/app/actions";
 import { ChannelEditor } from "../channel-forms";
 
@@ -36,7 +35,7 @@ async function ChannelContent({ params }: { params: PageProps<"/channels/[channe
           </Link>
         }
         title={c.name}
-        description={c.brief}
+        description={CHANNEL_FORMATS[c.format].description}
         actions={
           <>
             <ActionButton variant="ghost" size="sm" action={setChannelArchived.bind(null, c.id, !c.archivedAt)} success={c.archivedAt ? "Restored" : "Archived"}>
@@ -56,23 +55,12 @@ async function ChannelContent({ params }: { params: PageProps<"/channels/[channe
         <ChannelEditor
           channelId={c.id}
           voices={voices}
-          looseOpeningApplies={writingStyle(c.format).looseOpening}
-          initial={{
-            name: c.name,
-            voiceId: c.voiceId,
-            styleKey: c.styleKey,
-            targetDurationSec: c.targetDurationSec,
-            minParts: c.minParts,
-            maxParts: c.maxParts,
-            quality: c.quality,
-            looseOpening: c.looseOpening,
-            profile: parseProfile(c.profile),
-          }}
+          initial={{ name: c.name, voiceId: c.voiceId, styleKey: c.styleKey, quality: c.quality, profile: parseProfile(c.profile) }}
         />
         <section className="space-y-3">
           <h2 className="text-base font-semibold tracking-tight">Stories</h2>
           {c.stories.length === 0 ? (
-            <EmptyState title="No stories yet" description="Make videos to pitch ideas for this channel." />
+            <EmptyState title="No stories yet" description="Paste a script on Make videos to start one." />
           ) : (
             <ul className="divide-y rounded-xl border bg-card">
               {c.stories.map((s) => (
@@ -91,21 +79,6 @@ async function ChannelContent({ params }: { params: PageProps<"/channels/[channe
               ))}
             </ul>
           )}
-          {c.batches.length ? (
-            <>
-              <h2 className="pt-4 text-base font-semibold tracking-tight">Recent pitches</h2>
-              <ul className="divide-y rounded-xl border bg-card text-sm">
-                {c.batches.map((b) => (
-                  <li key={b.id}>
-                    <Link href={`/batches/${b.id}`} className="block p-3 hover:bg-muted/50">
-                      <span className="line-clamp-1">{b.customDirection ? `“${b.customDirection}”` : "Surprise me"}</span>
-                      <span className="text-xs text-muted-foreground">{relativeTime(b.createdAt)}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
         </section>
       </div>
     </>

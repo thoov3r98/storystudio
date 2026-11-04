@@ -1,86 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Plus, Save, Sparkles, X } from "lucide-react";
+import { Loader2, Plus, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { useAction } from "@/components/client-helpers";
 import { createChannel, updateChannel } from "@/app/actions";
-import { ILLUSTRATION_STYLES, QUALITY_PRESETS, TARGET_DURATIONS } from "@/lib/constants";
-import { CHANNEL_FORMATS, type ChannelFormat, type ChannelProfile } from "@/lib/schemas/channel";
+import { ILLUSTRATION_STYLES, QUALITY_PRESETS } from "@/lib/constants";
+import { CHANNEL_FORMATS, type ChannelEdit, type ChannelFormat } from "@/lib/schemas/channel";
+import { channelStyle } from "@/lib/ai/channel-styles";
 import type { Voice } from "@/lib/settings";
 
-const BRIEF_EXAMPLES: Record<ChannelFormat, string[]> = {
-  PROCESS_EXPLAINER: [
-    "How famous foods are made in the factory, step by step, strictly factual.",
-    "How everyday toys are made, from raw plastic to the shop shelf. Calm and plain.",
-  ],
-  INVISIBLE_EXPLAINER: [
-    "The Invisible World: what really happens inside your body and the world around you when you do everyday things. Coffee, sleep, sneezes, flushing, tapping your card.",
-    "What happens to the things you send away: your flush, your checked bag, your trash, your online order.",
-  ],
-};
-
-export function CreateChannelForm() {
-  const [brief, setBrief] = useState("");
-  const [format, setFormat] = useState<ChannelFormat>("INVISIBLE_EXPLAINER");
-  const a = useAction();
-  const examples = BRIEF_EXAMPLES[format];
-  return (
-    <div className="space-y-3 rounded-xl border bg-card p-5">
-      <div className="space-y-1.5">
-        <Label>Kind of channel</Label>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {(Object.keys(CHANNEL_FORMATS) as ChannelFormat[]).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFormat(f)}
-              aria-pressed={format === f}
-              className={`rounded-lg border p-3 text-left text-sm ${format === f ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-            >
-              <span className="font-medium">{CHANNEL_FORMATS[f].label}</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">{CHANNEL_FORMATS[f].description}</span>
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">Sets how its videos are researched, written and storyboarded. It can&apos;t be changed later.</p>
-      </div>
-      <div>
-        <Label htmlFor="brief">Describe the channel</Label>
-        <p className="text-xs text-muted-foreground">What the videos explain and how they should sound. Its profile is written from this, and you can edit all of it.</p>
-      </div>
-      <Textarea id="brief" value={brief} onChange={(e) => setBrief(e.target.value)} rows={5} placeholder={`e.g. ${examples[0]}`} />
-      <div className="flex flex-wrap gap-2">
-        {examples.map((ex) => (
-          <button key={ex} type="button" onClick={() => setBrief(ex)} className="rounded-full border px-3 py-1 text-left text-xs text-muted-foreground hover:bg-muted">
-            {ex}
-          </button>
-        ))}
-      </div>
-      <Button disabled={a.pending || brief.trim().length < 10} onClick={() => a.run(() => createChannel(brief, format))}>
-        {a.pending ? <Loader2 className="animate-spin" /> : <Sparkles />}
-        {a.pending ? "Setting up… (about 20 seconds)" : "Set up channel"}
-      </Button>
-    </div>
-  );
-}
-
-type Editable = {
-  name: string;
-  voiceId: string | null;
-  styleKey: string;
-  targetDurationSec: number;
-  minParts: number;
-  maxParts: number;
-  quality: keyof typeof QUALITY_PRESETS;
-  looseOpening: boolean;
-  profile: ChannelProfile;
-};
+type Quality = keyof typeof QUALITY_PRESETS;
 
 function Field({ label, hint, children, htmlFor }: { label: string; hint?: string; children: React.ReactNode; htmlFor?: string }) {
   return (
@@ -92,178 +26,124 @@ function Field({ label, hint, children, htmlFor }: { label: string; hint?: strin
   );
 }
 
-/** One editable line per item, for the never-list and the examples. */
-function ListEditor({ id, items, onChange, placeholder }: { id: string; items: string[]; onChange: (items: string[]) => void; placeholder: string }) {
+/** Voice, illustration style, quality and storyboard rules: shared by the create and edit forms. */
+function ChannelFields({ c, set, voices, idPrefix }: { c: ChannelEdit; set: (patch: Partial<ChannelEdit>) => void; voices: Voice[]; idPrefix: string }) {
   return (
-    <div className="space-y-2">
-      {items.map((item, i) => (
-        <div key={i} className="flex gap-2">
-          <Input id={i === 0 ? id : undefined} value={item} onChange={(e) => onChange(items.map((x, k) => (k === i ? e.target.value : x)))} />
-          <Button variant="ghost" size="icon" aria-label="Remove" onClick={() => onChange(items.filter((_, k) => k !== i))}>
-            <X />
-          </Button>
+    <>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Name" htmlFor={`${idPrefix}-name`}>
+          <Input id={`${idPrefix}-name`} value={c.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. How It's Made Daily" />
+        </Field>
+        <Field label="Narrator voice">
+          <Select value={c.voiceId ?? ""} onValueChange={(v) => set({ voiceId: v || null })}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Choose a voice" />
+            </SelectTrigger>
+            <SelectContent>
+              {voices.map((v) => (
+                <SelectItem key={v.id} value={v.id}>
+                  {v.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Illustration style">
+          <Select value={c.styleKey} onValueChange={(v) => set({ styleKey: v })}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(ILLUSTRATION_STYLES).map(([key, s]) => (
+                <SelectItem key={key} value={key}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Generation quality" hint={QUALITY_PRESETS[c.quality].description}>
+          <Select value={c.quality} onValueChange={(v) => set({ quality: v as Quality })}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(QUALITY_PRESETS) as Quality[]).map((q) => (
+                <SelectItem key={q} value={q}>
+                  {QUALITY_PRESETS[q].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+      <Field
+        label="Storyboard rules"
+        hint="Optional. How this channel's pictures look: what the shots are of, what is always on screen, what is never drawn. The storyboard follows these ahead of its general rules."
+        htmlFor={`${idPrefix}-visuals`}
+      >
+        <Textarea
+          id={`${idPrefix}-visuals`}
+          rows={4}
+          value={c.profile.visuals}
+          onChange={(e) => set({ profile: { ...c.profile, visuals: e.target.value } })}
+          placeholder="e.g. Always show the product big in the middle of the frame. Never draw faces."
+        />
+      </Field>
+    </>
+  );
+}
+
+export function CreateChannelForm({ voices }: { voices: Voice[] }) {
+  const [format, setFormat] = useState<ChannelFormat>("PROCESS_EXPLAINER");
+  const [c, setC] = useState<ChannelEdit>({ name: "", voiceId: voices[0]?.id ?? null, styleKey: channelStyle("PROCESS_EXPLAINER").defaults.styleKey, quality: "STANDARD", profile: { visuals: "" } });
+  const a = useAction();
+  const pick = (f: ChannelFormat) => {
+    setFormat(f);
+    setC({ ...c, styleKey: channelStyle(f).defaults.styleKey });
+  };
+  return (
+    <div className="space-y-4 rounded-xl border bg-card p-5">
+      <div className="space-y-1.5">
+        <Label>Kind of video</Label>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(Object.keys(CHANNEL_FORMATS) as ChannelFormat[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => pick(f)}
+              aria-pressed={format === f}
+              className={`rounded-lg border p-3 text-left text-sm ${format === f ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
+            >
+              <span className="font-medium">{CHANNEL_FORMATS[f].label}</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">{CHANNEL_FORMATS[f].description}</span>
+            </button>
+          ))}
         </div>
-      ))}
-      <Button variant="outline" size="sm" onClick={() => onChange([...items, ""])}>
-        <Plus /> {placeholder}
+        <p className="text-xs text-muted-foreground">Sets how the shots are storyboarded, which sound effects and music it gets, and how its post text reads. It can&apos;t be changed later.</p>
+      </div>
+      <ChannelFields c={c} set={(p) => setC({ ...c, ...p })} voices={voices} idPrefix="new" />
+      <Button disabled={a.pending || c.name.trim().length < 2} onClick={() => a.run(() => createChannel({ ...c, format }))}>
+        {a.pending ? <Loader2 className="animate-spin" /> : <Plus />} Add channel
       </Button>
     </div>
   );
 }
 
-export function ChannelEditor({ channelId, initial, voices, looseOpeningApplies }: { channelId: string; initial: Editable; voices: Voice[]; looseOpeningApplies: boolean }) {
+export function ChannelEditor({ channelId, initial, voices }: { channelId: string; initial: ChannelEdit; voices: Voice[] }) {
   const [c, setC] = useState(initial);
   const a = useAction();
-  const set = <K extends keyof Editable>(k: K, v: Editable[K]) => setC({ ...c, [k]: v });
-  const setProfile = <K extends keyof ChannelProfile>(k: K, v: ChannelProfile[K]) => setC({ ...c, profile: { ...c.profile, [k]: v } });
-  const save = () =>
-    a.run(
-      () =>
-        updateChannel(channelId, {
-          ...c,
-          profile: { ...c.profile, avoid: c.profile.avoid.map((x) => x.trim()).filter(Boolean), examples: c.profile.examples.map((x) => x.trim()).filter(Boolean) },
-        }),
-      { success: "Channel saved" },
-    );
-  const parts = [1, 2, 3, 4, 5, 6];
-
   return (
     <div className="space-y-6">
       <section className="space-y-4 rounded-xl border bg-card p-5">
-        <h2 className="text-sm font-semibold">Production</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" htmlFor="ch-name">
-            <Input id="ch-name" value={c.name} onChange={(e) => set("name", e.target.value)} />
-          </Field>
-          <Field label="Narrator voice">
-            <Select value={c.voiceId ?? ""} onValueChange={(v) => set("voiceId", v || null)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Choose a voice" />
-              </SelectTrigger>
-              <SelectContent>
-                {voices.map((v) => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {v.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Illustration style">
-            <Select value={c.styleKey} onValueChange={(v) => set("styleKey", v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(ILLUSTRATION_STYLES).map(([key, s]) => (
-                  <SelectItem key={key} value={key}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Length of each video">
-            <div className="grid grid-cols-5 gap-2">
-              {TARGET_DURATIONS.map((d) => (
-                <Button key={d} type="button" variant={c.targetDurationSec === d ? "default" : "outline"} onClick={() => set("targetDurationSec", d)}>
-                  {d}s
-                </Button>
-              ))}
-            </div>
-          </Field>
-          <Field label="Videos per story" hint="The planner picks how many within this range, based on how much there is to tell. Set both to 1 for standalone videos.">
-            <div className="flex items-center gap-2">
-              <Select value={String(c.minParts)} onValueChange={(v) => set("minParts", Number(v))}>
-                <SelectTrigger className="w-20" aria-label="Fewest parts">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {parts.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-sm text-muted-foreground">to</span>
-              <Select value={String(c.maxParts)} onValueChange={(v) => set("maxParts", Number(v))}>
-                <SelectTrigger className="w-20" aria-label="Most parts">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {parts.map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </Field>
-          <Field label="Generation quality" hint={QUALITY_PRESETS[c.quality].description}>
-            <Select value={c.quality} onValueChange={(v) => set("quality", v as Editable["quality"])}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(QUALITY_PRESETS) as Editable["quality"][]).map((q) => (
-                  <SelectItem key={q} value={q}>
-                    {QUALITY_PRESETS[q].label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          {looseOpeningApplies ? (
-            <Field
-              label="Looser opening"
-              htmlFor="ch-loose"
-              hint="Part 1's first line may speak to the viewer (“you”) and ask one question; everything after stays third person and factual. Compare the results on the Quality page."
-            >
-              <Switch id="ch-loose" checked={c.looseOpening} onCheckedChange={(v) => set("looseOpening", v)} />
-            </Field>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="space-y-4 rounded-xl border bg-card p-5">
         <div>
-          <h2 className="text-sm font-semibold">Profile</h2>
-          <p className="text-xs text-muted-foreground">Every pitch, script and check for this channel follows these rules. Changes apply to scripts written from now on.</p>
+          <h2 className="text-sm font-semibold">Production</h2>
+          <p className="text-xs text-muted-foreground">Applies to scripts you paste from now on.</p>
         </div>
-        <Field label="In one sentence" htmlFor="ch-summary">
-          <Input id="ch-summary" value={c.profile.summary} onChange={(e) => setProfile("summary", e.target.value)} />
-        </Field>
-        <Field label="What the videos are about" htmlFor="ch-subjects">
-          <Textarea id="ch-subjects" rows={3} value={c.profile.subjects} onChange={(e) => setProfile("subjects", e.target.value)} />
-        </Field>
-        <Field label="Voice" hint="Who narrates, the tone, and what the narration never does." htmlFor="ch-voice">
-          <Textarea id="ch-voice" rows={4} value={c.profile.voice} onChange={(e) => setProfile("voice", e.target.value)} />
-        </Field>
-        <Field label="Shape" hint="How each series runs across its parts, and the clarity rules." htmlFor="ch-structure">
-          <Textarea id="ch-structure" rows={5} value={c.profile.structure} onChange={(e) => setProfile("structure", e.target.value)} />
-        </Field>
-        <Field label="Never" htmlFor="ch-avoid">
-          <ListEditor id="ch-avoid" items={c.profile.avoid} onChange={(v) => setProfile("avoid", v)} placeholder="Add a rule" />
-        </Field>
-        <Field label="Surprise me" hint="How fresh ideas are picked when you don't give one." htmlFor="ch-surprise">
-          <Textarea id="ch-surprise" rows={3} value={c.profile.surpriseMe} onChange={(e) => setProfile("surpriseMe", e.target.value)} />
-        </Field>
-        <Field label="Example ideas" htmlFor="ch-examples">
-          <ListEditor id="ch-examples" items={c.profile.examples} onChange={(v) => setProfile("examples", v)} placeholder="Add an example" />
-        </Field>
-        <Field
-          label="Storyboard"
-          hint="How this channel's shots look: what they show, what is always on screen, what is never drawn. The storyboard follows these ahead of its general rules."
-          htmlFor="ch-visuals"
-        >
-          <Textarea id="ch-visuals" rows={4} value={c.profile.visuals} onChange={(e) => setProfile("visuals", e.target.value)} />
-        </Field>
+        <ChannelFields c={c} set={(p) => setC({ ...c, ...p })} voices={voices} idPrefix="ch" />
       </section>
-
       <div className="sticky bottom-4 flex justify-end">
-        <Button onClick={save} disabled={a.pending} className="shadow-md">
+        <Button onClick={() => a.run(() => updateChannel(channelId, c), { success: "Channel saved" })} disabled={a.pending} className="shadow-md">
           {a.pending ? <Loader2 className="animate-spin" /> : <Save />} Save channel
         </Button>
       </div>

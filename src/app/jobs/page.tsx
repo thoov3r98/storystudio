@@ -60,20 +60,16 @@ async function JobsContent({ searchParams }: { searchParams: PageProps<"/jobs">[
         ))}
       </nav>
       {jobs.length === 0 ? (
-        <EmptyState title="No jobs" description="Jobs appear here when you pitch ideas or make videos." />
+        <EmptyState title="No jobs" description="Jobs appear here when you make videos." />
       ) : (
         <div className="space-y-2">
           {jobs.map((j) => {
             const err = j.error as { message?: string; name?: string; failedScenes?: { sceneNumber: number; error: string }[]; conflicts?: string[] } | null;
             const target = j.episode
               ? { href: `/episodes/${j.episode.id}`, label: `${j.story?.title ?? "Episode"} · Part ${j.episode.partNumber}` }
-              : j.batch
-                ? { href: `/batches/${j.batch.id}`, label: "Pitches" }
-                : j.story
-                  ? { href: `/stories/${j.story.id}`, label: j.story.title }
-                  : j.type === "TOPIC_DISCOVERY"
-                    ? { href: "/topics", label: "Topic research" }
-                    : null;
+              : j.story
+                ? { href: `/stories/${j.story.id}`, label: j.story.title }
+                : null;
             const active = ACTIVE_JOB_STATUSES.includes(j.status);
             return (
               <div key={j.id} className="rounded-xl border bg-card p-4">

@@ -2,26 +2,20 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { AlertTriangle, Download, FileText } from "lucide-react";
+import { AlertTriangle, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { EpisodeStatusBadge, JobStatusBadge, Money, PageHeader, PageSkeleton, Section, relativeTime } from "@/components/studio";
 import { AutoRefresh } from "@/components/client-helpers";
-import { getEpisode, getStorytelling } from "@/lib/queries";
+import { getEpisode } from "@/lib/queries";
 import { reconcileStaleJobs } from "@/lib/enqueue";
 import { ACTIVE_JOB_STATUSES, SOUND_EFFECTS, type SoundEffectKey } from "@/lib/constants";
-import { estimateEpisodeCost, formatUsd } from "@/lib/costs/estimate";
-import { getModels, getPricing } from "@/lib/settings";
 import { type EpisodeSpecRecord, PostCopySchema } from "@/lib/schemas/episode";
-import { ResearchRecordSchema } from "@/lib/schemas/process";
 import type { EpisodeTiming } from "@/lib/timing";
 import { downloadUrl, previewUrl } from "@/lib/urls";
 import { ApproveEpisodeButton } from "@/app/stories/[storyId]/story-client";
-import { EpisodeActionButton, PostCopyPanel, RewriteSceneDialog, SceneImageHistory, VersionRestoreButton } from "./episode-client";
-import { ScriptChecks } from "./script-checks";
-import { CreativeDecisions } from "./creative-decisions";
-import { DiscoverySnapshotSchema } from "@/lib/schemas/topics";
+import { EditHeadlineDialog, EditSceneDialog, EpisodeActionButton, PostCopyPanel, SceneImageHistory, VersionRestoreButton } from "./episode-client";
 
 export const metadata: Metadata = { title: "Episode" };
 
@@ -53,45 +47,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
   const latestRenderAttempt = v?.renders[0];
   const locked = v?.status === "APPROVED";
   const busy = Boolean(activeJob);
-  // Script gate: what approving the script will spend on images, narration and rendering.
-  const awaitingReview = Boolean(v) && episode.status === "SCRIPTED";
-  const produced = Boolean(v) && episode.status !== "SCRIPTED" && episode.status !== "DRAFT";
-  const media = awaitingReview
-    ? estimateEpisodeCost(await getPricing(), await getModels(), { durationSec: episode.story.targetDurationSec, quality: episode.story.quality })
-    : null;
-  const mediaCost = media ? formatUsd(media.images + media.speech + media.render) : "";
-  const quality = spec?.quality;
-  const gate = awaitingReview ? (v?.qualityStatus ?? "passed") : null;
-  const openItems = quality ? quality.issues.filter((i) => i.severity !== "minor" && !quality.dismissed.some((d) => d.issueId === i.id)).length : 0;
-  const approveScript =
-    gate === "blocked" ? (
-      <Button disabled>Blocked by script issues</Button>
-    ) : gate === "needs-attention" ? (
-      <EpisodeActionButton
-        episodeId={episode.id}
-        request={{ action: "render", acceptOpenNotes: true }}
-        disabled={busy}
-        label="Approve anyway & make video"
-        primary
-        confirm={`${openItems} issue${openItems === 1 ? "" : "s"} from the script checks ${openItems === 1 ? "is" : "are"} still open. Approving records your override, then generates the illustrations, narration, captions and edit and renders the MP4. Estimated ${mediaCost}.`}
-      />
-    ) : (
-      <EpisodeActionButton
-        episodeId={episode.id}
-        request={{ action: "render" }}
-        disabled={busy}
-        label="Approve script & make video"
-        primary
-        confirm={`Generates the illustrations, narration, captions and edit, then renders the MP4. Estimated ${mediaCost}.`}
-      />
-    );
-  // One product explained across several videos.
-  const partsPlanned = spec?.process?.plan.parts.length ?? 1;
-  const multiPart = partsPlanned > 1;
-  const anyPartProduced = episode.story.episodes.some((e) => !["DRAFT", "SCRIPTED", "READY", "FAILED"].includes(e.status));
-  const anyUnproduced = episode.story.episodes.some((e) => ["DRAFT", "SCRIPTED", "FAILED"].includes(e.status));
-  const storytelling = await getStorytelling(episode.storyId);
-  const research = ResearchRecordSchema.safeParse(episode.story.research).data ?? null;
+  const editNote = locked ? " This version is approved, so a new draft version is created first." : "";
 
   return (
     <>
@@ -111,7 +67,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
             <EpisodeStatusBadge status={episode.status} />
             {v ? (
               <span>
-                Script v{v.version}
+                Version {v.version}
                 {locked ? " (locked)" : ""}
               </span>
             ) : null}
@@ -122,13 +78,9 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         }
         actions={
           <>
-            {!v || episode.status === "DRAFT" ? (
-              <EpisodeActionButton episodeId={episode.id} request={{ action: "produce" }} disabled={busy} label="Write script" primary />
-            ) : null}
-            {awaitingReview ? approveScript : null}
-            {v && episode.status === "FAILED" ? (
+            {v && (episode.status === "FAILED" || (episode.status === "SCRIPTED" && !busy)) ? (
               <>
-                <EpisodeActionButton episodeId={episode.id} request={{ action: "render" }} disabled={busy} label="Resume production" primary />
+                <EpisodeActionButton episodeId={episode.id} request={{ action: "render" }} disabled={busy} label={episode.status === "FAILED" ? "Resume production" : "Make video"} primary />
               </>
             ) : null}
             {latestRender?.url ? (
@@ -156,7 +108,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         </div>
       ) : null}
 
-      {staleness && v && !busy && (staleness.renderOutdated || (staleness.renderMissing && episode.status !== "DRAFT" && episode.status !== "SCRIPTED")) ? (
+      {staleness && v && !busy && (staleness.renderOutdated || (staleness.renderMissing && episode.status !== "DRAFT" && episode.status !== "SCRIPTED" && episode.status !== "FAILED")) ? (
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm">
           <span className="flex items-center gap-2">
             <AlertTriangle className="size-4 text-warning" />
@@ -168,33 +120,13 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
         </div>
       ) : null}
 
-      {awaitingReview && !busy ? (
-        <div className="mb-8 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-2">
-            <FileText className="mt-0.5 size-4 shrink-0 text-amber-700" />
-            <div>
-              <div className="font-medium">Script ready for your review</div>
-              <p className="text-muted-foreground">
-                {gate === "blocked"
-                  ? "The checks found a mistake a viewer would notice, so it can't be made into a video yet. See Script checks below."
-                  : gate === "needs-attention"
-                    ? `The checks left ${openItems} open item${openItems === 1 ? "" : "s"} (see Script checks). Fix them, rewrite a line, or approve anyway to make the video (${mediaCost}).`
-                    : `Read it below. Rewrite a line, the opening or the whole script, or approve it to make the video (${mediaCost} for images, narration and render).`}
-              </p>
-            </div>
-          </div>
-          <div className="shrink-0">{approveScript}</div>
-        </div>
-      ) : null}
-
       {latestRenderAttempt?.status === "FAILED" && !busy ? (
         <div className="mb-8 rounded-xl border border-red-200 bg-red-50/60 p-4 text-sm text-red-800">Last render failed: {latestRenderAttempt.error}</div>
       ) : null}
 
       {!v ? (
         <div className="rounded-xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
-          No script yet. <span className="font-medium text-foreground">Write script</span> researches the product, plans the parts, and writes and fact-checks every script. Nothing is spent on
-          images, narration or rendering until you approve it.
+          {episode.script ? "This part is waiting to be storyboarded. It starts on its own once the script is split; see the story page for progress." : "This part has no script."}
         </div>
       ) : (
         <div className="grid gap-10 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -258,7 +190,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
             <div className="space-y-2 rounded-xl border bg-card p-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium">Voiceover</h3>
-                <EpisodeActionButton episodeId={episode.id} request={{ action: "regenerate-voiceover" }} disabled={busy} label="Regenerate" size="xs" variant="outline" confirm={locked ? "This version is approved; a new draft version will be created first." : undefined} />
+                <EpisodeActionButton episodeId={episode.id} request={{ action: "regenerate-voiceover" }} disabled={busy} label="Regenerate" size="xs" variant="outline" confirm={`Records the narration again and re-renders the video.${editNote}`} />
               </div>
               {v.voiceover?.url ? (
                 <>
@@ -273,7 +205,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
             </div>
 
             <div className="space-y-2 rounded-xl border bg-card p-4 text-sm">
-              <h3 className="font-medium">Script versions</h3>
+              <h3 className="font-medium">Versions</h3>
               <ul className="space-y-1.5">
                 {episode.versions.map((ver) => (
                   <li key={ver.id} className="flex items-center justify-between gap-2 text-xs">
@@ -288,64 +220,14 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
           </div>
 
           <div className="min-w-0 space-y-10">
-            <CreativeDecisions
-              storytelling={storytelling}
-              research={research}
-              process={spec?.process}
-              discovery={DiscoverySnapshotSchema.safeParse(episode.story.discovery).data ?? null}
-              part={episode.partNumber}
-              episodeId={episode.id}
-              busy={busy}
-              anyUnproduced={anyUnproduced}
-              format={episode.story.channel?.format ?? null}
-            />
-
-            <ScriptChecks
-              quality={quality}
-              process={spec?.process}
-              research={research}
-              versionId={v.id} episodeId={episode.id} humanRating={v.humanRating} busy={busy} atGate={awaitingReview} />
-
             <Section
-              title="Script"
+              title="Narration"
               description={`${v.wordCount} words · ~${v.estimatedDurationSec.toFixed(0)}s estimated${timing ? ` · ${(timing.totalDurationMs / 1000).toFixed(1)}s actual` : ""}`}
-              actions={
-                <div className="flex flex-wrap gap-2">
-                  <EpisodeActionButton
-                    episodeId={episode.id}
-                    request={{ action: "regenerate-script" }}
-                    disabled={busy}
-                    label={multiPart ? `Rewrite Part ${episode.partNumber}` : "Regenerate script"}
-                    size="sm"
-                    variant="outline"
-                    continueProduction={false}
-                    confirm={
-                      multiPart
-                        ? `Rewrites Part ${episode.partNumber} from the saved research and plan, fact-checks it and stops for your review. The other parts are unchanged; nothing is spent on media.`
-                        : "Writes and fact-checks a new script version and stops for your review; nothing is spent on media until you approve it. The current version is kept in history."
-                    }
-                  />
-                  {multiPart && episode.partNumber === 1 && !anyPartProduced ? (
-                    <EpisodeActionButton
-                      episodeId={episode.id}
-                      request={{ action: "regenerate-script", replanStory: true }}
-                      disabled={busy}
-                      label={`Replan all ${partsPlanned} parts`}
-                      size="sm"
-                      variant="outline"
-                      continueProduction={false}
-                      confirm={`Plans the parts again from the saved research and rewrites all ${partsPlanned} as new versions. Use it when the split into parts isn't working. Nothing is spent on media.`}
-                    />
-                  ) : null}
-                </div>
-              }
+              actions={<EditHeadlineDialog episodeId={episode.id} title={episode.title} onScreenHook={spec?.onScreenHook ?? ""} disabled={busy} note={editNote} />}
             >
               <div className="space-y-4 rounded-xl border bg-card p-5">
                 <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Opening</div>
-                    <RewriteSceneDialog episodeId={episode.id} sceneNumber={1} disabled={busy} opening produced={produced} />
-                  </div>
+                  <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Opening</div>
                   <p className="mt-1 text-lg font-medium text-balance">{spec?.selectedHook}</p>
                   {spec?.onScreenHook ? (
                     <p className="mt-2 text-sm">
@@ -422,9 +304,9 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                             label="Regenerate image"
                             size="xs"
                             variant="outline"
-                            confirm={`Replaces scene ${s.sceneNumber}'s image (the old one stays in history) and re-renders the video.${locked ? " This version is approved, so a new draft version is created first." : ""}`}
+                            confirm={`Draws scene ${s.sceneNumber} again from the same description (the old picture stays in history) and re-renders the video.${editNote}`}
                           />
-                          <RewriteSceneDialog episodeId={episode.id} sceneNumber={s.sceneNumber} disabled={busy} produced={produced} />
+                          <EditSceneDialog episodeId={episode.id} sceneNumber={s.sceneNumber} narration={s.narration} imagePrompt={s.imagePrompt} disabled={busy} note={editNote} />
                         </div>
                       </div>
                     </div>

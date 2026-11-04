@@ -11,65 +11,31 @@ import type { RenderClient } from "@/lib/render/client";
 import type { PipelineDeps } from "@/lib/pipeline/deps";
 import type { EpisodeDraft } from "@/lib/schemas/episode";
 
-
-const PRODUCTS = ["Pencils", "Glass bottles", "Tennis balls", "Chocolate bars", "Toothpaste", "Sneakers", "Paper cups", "Marbles", "Candles", "Soap", "Gummy bears"];
-
 export type FakeTextOptions = {
-  /** Fact-check: an unsupported claim that one revision fixes or that never goes away, or a contradiction that never goes away. */
-  processAudit?: "pass" | "significant-once" | "significant-always" | "blocking-always";
-  /** Editor, craft: a pacing problem that never goes away (never blocking). */
-  attention?: "pass" | "significant-always";
-  /** Topic ideas: the first attempt cites a reference id that doesn't exist. */
-  topicBadReferenceOnce?: boolean;
+  /** The storyboard's first attempt drops a word, so the exact-cut check sends it back. */
+  storyboardDropWordOnce?: boolean;
+  /** The split never returns valid breaks, so the even split is used. */
+  splitAlwaysBad?: boolean;
 };
 
-/** The hook the fakes recommend for each pattern; FACTORY_REVEAL's matches the existing opening. */
-export const FAKE_HOOKS: Record<string, string> = {
-  FACTORY_REVEAL: "This is how crayons are made.",
-  TRANSFORMATION: "Melted wax turns into crayons.",
-  HIDDEN_PROBLEM: "Moulding crayons takes real care.",
-};
+/**
+ * A pasted script: an opening line, then sentences of distinctive words
+ * ("step3w0 … step3w11.") so a shot's narration can be found in prompts.
+ */
+export function makeScript(sentences: number, opening = "This is how crayons are made."): string {
+  const words = (seed: number) => Array.from({ length: 12 }, (_, i) => `step${seed}w${i}`).join(" ");
+  return [opening, ...Array.from({ length: sentences - 1 }, (_, i) => `${words(i + 1)}.`)].join(" ");
+}
 
-const TOPIC_PRODUCTS = [
-  ["Plastic buckets", "household"],
-  ["Glass marbles", "toys"],
-  ["Ice cube trays", "kitchen tools"],
-  ["Steel nails", "hardware"],
-  ["Paper cups", "packaging"],
-  ["Toothbrushes", "personal care"],
-  ["Rubber balls", "sports"],
-  ["Clothes pegs", "household goods"],
-  ["Crayons", "art supplies"],
-] as const;
-
-const AUDIT_ISSUE = (severity: string, evidence: string) => ({
-  category: "unsupported-claim",
-  severity,
-  kind: "contradiction",
-  location: "Sentence 2",
-  evidence,
-  problem: "The research doesn't say this.",
-  repair: "Say only what the research gives.",
-});
-
-const between = (text: string, start: string, end?: string) => {
-  const a = text.indexOf(start);
-  if (a < 0) return "";
-  const from = a + start.length;
-  const b = end ? text.indexOf(end, from) : -1;
-  return text.slice(from, b < 0 ? undefined : b).trim();
-};
-
-/** Issue ids listed in a revision prompt ("- S1.1: ..."). */
-const issueIds = (user: string) => [...user.matchAll(/^- ([A-Z]\d+\.\d+): /gm)].map((m) => m[1]);
-
-/** Cuts narration into shots the way makeDraft does: the opening travels with its first sentence. */
+/**
+ * One shot per sentence, the way a storyboard artist might copy it: lowercase and
+ * without punctuation (the exact-cut check compares words, and code restores the producer's text).
+ */
 function cutScenes(narration: string) {
   const sentences = narration.split(/(?<=\.)\s+/);
-  const shots = sentences.length > 12 ? [`${sentences[0]} ${sentences[1]}`, ...sentences.slice(2)] : sentences;
-  return shots.map((n, i) => ({
+  return sentences.map((n, i) => ({
     sceneNumber: i + 1,
-    narration: n,
+    narration: n.toLowerCase().replace(/[.,]/g, ""),
     imagePrompt: `A machine at work in scene ${i + 1}`,
     composition: "wide shot",
     continuity: `On the factory floor, scene ${i + 1}`,
@@ -81,25 +47,27 @@ function cutScenes(narration: string) {
   }));
 }
 
-export function makeDraft(hook: string, part: number, sceneCount = 12): EpisodeDraft {
-  const words = (n: number, seed: number) => Array.from({ length: n }, (_, i) => `step${seed}w${i}`).join(" ");
-  const narrations = Array.from({ length: sceneCount }, (_, i) => (i === 0 ? `${hook} ${words(10, i)}.` : `${words(14, i)}.`));
-  return {
-    title: `Episode part ${part}`,
-    storyNarration: narrations.join(" "),
-    selectedHook: hook,
-    summary: `Part ${part} summary.`,
-    visualState: { setting: "A crayon factory", timeAndLight: "Bright factory lighting", weather: "Indoors", heroSituation: "Liquid wax at the start, solid crayons by the end", heroLook: "Workers in hairnets", rules: ["No text on any machine"] },
-    scenes: cutScenes(narrations.join(" ")),
-  };
+/** A storyboarded part as the pipeline saves it: one shot per sentence, in the producer's own words. */
+export function makeDraft(script: string, part = 1): EpisodeDraft {
+  const scenes = cutScenes(script).map((s, i) => ({ ...s, narration: script.split(/(?<=\.)\s+/)[i] }));
+  return { title: `Crayons part ${part}`, storyNarration: script, selectedHook: scenes[0].narration, summary: `Part ${part} of crayons.`, onScreenHook: "It starts as *wax*", visualState: FAKE_VISUAL_STATE, scenes };
 }
+
+export const FAKE_VISUAL_STATE = {
+  setting: "A crayon factory",
+  timeAndLight: "Bright factory lighting",
+  weather: "Indoors",
+  heroSituation: "Liquid wax at the start, solid crayons by the end",
+  heroLook: "Workers in hairnets",
+  rules: ["No text on any machine"],
+};
 
 export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { calls: Record<string, number>; prompts: Record<string, string[]>; systems: Record<string, string[]>; models: Record<string, string> } {
   const calls: Record<string, number> = {};
   const prompts: Record<string, string[]> = {};
   const systems: Record<string, string[]> = {};
   const models: Record<string, string> = {};
-  let pitchCounter = 0;
+  let dropped = false;
   return {
     calls,
     prompts,
@@ -114,161 +82,23 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
       const out = (parsed: unknown) => ({ parsed, usage, model: "fake-model" });
 
       switch (schemaName) {
-        case "channel_design":
-          return out({
-            name: "How Toys Are Made",
-            minParts: 2,
-            maxParts: 3,
-            profile: {
-              summary: "How everyday toys are made.",
-              subjects: "One toy per series.",
-              voice: "Calm, plain, third person.",
-              structure: "Factory order, one or two stages per part.",
-              avoid: ["Brand names"],
-              surpriseMe: "Pick a toy not covered yet.",
-              examples: ["Marbles", "Yo-yos", "Rubber ducks"],
-              visuals: "Machines and materials fill the frame.",
-            },
-          });
-        case "pitch_batch": {
-          const n = Number(/Pitch exactly (\d+)/.exec(user)?.[1] ?? 6);
-          return out({
-            pitches: Array.from({ length: n }, () => {
-              const i = pitchCounter++;
-              const product = PRODUCTS[i % PRODUCTS.length];
-              // The 4th pitch repeats the channel's existing "How Crayons Are Made" story.
-              const title = i === 3 ? "How Crayons Are Made" : `${product} from start to finish ${i}`;
-              return {
-                title,
-                premise: i === 3 ? "How wax crayons are made in a factory." : `How ${product.toLowerCase()} number ${i} are made, zebra${i} quartz${i}.`,
-                logline: `Logline ${i}`,
-                keywords: [product.toLowerCase(), `k${i}`],
-                openingSituation: `It starts as raw ${product.toLowerCase()} material`,
-                arc: "Raw material. Shaping. Finishing. Packing.",
-              };
-            }),
-          });
+        case "script_split": {
+          const n = Number(/SCRIPT \((\d+) sentences\)/.exec(user)?.[1] ?? 0);
+          const parts = Number(/into (\d+) consecutive/.exec(system)?.[1] ?? 1);
+          if (opts.splitAlwaysBad) return out({ seriesTitle: "Bad", breaks: [1] });
+          const per = Math.round(n / parts);
+          return out({ seriesTitle: "How Crayons Are Made", breaks: Array.from({ length: parts - 1 }, (_, i) => 1 + per * (i + 1)) });
         }
-        case "pitch_pick": {
-          const n = (user.match(/^\[\d+\]/gm) ?? []).length;
-          const keep = Math.min(n, Number(/Choose the (\d+) pitches/.exec(system)?.[1] ?? 3));
-          return out({ picks: Array.from({ length: keep }, (_, i) => ({ index: n - 1 - i, reason: `Works because ${i}.` })) });
-        }
-        case "research_notes":
-          return out({
-            product: "Crayons",
-            overview: "Crayons are paraffin wax and pigment, melted, moulded, wrapped and boxed.",
-            mainRoute: "From paraffin wax, melted and moulded.",
-            stages: ["Melting the wax", "Moulding", "Wrapping", "Boxing"].map((name, i) => ({
-              id: `T${i + 1}`,
-              name,
-              steps: [{ what: `${name} happens.`, details: i === 0 ? "about 80 degrees Celsius" : "", sources: ["1"] }],
-            })),
-            uncertain: ["How many colours are made a day"],
-          });
-        case "process_plan": {
-          const [, min, max] = /across (\d+)–(\d+) videos/.exec(system) ?? ["", "1", "1"];
-          const stages = [...user.matchAll(/^(T\d+) /gm)].map((m) => m[1]);
-          // Part 1 runs through the hook's step when the prompt asks; the rest are spread evenly.
-          const reach = /Part 1 must run through (T\d+)/.exec(system)?.[1];
-          const reachAt = reach ? stages.indexOf(reach) + 1 : 0;
-          const count = Math.max(Number(min), Math.min(Number(max), stages.length - Math.max(0, reachAt - 1)));
-          const first = Math.max(Math.ceil(stages.length / count), reachAt);
-          const per = Math.ceil((stages.length - first) / Math.max(1, count - 1));
-          return out({
-            parts: Array.from({ length: count }, (_, i) => ({
-              part: i + 1,
-              title: `Stage group ${i + 1}`,
-              stages: i === 0 ? stages.slice(0, first) : stages.slice(first + (i - 1) * per, first + i * per),
-              opening: i === 0 ? "This is how crayons are made." : `Crayons, part ${i + 1}.`,
-              endsAt: i === count - 1 ? "Boxed and shipped" : `Stage group ${i + 2}`,
-            })),
-          });
-        }
-        case "process_narration": {
-          const part = Number(/Narration for Part (\d+)/i.exec(system)?.[1] ?? 1);
-          const hook = /Open with this approved hook, word for word or tightened, never replaced or embellished: "(.*?)"\./.exec(system)?.[1];
-          const d = makeDraft(part === 1 ? (hook ?? "This is how crayons are made.") : `Crayons, part ${part}.`, part);
-          return out({ title: `How crayons are made, part ${part}`, storyNarration: d.storyNarration, summary: `Part ${part} of crayons.` });
-        }
-        case "creative_plan": {
-          const stages = [...user.matchAll(/^(T\d+) /gm)].map((m) => m[1]);
-          const pattern = /The producer has chosen (\w+)\./.exec(system)?.[1] ?? "FACTORY_REVEAL";
-          const visual = { visualSubject: "wax", operation: "melting", materialBefore: "wax blocks", materialAfter: "liquid wax", machinery: "", visualMoment: "Wax melts." };
-          const hook = (line: string, strategy: string, claimIds: string[]) => ({ line, strategy, claimIds, featuredStageId: "T2", firstFrameVisual: "A tray of wax.", whyItWorks: "It is clear.", uncertainty: "", visual });
-          return out({
-            pattern,
-            reason: `The research shows a fast moulding line (${pattern}).`,
-            curiosityMechanism: "How liquid wax becomes a crayon.",
-            featuredStageId: stages[1] ?? stages[0],
-            visualPayoff: "Crayons pop out of the mould.",
-            alternatives: ["TRANSFORMATION", "HIDDEN_PROBLEM", "FACTORY_REVEAL"].filter((x) => x !== pattern).slice(0, 1),
-            stageVisuals: stages.map((id) => ({ stageId: id, visualSubject: `Stage ${id}`, operation: "It happens.", materialBefore: "wax", materialAfter: "crayons", machinery: "", visualMoment: "The moment.", claimIds: [`${id}.1`] })),
-            hooks: [
-              // Unsupported: the research never says 999, so the strongest-listed opening is flagged and skipped.
-              hook("Crayon wax is heated to 999 degrees.", "material-contrast", ["T1.1"]),
-              hook(FAKE_HOOKS[pattern], "intriguing-operation", ["T1.1", "T2.1"]),
-              hook("Wax is heated to about 80 degrees Celsius before it becomes a crayon.", "counterintuitive-fact", ["T1.1"]),
-              // Cites a claim that doesn't exist.
-              hook("Every crayon is checked by hand.", "hidden-difficulty", ["T9.9"]),
-            ],
-          });
-        }
-        case "topic_ideas": {
-          const n = Number(/Propose exactly (\d+)/.exec(user)?.[1] ?? 9);
-          const refs = [...user.matchAll(/^- (\S+) · (.+?) · /gm)].map((m) => ({ id: m[1], product: m[2] }));
-          const bad = opts.topicBadReferenceOnce && (calls.topic_ideas ?? 0) === 1;
-          return out({
-            ideas: Array.from({ length: n }, (_, i) => {
-              // Idea 0 repeats the first library product; the rest are new.
-              const [product, category] = i === 0 && refs[0] ? [refs[0].product, "footwear"] : TOPIC_PRODUCTS[i % TOPIC_PRODUCTS.length];
-              const strategy = (["EVIDENCE_BACKED", "ADJACENT", "EXPLORATORY"] as const)[i % 3];
-              return {
-                product,
-                category,
-                title: `How ${product} Are Made`,
-                concept: `How ${product.toLowerCase()} are made, quill${i}.`,
-                premise: `How ${product.toLowerCase()} are made in a factory, zest${i}.`,
-                arc: "Raw material. Shaping. Packing.",
-                strategy,
-                referenceIds: strategy === "EXPLORATORY" || !refs[0] ? [] : bad && i === 1 ? ["not-a-ref"] : [refs[0].id],
-                comparableReason: strategy === "EXPLORATORY" ? "" : "Same moulding operation.",
-                whyViewers: "Everyone owns one.",
-                featuredStage: "Moulding",
-                curiosityAngle: `How is ${product.toLowerCase()} shaped?`,
-                visualPayoff: "It pops out of the mould.",
-                researchFeasibility: "Well documented.",
-                visualFeasibility: "Easy to draw.",
-              };
-            }),
-          });
-        }
-        case "topic_evaluation": {
-          const indexes = [...user.matchAll(/^\[(\d+)\] /gm)].map((m) => Number(m[1]));
-          const r = (score: number) => ({ score, note: "n" });
-          return out({ evaluations: indexes.map((index) => ({ index, visual: r(8 - (index % 4)), familiarity: r(7), surprise: r(6), researchAvailability: r(9), visualFeasibility: r(8) })) });
-        }
-        case "process_audit": {
-          const narration = between(user, "SCRIPT\n");
-          const quote = narration.split(" ").slice(6, 12).join(" ");
-          const fail = opts.processAudit === "blocking-always" || opts.processAudit === "significant-always" || (opts.processAudit === "significant-once" && calls.process_audit === 1);
-          // A craft problem the editor keeps raising; the reviewer even calls it blocking, which code never allows.
-          const craft = opts.attention === "significant-always" ? [{ category: "filler", severity: "blocking", kind: "contradiction", location: "Sentence 1", evidence: narration.split(" ").slice(2, 8).join(" "), problem: "Repeats itself.", repair: "Cut the repeat." }] : [];
-          return out({
-            intendedUnknowns: [],
-            issues: [...(fail ? [AUDIT_ISSUE(opts.processAudit === "blocking-always" ? "blocking" : "significant", quote)] : []), ...craft],
-            previousIssues: user.includes("EARLIER ISSUES") ? issueIds(user).map((id) => ({ id, resolved: !fail, note: "" })) : [],
-          });
-        }
-        case "process_revision": {
-          const narration = between(user, "CURRENT SCRIPT", "\u0000").replace(/^\(Part .*\)\n/, "");
-          const sentences = narration.split(/(?<=\.)\s+/);
-          sentences[2] = sentences[2].replace(/\.$/, " revised.");
-          return out({ title: "Revised crayons", storyNarration: sentences.join(" "), summary: "Revised.", changeLog: issueIds(user).map((issueId) => ({ issueId, change: "Kept to the research." })) });
-        }
-        case "scene_breakdown": {
-          const narration = between(user, "FINAL NARRATION", "\u0000").replace(/^— ".*"\n/, "");
-          return out({ onScreenHook: "It starts as wax", visualState: makeDraft("x", 1).visualState, scenes: cutScenes(narration) });
+        case "storyboard": {
+          // The narration runs to the end of the prompt, or to the feedback a retry appends.
+          const narration = user.slice(user.indexOf("\n", user.indexOf("NARRATION TO STORYBOARD")) + 1).split("\n\n---\n")[0].trim();
+          const part = Number(/Part (\d+) of \d+/.exec(system)?.[1] ?? 1);
+          const scenes = cutScenes(narration);
+          if (opts.storyboardDropWordOnce && !dropped) {
+            dropped = true;
+            scenes[1].narration = scenes[1].narration.split(" ").slice(1).join(" ");
+          }
+          return out({ title: `Crayons part ${part}`, summary: `Part ${part} of crayons.`, onScreenHook: "It starts as *wax*", visualState: FAKE_VISUAL_STATE, scenes });
         }
         case "post_copy":
           return out({
@@ -276,12 +106,8 @@ export function fakeText(opts: FakeTextOptions = {}): StructuredTextClient & { c
             hashtags: ["#howitsmade", "#crayons", "#factory"],
             coverSceneNumber: 1,
             coverText: "How crayons are made",
-            pinnedComment: "Crayons are made from paraffin wax and powdered pigment.",
+            pinnedComment: "Which step surprised you most?",
           });
-        case "scene_rewrite": {
-          const current = /CURRENT shot \d+ narration: (.*)/.exec(user)?.[1] ?? "x";
-          return out({ narration: current.replace(/\.$/, " rewritten."), imagePrompt: "A different machine at work", composition: "close-up", rationale: "r" });
-        }
         default:
           throw new Error(`fakeText: unhandled schema ${schemaName}`);
       }
@@ -412,31 +238,12 @@ export function fakeSound(): SoundProvider & { calls: { effects: number; music: 
   return provider;
 }
 
-/** Web research that returns a fixed report about crayons. */
-export function fakeResearch() {
-  const client = {
-    calls: 0,
-    async search() {
-      client.calls++;
-      return {
-        text: "Crayons are made from paraffin wax and powdered pigment. ".repeat(10),
-        sources: [{ url: "https://example.test/crayons", title: "How crayons are made" }],
-        searches: 2,
-        model: "gpt-test",
-        usage: { inputTokens: 1000, cachedInputTokens: 0, outputTokens: 800 },
-      };
-    },
-  };
-  return client;
-}
-
 export function fakeDeps(opts: FakeTextOptions = {}, imageOpts: { rejectOnce?: Set<string> } = {}) {
   const text = fakeText(opts);
   const images = fakeImages(new Set(), imageOpts);
   const speech = fakeSpeech();
   const sound = fakeSound();
   const render = fakeRender();
-  const research = fakeResearch();
-  const deps: PipelineDeps = { text, research, images, speech, sound, render: () => render };
-  return { deps, text, images, speech, sound, render, research };
+  const deps: PipelineDeps = { text, images, speech, sound, render: () => render };
+  return { deps, text, images, speech, sound, render };
 }
