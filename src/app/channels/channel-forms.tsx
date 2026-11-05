@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAction } from "@/components/client-helpers";
 import { createChannel, updateChannel } from "@/app/actions";
 import { ILLUSTRATION_STYLES, QUALITY_PRESETS } from "@/lib/constants";
-import { CHANNEL_FORMATS, type ChannelEdit, type ChannelFormat } from "@/lib/schemas/channel";
+import type { ChannelEdit } from "@/lib/schemas/channel";
 import { channelStyle } from "@/lib/ai/channel-styles";
 import type { Voice } from "@/lib/settings";
 
@@ -26,13 +26,13 @@ function Field({ label, hint, children, htmlFor }: { label: string; hint?: strin
   );
 }
 
-/** Voice, illustration style, quality and storyboard rules: shared by the create and edit forms. */
+/** Voice, illustration style, quality and description: shared by the create and edit forms. */
 function ChannelFields({ c, set, voices, idPrefix }: { c: ChannelEdit; set: (patch: Partial<ChannelEdit>) => void; voices: Voice[]; idPrefix: string }) {
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" htmlFor={`${idPrefix}-name`}>
-          <Input id={`${idPrefix}-name`} value={c.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. How It's Made Daily" />
+          <Input id={`${idPrefix}-name`} value={c.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. The Invisible World" />
         </Field>
         <Field label="Narrator voice">
           <Select value={c.voiceId ?? ""} onValueChange={(v) => set({ voiceId: v || null })}>
@@ -78,8 +78,8 @@ function ChannelFields({ c, set, voices, idPrefix }: { c: ChannelEdit; set: (pat
         </Field>
       </div>
       <Field
-        label="Storyboard rules"
-        hint="Optional. How this channel's pictures look: what the shots are of, what is always on screen, what is never drawn. The storyboard follows these ahead of its general rules."
+        label="Describe this channel"
+        hint="Optional. What its videos show and how they look: what the shots are of, what is always on screen, what is never drawn. The storyboard follows this ahead of its general rules."
         htmlFor={`${idPrefix}-visuals`}
       >
         <Textarea
@@ -87,7 +87,7 @@ function ChannelFields({ c, set, voices, idPrefix }: { c: ChannelEdit; set: (pat
           rows={4}
           value={c.profile.visuals}
           onChange={(e) => set({ profile: { ...c.profile, visuals: e.target.value } })}
-          placeholder="e.g. Always show the product big in the middle of the frame. Never draw faces."
+          placeholder="e.g. Everyday science explained with cutaway pictures. Always show the subject big in the middle of the frame. Never draw faces."
         />
       </Field>
     </>
@@ -95,35 +95,12 @@ function ChannelFields({ c, set, voices, idPrefix }: { c: ChannelEdit; set: (pat
 }
 
 export function CreateChannelForm({ voices }: { voices: Voice[] }) {
-  const [format, setFormat] = useState<ChannelFormat>("PROCESS_EXPLAINER");
-  const [c, setC] = useState<ChannelEdit>({ name: "", voiceId: voices[0]?.id ?? null, styleKey: channelStyle("PROCESS_EXPLAINER").defaults.styleKey, quality: "STANDARD", profile: { visuals: "" } });
+  const [c, setC] = useState<ChannelEdit>({ name: "", voiceId: voices[0]?.id ?? null, styleKey: channelStyle("CUSTOM").defaults.styleKey, quality: "STANDARD", profile: { visuals: "" } });
   const a = useAction();
-  const pick = (f: ChannelFormat) => {
-    setFormat(f);
-    setC({ ...c, styleKey: channelStyle(f).defaults.styleKey });
-  };
   return (
     <div className="space-y-4 rounded-xl border bg-card p-5">
-      <div className="space-y-1.5">
-        <Label>Kind of video</Label>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {(Object.keys(CHANNEL_FORMATS) as ChannelFormat[]).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => pick(f)}
-              aria-pressed={format === f}
-              className={`rounded-lg border p-3 text-left text-sm ${format === f ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-            >
-              <span className="font-medium">{CHANNEL_FORMATS[f].label}</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">{CHANNEL_FORMATS[f].description}</span>
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">Sets how the shots are storyboarded, which sound effects and music it gets, and how its post text reads. It can&apos;t be changed later.</p>
-      </div>
       <ChannelFields c={c} set={(p) => setC({ ...c, ...p })} voices={voices} idPrefix="new" />
-      <Button disabled={a.pending || c.name.trim().length < 2} onClick={() => a.run(() => createChannel({ ...c, format }))}>
+      <Button disabled={a.pending || c.name.trim().length < 2} onClick={() => a.run(() => createChannel(c))}>
         {a.pending ? <Loader2 className="animate-spin" /> : <Plus />} Add channel
       </Button>
     </div>

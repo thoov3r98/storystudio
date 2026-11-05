@@ -8,7 +8,7 @@ import { EmptyState, PageHeader, PageSkeleton, StoryStatusBadge, Thumb, relative
 import { ActionButton } from "@/components/client-helpers";
 import { getChannel } from "@/lib/queries";
 import { getVoices } from "@/lib/settings";
-import { CHANNEL_FORMATS, parseProfile } from "@/lib/schemas/channel";
+import { parseProfile } from "@/lib/schemas/channel";
 import { setChannelArchived } from "@/app/actions";
 import { ChannelEditor } from "../channel-forms";
 
@@ -31,11 +31,10 @@ async function ChannelContent({ params }: { params: PageProps<"/channels/[channe
       <PageHeader
         eyebrow={
           <Link href="/channels" className="hover:underline">
-            Channels · {CHANNEL_FORMATS[c.format].label}
+            Channels
           </Link>
         }
         title={c.name}
-        description={CHANNEL_FORMATS[c.format].description}
         actions={
           <>
             <ActionButton variant="ghost" size="sm" action={setChannelArchived.bind(null, c.id, !c.archivedAt)} success={c.archivedAt ? "Restored" : "Archived"}>

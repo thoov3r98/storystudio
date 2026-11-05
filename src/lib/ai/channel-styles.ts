@@ -1,10 +1,12 @@
 import type { ChannelFormat } from "@/lib/schemas/channel";
-import type { SoundEffectKey } from "@/lib/constants";
+import { SOUND_EFFECTS, type SoundEffectKey } from "@/lib/constants";
 
 /*
  * Channel styles: how a channel's pasted scripts are storyboarded, which sounds
  * and music bed they get, and how their post text reads. A channel's `format`
- * picks one; its storyboard rules (profile.visuals) then steer the storyboard on top.
+ * picks one; its own description (profile.visuals) then steers the storyboard on top.
+ * Every new channel is CUSTOM. How It's Made and What happens when… are kept for
+ * the channels made with them.
  */
 
 export type ChannelStyle = {
@@ -108,9 +110,48 @@ const INVISIBLE: ChannelStyle = {
   },
 };
 
+// ── Custom: no preset, the channel's description says what it is ─────
+
+const CUSTOM: ChannelStyle = {
+  kind: "short narrated illustrated video",
+  defaults: { styleKey: "stick-figure-full-color" },
+  allowsQuestions: true,
+
+  storyboard: {
+    role: "You are the storyboard artist for a short, narrated, illustrated video. The narration is the producer's own and final; you never change a word.",
+    visualState: `the facts every illustration must respect. setting: the real places the video passes through, as the narration names them. timeAndLight: the light in those places. weather: as in the outside scenes, or "indoors". heroSituation: what the video follows and how it looks at each stage. heroLook: the people and things that recur, each described so it looks the same in every shot, including each real, named person as they actually look (age, build, skin tone, hair, face, glasses, usual clothes). rules: what holds in every shot.`,
+    shots: [
+      "Each shot shows exactly the moment its narration describes: the actual people, places, objects and actions it talks about. Never show something the narration doesn't describe.",
+      "Vary the framing: wide shots of the place, medium shots of the action, close-ups of the most interesting detail. Never two near-identical framings in a row.",
+      "Never more than three people in a shot unless the narration is about a crowd.",
+    ],
+    motion: "dive-in for shot 1 only (a fast push into the spot the opening line is about), slow-zoom-in for a detail, pan to follow something moving or across a scene, slow-zoom-out to reveal the bigger picture, still for a result.",
+    stepLabel: `what this stretch of the video is about, 2–4 plain words in sentence case, shown on screen. Consecutive shots about the same thing use exactly the same words; a new label only when the video moves on. A shot that previews a later moment (an opening hook) takes the label of the moment it shows.`,
+    firstShot: "the most striking picture of what the opening line is about, big and simple. Its motionPreset is dive-in: the camera pushes into that spot.",
+    onScreen: {
+      part1: "the question or surprise the video answers",
+      later: "the most surprising thing this video shows",
+      examples: `the surprise in plain words, naming the concrete subject, e.g. "Your phone is *listening* less than you think"`,
+    },
+  },
+  soundEffects: Object.keys(SOUND_EFFECTS) as SoundEffectKey[],
+  music: {
+    key: "music:custom",
+    name: "Neutral music bed (generated)",
+    prompt:
+      "Warm, lightly curious instrumental background music for a narrated short video: soft synths, gentle plucks and light percussion, steady mid tempo, unobtrusive under a narrator, consistent energy with no drops or big build-ups so it loops cleanly. No vocals.",
+  },
+  post: {
+    kind: "a short-video channel",
+    hashtags: "Mix one or two broad ones with specific ones for the subject.",
+    cover: "the video's subject at its most striking moment, instantly recognisable",
+  },
+};
+
 export const CHANNEL_STYLES: Record<ChannelFormat, ChannelStyle> = {
   PROCESS_EXPLAINER: HOW_ITS_MADE,
   INVISIBLE_EXPLAINER: INVISIBLE,
+  CUSTOM,
 };
 
 export function channelStyle(format: ChannelFormat | string | null | undefined): ChannelStyle {

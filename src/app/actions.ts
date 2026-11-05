@@ -19,7 +19,7 @@ import {
 import { approveEpisode as approve, editHeadline, editScene, ensureEditableVersion, forkVersion, refreshStoryStatus } from "@/lib/pipeline/versions";
 import { listElevenLabsVoices } from "@/lib/providers/speech";
 import { normalizeTitle } from "@/lib/text";
-import { ChannelCreateSchema, ChannelEditSchema } from "@/lib/schemas/channel";
+import { ChannelEditSchema } from "@/lib/schemas/channel";
 import { productionDeps } from "@/lib/pipeline/deps";
 import { writePostCopy } from "@/lib/pipeline/post";
 import { createStoryFromScript, type ScriptInput } from "@/lib/pipeline/paste";
@@ -40,13 +40,13 @@ async function attempt<T>(fn: () => Promise<T>): Promise<ActionResult<T>> {
 
 // ───────────────────────────── Channels ─────────────────────────────
 
-/** Sets up a channel: its kind of video, voice, art style, quality and storyboard rules. */
+/** Sets up a channel: its voice, art style, quality and description. */
 export async function createChannel(input: unknown): Promise<ActionResult<{ channelId: string }>> {
   let channelId = "";
   const result = await attempt(async () => {
-    const data = ChannelCreateSchema.parse(input);
+    const data = ChannelEditSchema.parse(input);
     if (!(data.styleKey in ILLUSTRATION_STYLES)) throw new Error("Unknown illustration style.");
-    const channel = await db.channel.create({ data });
+    const channel = await db.channel.create({ data: { ...data, format: "CUSTOM" } });
     channelId = channel.id;
     return { channelId };
   });

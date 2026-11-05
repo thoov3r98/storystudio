@@ -90,10 +90,11 @@ enum AudioAssetKind {
   SFX
 }
 
-/// A channel's kind of video: picks its storyboard rules, sound effects, music bed and post text.
+/// Picks a channel's base storyboard rules, sound effects, music bed and post text. Every new channel is CUSTOM; the other two are the presets older channels were made with.
 enum ChannelFormat {
   PROCESS_EXPLAINER // How It's Made: a factory process
   INVISIBLE_EXPLAINER // "What happens when…": the hidden journey behind an everyday moment
+  CUSTOM // No preset: a neutral base, steered by the channel's own description
 }
 
 // ───────────────────────────── Channels ────────────────────────────

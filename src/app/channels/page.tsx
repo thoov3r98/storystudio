@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader, PageSkeleton } from "@/components/studio";
 import { listChannels } from "@/lib/queries";
 import { ILLUSTRATION_STYLES } from "@/lib/constants";
-import { CHANNEL_FORMATS } from "@/lib/schemas/channel";
 import { getVoices } from "@/lib/settings";
 import { CreateChannelForm } from "./channel-forms";
 
@@ -17,7 +16,7 @@ export const metadata: Metadata = { title: "Channels" };
 export default function ChannelsPage() {
   return (
     <>
-      <PageHeader title="Channels" description="Your TikTok channels. Each one sets the voice, art style and storyboard rules your pasted scripts are made with." />
+      <PageHeader title="Channels" description="Your TikTok channels. Each one sets the voice, art style and description your pasted scripts are made with." />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         <Suspense fallback={<PageSkeleton />}>
           <ChannelList />
@@ -51,7 +50,6 @@ async function ChannelList() {
                 </Link>
               </div>
               <div className="flex flex-wrap gap-1.5 text-xs">
-                <Badge variant="outline">{CHANNEL_FORMATS[c.format].label}</Badge>
                 <Badge variant="outline">{ILLUSTRATION_STYLES[c.styleKey as keyof typeof ILLUSTRATION_STYLES]?.label ?? c.styleKey}</Badge>
                 <Badge variant="outline">
                   {c._count.stories} {c._count.stories === 1 ? "story" : "stories"}

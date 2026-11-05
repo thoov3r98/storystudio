@@ -6,7 +6,6 @@ import { Factory } from "lucide-react";
 import { EmptyState, PageHeader, PageSkeleton } from "@/components/studio";
 import { Button } from "@/components/ui/button";
 import { listChannels } from "@/lib/queries";
-import { CHANNEL_FORMATS } from "@/lib/schemas/channel";
 import { getAudioMix, getModels, getPricing, voiceWordsPerSecond } from "@/lib/settings";
 import { DEFAULT_WORDS_PER_SECOND } from "@/lib/text";
 import { cn } from "@/lib/utils";
@@ -65,7 +64,6 @@ async function GenerateContent({ searchParams }: { searchParams: PageProps<"/gen
                 <div className="flex items-center gap-2 font-medium">
                   <Factory className="size-4" /> {c.name}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">{CHANNEL_FORMATS[c.format].label}</p>
               </Link>
             );
           })}
