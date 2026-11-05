@@ -10,17 +10,22 @@ const SOUND_FADE_FRAMES = 6;
 const FONT = "Inter, 'Helvetica Neue', Arial, sans-serif";
 
 /*
- * Frame geometry (1080×1920). Platform UI covers roughly the top 170px, the bottom
- * 330px and a strip down the right edge, so text stays clear of those.
+ * Frame geometry (1080×1920). TikTok's post text and account name can cover the bottom 660px,
+ * and its buttons run down the right edge from about y=840, so captions end above that area
+ * and keep out of that column. The picture may sit under the overlay; the words may not.
  *
- * square: title band · square illustration (1080×1080) · caption band.
- * bands:  title band · 3:2 illustration (1080×720) · caption band (landscape art, before November 2026).
- * full:   legacy 2:3 portrait art filling the frame, captions over its empty lower quarter.
+ * square: title band · square illustration (1080×1080).
+ * bands:  title band · 3:2 illustration (1080×720) (landscape art, before November 2026).
+ * full:   legacy 2:3 portrait art filling the frame.
  */
+const CAPTION_BOTTOM_CLEARANCE = 660;
+const CAPTION_LEFT = 60;
+const CAPTION_RIGHT_CLEARANCE = 180;
+
 const LAYOUTS = {
-  square: { imageTop: 440, imageHeight: 1080, titleTop: 180, captionTop: 1556, captionSize: 64 },
-  bands: { imageTop: 560, imageHeight: 720, titleTop: 190, captionTop: 1340, captionSize: 72 },
-  full: { imageTop: 70, imageHeight: 1620, titleTop: 200, captionTop: 1290, captionSize: 76 },
+  square: { imageTop: 440, imageHeight: 1080, titleTop: 180, captionSize: 64 },
+  bands: { imageTop: 560, imageHeight: 720, titleTop: 190, captionSize: 72 },
+  full: { imageTop: 70, imageHeight: 1620, titleTop: 200, captionSize: 76 },
 } as const;
 
 type Scene = EpisodeProps["scenes"][number];
@@ -213,47 +218,46 @@ const Captions: React.FC<{ captions: EpisodeProps["captions"]; layout: EpisodePr
   const ms = (frame / fps) * 1000;
   const active = captions.find((c, i) => ms >= c.startMs && ms < (captions[i + 1]?.startMs ?? c.endMs + 400));
   if (!active) return null;
-  const onBand = layout !== "full";
   const geo = LAYOUTS[layout];
   return (
-    <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "center" }}>
-      {/* Safe area: above the bottom ~330px (platform UI) and away from the right-edge action buttons. */}
-      <div
-        style={{
-          position: "absolute",
-          top: geo.captionTop,
-          left: 90,
-          right: 150,
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          gap: "0 18px",
-          fontFamily: FONT,
-          fontWeight: 800,
-          fontSize: geo.captionSize,
-          lineHeight: 1.15,
-          textAlign: "center",
-        }}
-      >
-        {active.words.map((w, i) => {
-          const spoken = ms >= w.startMs;
-          const current = spoken && ms < w.endMs + 120;
-          return (
-            <span
-              key={i}
-              style={{
-                // Bands are muted and dark, so upcoming words are translucent white.
-                color: current ? INK : onBand ? (spoken ? "#FFFFFF" : "rgba(255,255,255,0.45)") : spoken ? INK : "#9A9A96",
-                backgroundColor: current ? HIGHLIGHT : "transparent",
-                textShadow: onBand && spoken && !current ? "0 3px 0 rgba(0,0,0,0.25)" : undefined,
-                borderRadius: 12,
-                padding: "0 8px",
-              }}
-            >
-              {w.text}
-            </span>
-          );
-        })}
+    <AbsoluteFill>
+      {/* Anchored by its bottom edge, so longer captions grow upward instead of into TikTok's overlay. */}
+      <div style={{ position: "absolute", bottom: CAPTION_BOTTOM_CLEARANCE, left: CAPTION_LEFT, right: CAPTION_RIGHT_CLEARANCE, display: "flex", justifyContent: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            gap: "0 18px",
+            padding: "12px 20px",
+            borderRadius: 24,
+            // The captions sit over the art, so this backing keeps them readable on any picture.
+            backgroundColor: "rgba(17,17,17,0.78)",
+            fontFamily: FONT,
+            fontWeight: 800,
+            fontSize: geo.captionSize,
+            lineHeight: 1.15,
+            textAlign: "center",
+          }}
+        >
+          {active.words.map((w, i) => {
+            const spoken = ms >= w.startMs;
+            const current = spoken && ms < w.endMs + 120;
+            return (
+              <span
+                key={i}
+                style={{
+                  color: current ? INK : spoken ? "#FFFFFF" : "rgba(255,255,255,0.55)",
+                  backgroundColor: current ? HIGHLIGHT : "transparent",
+                  borderRadius: 12,
+                  padding: "0 8px",
+                }}
+              >
+                {w.text}
+              </span>
+            );
+          })}
+        </div>
       </div>
     </AbsoluteFill>
   );
