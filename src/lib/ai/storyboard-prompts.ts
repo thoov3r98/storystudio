@@ -55,6 +55,7 @@ ${w.storyboard.shots.map((x) => `- ${x}`).join("\n")}
 - Each shot is one single picture of one moment: never two views, a before-and-after, an inset or a comparison in one image.
 - Draw what the narration literally talks about. Never invent machines, conveyors, pipes, gears, tubes or control panels to stand for an idea, a rule or a decision; only draw machinery the narration itself describes.
 - characters: leave empty unless a named character is visible.
+- A real, named person (a president, governor, senator, candidate, judge, celebrity) is drawn as a recognisable cartoon of how they actually look, never a generic stand-in. Describe their real appearance in heroLook and again in every imagePrompt they appear in: gender, approximate age, build, skin tone, hair colour and style (or baldness), face shape, glasses or facial hair, and the clothes they are usually seen in. Describe only features you are confident of; leave out what you don't know rather than guess.
 - imagePrompt: one or two specific sentences: what is happening, to what, where, and what it looks like at this moment. Subject only: no art-style words, no text, labels, numbers, dials with readings, or brand names.
 - continuity: what must be true in this shot, including how the subject looks at this stage.
 - motionPreset: ${w.storyboard.motion}

@@ -52,6 +52,7 @@ export function buildImagePrompt(input: {
     input.scene.objects.length ? `KEY OBJECTS: ${input.scene.objects.join(", ")}` : "",
     input.shot ? "Draw exactly the moment of THIS MOMENT, true to the episode facts and continuity." : "",
     "Show real people, places and things as the narration describes them; never add invented machines, conveyors, pipes or gears to stand for an idea.",
+    "A real, named person (a politician, official or public figure) must look like that actual person, drawn as a friendly recognisable caricature in the STYLE: keep their real face shape, hair, skin tone, age, build, glasses or facial hair and usual clothing, following any description given above.",
     input.shot
       ? "Keep the STYLE's palette and light background in every shot. Show time of day and weather with small cues only (sun position, a pale tint in the sky, lit windows, long shadows, falling snow); never wash the whole image in a colour."
       : "",

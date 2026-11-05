@@ -26,7 +26,7 @@ export const VisualStateSchema = z.object({
   timeAndLight: z.string().describe("Time of day at the start and how the light changes by the end (e.g. 'late afternoon, sun low; after scene 9 the sun is behind the ridge and the slope is in blue shadow')."),
   weather: z.string(),
   heroSituation: z.string().describe("Where the hero physically is and what they can and cannot do, through the episode (e.g. 'seated on the chair the entire episode; never on the ground')."),
-  heroLook: z.string().describe("What the hero wears and carries in this episode."),
+  heroLook: z.string().describe("What the hero wears and carries in this episode, and how each real, named person who appears actually looks (age, build, skin tone, hair, face, glasses, usual clothes)."),
   rules: z.array(z.string()).describe("Things that must be true in every shot (e.g. 'Ridge never leaves the chair', 'the base is far below and small')."),
 });
 
