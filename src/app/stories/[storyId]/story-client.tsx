@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Archive, ArchiveRestore, BarChart3, CheckCircle2, Loader2, Pencil, Send } from "lucide-react";
+import { Archive, BarChart3, CheckCircle2, Loader2, Pencil, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ActionButton, useAction } from "@/components/client-helpers";
-import { addMetrics, approveEpisodeAction, markPublished, setArchived, updateStoryTitle } from "@/app/actions";
+import { addMetrics, approveEpisodeAction, markPublished, archiveStoriesAction, updateStoryTitle } from "@/app/actions";
 
 export function StoryHeaderActions({ storyId, title, archived }: { storyId: string; title: string; archived: boolean }) {
   const [open, setOpen] = useState(false);
@@ -34,18 +34,20 @@ export function StoryHeaderActions({ storyId, title, archived }: { storyId: stri
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <ActionButton
-        variant="outline"
-        action={() => setArchived(storyId, !archived)}
-        success={archived ? "Story restored" : "Story archived"}
-        confirm={
-          archived
-            ? undefined
-            : { title: "Archive this story?", description: "It stays in your library under Archived with all episodes and assets. You can restore it anytime.", confirmLabel: "Archive" }
-        }
-      >
-        {archived ? <ArchiveRestore /> : <Archive />} {archived ? "Unarchive" : "Archive"}
-      </ActionButton>
+      {archived ? null : (
+        <ActionButton
+          variant="outline"
+          action={() => archiveStoriesAction([storyId])}
+          success="Story archived and its files deleted"
+          confirm={{
+            title: "Archive this story?",
+            description: "This permanently deletes its images, voiceovers and videos from storage. The script, storyboard and metrics are kept, but the story can't be restored.",
+            confirmLabel: "Archive and delete files",
+          }}
+        >
+          <Archive /> Archive
+        </ActionButton>
+      )}
     </>
   );
 }

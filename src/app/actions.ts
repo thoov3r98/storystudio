@@ -23,6 +23,7 @@ import { ChannelCreateSchema, ChannelEditSchema } from "@/lib/schemas/channel";
 import { productionDeps } from "@/lib/pipeline/deps";
 import { writePostCopy } from "@/lib/pipeline/post";
 import { createStoryFromScript, type ScriptInput } from "@/lib/pipeline/paste";
+import { archiveStories } from "@/lib/pipeline/archive";
 
 export type ActionResult<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -94,22 +95,11 @@ export async function updateStoryTitle(storyId: string, title: string) {
   });
 }
 
-export async function setArchived(storyId: string, archived: boolean) {
-  return attempt(async () => {
-    await db.story.update({ where: { id: storyId }, data: archived ? { status: "ARCHIVED", archivedAt: new Date() } : { status: "CONCEPT", archivedAt: null } });
-    if (!archived) await refreshStoryStatus(storyId);
-  });
-}
-
-export async function setArchivedMany(storyIds: string[], archived: boolean) {
+/** Archives stories and permanently deletes their images, audio and videos. There is no unarchive. */
+export async function archiveStoriesAction(storyIds: string[]) {
   return attempt(async () => {
     const ids = z.array(z.string().min(1)).min(1).max(500).parse(storyIds);
-    if (archived) {
-      await db.story.updateMany({ where: { id: { in: ids } }, data: { status: "ARCHIVED", archivedAt: new Date() } });
-    } else {
-      await db.story.updateMany({ where: { id: { in: ids } }, data: { status: "CONCEPT", archivedAt: null } });
-      for (const id of ids) await refreshStoryStatus(id);
-    }
+    return archiveStories(ids);
   });
 }
 

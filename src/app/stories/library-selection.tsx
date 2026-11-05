@@ -1,18 +1,18 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
-import { Archive, ArchiveRestore, Loader2, X } from "lucide-react";
+import { Archive, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAction } from "@/components/client-helpers";
-import { setArchivedMany } from "@/app/actions";
+import { archiveStoriesAction } from "@/app/actions";
 import { cn } from "@/lib/utils";
 
 type Selection = { selected: Set<string>; toggle: (id: string) => void };
 
 const SelectionContext = createContext<Selection | null>(null);
 
-/** Multi-select for the story library, with a bar to archive (or unarchive) the selection. */
+/** Multi-select for the story library, with a bar to archive the selection (which deletes its files). Archived stories can't be selected. */
 export function LibrarySelection({ ids, archivedView, children }: { ids: string[]; archivedView: boolean; children: React.ReactNode }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const { pending, run } = useAction();
@@ -26,6 +26,8 @@ export function LibrarySelection({ ids, archivedView, children }: { ids: string[
   // Ignore ids that left the list (e.g. after a filter change).
   const chosen = ids.filter((id) => selected.has(id));
   const n = chosen.length;
+  // Archived stories have nothing left to do in bulk.
+  if (archivedView) return children;
 
   return (
     <SelectionContext.Provider value={{ selected, toggle }}>
@@ -47,15 +49,16 @@ export function LibrarySelection({ ids, archivedView, children }: { ids: string[
             <Button
               size="sm"
               disabled={pending}
-              onClick={() =>
-                run(() => setArchivedMany(chosen, !archivedView), {
-                  success: `${archivedView ? "Unarchived" : "Archived"} ${n} ${n === 1 ? "story" : "stories"}`,
+              onClick={() => {
+                if (!window.confirm(`Archive ${n} ${n === 1 ? "story" : "stories"}? This permanently deletes their images, voiceovers and videos. Scripts and metrics are kept; archived stories can't be restored.`)) return;
+                run(() => archiveStoriesAction(chosen), {
+                  success: `Archived ${n} ${n === 1 ? "story" : "stories"} and deleted their files`,
                   onSuccess: () => setSelected(new Set()),
-                })
-              }
+                });
+              }}
             >
-              {pending ? <Loader2 className="animate-spin" /> : archivedView ? <ArchiveRestore /> : <Archive />}
-              {archivedView ? "Unarchive" : "Archive"}
+              {pending ? <Loader2 className="animate-spin" /> : <Archive />}
+              Archive
             </Button>
           </div>
         </div>
