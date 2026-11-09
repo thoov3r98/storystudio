@@ -66,6 +66,11 @@ export async function getVoices(): Promise<Voice[]> {
   return voices;
 }
 
+/** The voice the next recording uses: the channel's current voice, else the story's, else the default. */
+export function narratorVoiceId(story: { voiceId: string | null; channel: { voiceId: string | null } | null }): string | null {
+  return story.channel?.voiceId ?? story.voiceId ?? env().ELEVENLABS_DEFAULT_VOICE_ID ?? null;
+}
+
 export async function getVoiceSettings(): Promise<VoiceSettings> {
   return readSetting("voiceSettings", VoiceSettingsSchema, VoiceSettingsSchema.parse({}));
 }

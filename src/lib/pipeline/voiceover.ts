@@ -6,8 +6,7 @@ import { alignmentToWords, buildEpisodeTiming, type CharAlignment } from "@/lib/
 import { paths, uploadAsset } from "@/lib/storage";
 import { speechCost } from "@/lib/costs/pricing";
 import { assertWithinBudget, recordCost, type CostContext } from "@/lib/costs/record";
-import { getModels, getPricing, getVoiceSettings } from "@/lib/settings";
-import { env } from "@/lib/env";
+import { getModels, getPricing, getVoiceSettings, narratorVoiceId } from "@/lib/settings";
 import { VIDEO } from "@/lib/constants";
 import { joinNarration } from "@/lib/text";
 import type { PipelineDeps } from "./deps";
@@ -15,11 +14,13 @@ import type { PipelineDeps } from "./deps";
 export async function generateVoiceover(input: { versionId: string; cost: CostContext; deps: PipelineDeps }) {
   const version = await db.episodeVersion.findUniqueOrThrow({
     where: { id: input.versionId },
-    include: { episode: { include: { story: true } }, scenes: { orderBy: { sceneNumber: "asc" } } },
+    include: { episode: { include: { story: { include: { channel: { select: { voiceId: true } } } } } }, scenes: { orderBy: { sceneNumber: "asc" } } },
   });
   const story = version.episode.story;
-  const voiceId = story.voiceId ?? env().ELEVENLABS_DEFAULT_VOICE_ID;
+  // The channel's current voice wins, so changing it on the channel applies the next time narration is recorded.
+  const voiceId = narratorVoiceId(story);
   if (!voiceId) throw new Error("No narrator voice selected for this story and ELEVENLABS_DEFAULT_VOICE_ID is not set.");
+  if (voiceId !== story.voiceId) await db.story.update({ where: { id: story.id }, data: { voiceId } });
   const text = joinNarration(version.scenes);
   const settings = await getVoiceSettings();
   const pricing = await getPricing();

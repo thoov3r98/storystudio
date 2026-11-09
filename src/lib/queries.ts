@@ -5,6 +5,7 @@ import { ACTIVE_JOB_STATUSES } from "@/lib/constants";
 import type { Prisma } from "@/generated/prisma/client";
 import type { StoryStatus } from "@/generated/prisma/enums";
 import { computeStaleness, type RenderInputs } from "@/lib/invalidation";
+import { getVoiceSettings, narratorVoiceId, VoiceSettingsSchema } from "@/lib/settings";
 
 /*
  * Every query starts with connection(): all data here is live, per-request
@@ -111,7 +112,7 @@ export async function getEpisode(episodeId: string) {
   const episode = await db.episode.findUnique({
     where: { id: episodeId },
     include: {
-      story: { include: { episodes: { orderBy: { partNumber: "asc" }, select: { id: true, partNumber: true, status: true } }, channel: { select: { format: true } } } },
+      story: { include: { episodes: { orderBy: { partNumber: "asc" }, select: { id: true, partNumber: true, status: true } }, channel: { select: { format: true, voiceId: true } } } },
       versions: { orderBy: { version: "desc" }, select: { id: true, version: true, status: true, reason: true, createdAt: true } },
       currentVersion: {
         include: {
@@ -139,7 +140,18 @@ export async function getEpisode(episodeId: string) {
       })
     : null;
   const cost = await db.costEntry.aggregate({ where: { episodeId }, _sum: { costUsd: true } });
-  return { episode, latestRender, staleness, costUsd: Number(cost._sum.costUsd ?? 0) };
+  // Voice and voice settings are baked into the MP3, so a re-render can't apply them; only a new recording can.
+  const vo = v?.voiceover?.status === "SUCCEEDED" ? v.voiceover : null;
+  let voiceChanged: { voice: boolean; settings: boolean } | null = null;
+  if (vo) {
+    const wantVoice = narratorVoiceId(episode.story);
+    const recorded = VoiceSettingsSchema.safeParse(vo.settings);
+    const current = await getVoiceSettings();
+    const voice = Boolean(wantVoice && wantVoice !== vo.voiceId);
+    const settings = !recorded.success || JSON.stringify(recorded.data) !== JSON.stringify(VoiceSettingsSchema.parse(current));
+    if (voice || settings) voiceChanged = { voice, settings };
+  }
+  return { episode, latestRender, staleness, voiceChanged, costUsd: Number(cost._sum.costUsd ?? 0) };
 }
 
 export async function listJobs(params: { status?: string }) {

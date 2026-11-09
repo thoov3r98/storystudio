@@ -37,7 +37,7 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
   await reconcileStaleJobs();
   const data = await getEpisode(episodeId);
   if (!data) notFound();
-  const { episode, latestRender, staleness, costUsd } = data;
+  const { episode, latestRender, staleness, voiceChanged, costUsd } = data;
   const v = episode.currentVersion;
   const spec = (v?.spec ?? null) as Partial<EpisodeSpecRecord> | null;
   const parsedCopy = PostCopySchema.safeParse(v?.postCopy);
@@ -146,13 +146,13 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                   size="sm"
                   confirm={
                     latestRender
-                      ? "Makes a new MP4 from the same pictures, voiceover and script, using today's Settings → Audio mix (longest pause, speed, volumes, music). Nothing is regenerated; only the render costs anything. The old MP4 stays in Render history."
+                      ? "Makes a new MP4 from the same pictures, voiceover and script, using today's Settings → Audio mix (longest pause, speed, volumes, music). Nothing is regenerated, so a new voice or voice settings are not applied; use Regenerate on the Voiceover panel for that. Only the render costs anything. The old MP4 stays in Render history."
                       : undefined
                   }
                 />
               </div>
               {latestRender ? (
-                <p className="text-xs text-muted-foreground">Changed a setting like pause length or speed? Re-render to apply it; pictures and voice are reused.</p>
+                <p className="text-xs text-muted-foreground">Changed Audio mix (pause length, speed-up, volumes, music)? Re-render to apply it. A new voice or voice settings need Regenerate on the Voiceover panel.</p>
               ) : null}
               {v.renders.length ? (
                 <details className="text-xs text-muted-foreground">
@@ -192,6 +192,14 @@ async function EpisodeContent({ params }: { params: PageProps<"/episodes/[episod
                 <h3 className="text-sm font-medium">Voiceover</h3>
                 <EpisodeActionButton episodeId={episode.id} request={{ action: "regenerate-voiceover" }} disabled={busy} label="Regenerate" size="xs" variant="outline" confirm={`Records the narration again and re-renders the video.${editNote}`} />
               </div>
+              {voiceChanged && !busy ? (
+                <p className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/70 p-2 text-xs">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" />
+                  <span>
+                    {voiceChanged.voice && voiceChanged.settings ? "The channel's voice and the voice settings have" : voiceChanged.voice ? "The channel's voice has" : "Settings → Voice has"} changed since this narration was recorded. Re-render won&apos;t apply that; Regenerate records it again and re-renders.
+                  </span>
+                </p>
+              ) : null}
               {v.voiceover?.url ? (
                 <>
                   <audio src={previewUrl(v.voiceover.url)} controls className="w-full" preload="metadata" />
