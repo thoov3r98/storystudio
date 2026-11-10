@@ -72,6 +72,20 @@ export const ILLUSTRATION_STYLES = {
       "Light off-white (#F7F6F2) background. Flat colour everywhere except the accent's soft glow; no photorealism, no 3D-render look, no heavy shading, no logos, no text, labels, letters, numbers or captions anywhere in the image.",
     ].join(" "),
   },
+  "editorial-stick-figure": {
+    label: "What Happens When? editorial",
+    description:
+      "Modern minimalist 2D editorial illustration: expressive stick figures in clean, recognisable places on warm off-white, with a fixed restrained palette and colour only on what matters.",
+    spec: [
+      "Modern minimalist 2D editorial illustration, like a frame from a premium, professionally art-directed animated explainer for curious adults; never a children's cartoon.",
+      "Clean, confident charcoal (#252525) outlines of one consistent stroke weight; simple geometric shapes and instantly recognisable objects; clear silhouettes and uncluttered scenes; subtle depth from layering and composition, never realistic rendering.",
+      "Fixed palette in every image, whatever the mood: warm off-white (#F8F7F4) background, light grey (#D9DDE1) for neutral objects, muted blue (#3B82B6) as the main accent, warm orange (#E8A04B) as the second accent, sage green (#86A78B) as a supporting colour, muted red (#D85C55) only for danger or urgency. Colour is restrained and selective: most of the scene stays line and light grey, and the narrative object of the moment stands out by contrast. Mood comes from composition, expression, small lighting cues and the situation, never from a palette change.",
+      "Characters are expressive stick-figure-inspired people: a simple circular head, minimal expressive face, thin but clearly visible charcoal limbs, slightly playful posture and gesture. The default protagonist (\"you\"), unless the episode facts describe someone else, wears a small muted-blue shirt or torso shape and dark pants and looks like a neutral, approachable adult, with the same proportions, face, clothing colours and scale relative to objects in every image. Secondary characters share the visual language with one subtle distinguishing feature each (a hair shape, a coloured top, glasses). A real, named person is a recognisable caricature of how they actually look, in the same style.",
+      "Each image shows one clear narrative moment: a character doing something, a visible consequence, a specific place, a discovery, or the object or mechanism that matters, never someone just standing and looking. Frame it the way the moment reads best: a wide shot for places and scale, a medium shot for a person dealing with something, a close-up for an object or a reaction, a neat cross-section cutaway only for something physically hidden inside a real building, machine, vehicle, body or the ground. The main subject is large and readable on a phone, in clear foreground with supporting background detail; whitespace is deliberate but most of the frame is used.",
+      "Humour, when the moment allows, is dry and situational (a deadpan expression, a telling gesture, one small detail in the environment), never slapstick or random props; serious events are drawn respectfully.",
+      "Flat colour only: no photorealism, no 3D rendering, no anime, no watercolour or paper textures, no gradients, no complex shading, no highly detailed backgrounds, no frames, borders, logos or watermarks.",
+    ].join(" "),
+  },
   "blueprint-line": {
     label: "Blueprint line art",
     description: "Thin technical line drawings, cutaways and schematics.",
